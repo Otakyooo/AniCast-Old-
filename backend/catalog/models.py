@@ -71,7 +71,13 @@ class Episode(models.Model):
 
 class Source(models.Model):
     KIND_CHOICES = [("sub", "Sub"), ("dub", "Dub"), ("raw", "Raw")]
-    AVAILABILITY_CHOICES = [("available", "Available"), ("unavailable", "Unavailable"), ("restricted", "Restricted")]
+    AVAILABILITY_CHOICES = [
+        ("available", "Available"),
+        ("unavailable", "Unavailable"),
+        ("geo_blocked", "Geo blocked"),
+        ("expired", "Expired"),
+        ("provider_error", "Provider error"),
+    ]
     episode = models.ForeignKey(Episode, related_name="sources", on_delete=models.CASCADE)
     name = models.CharField(max_length=120)
     url = models.URLField()

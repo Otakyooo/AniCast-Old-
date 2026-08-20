@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
                 ("name", models.CharField(max_length=120)),
                 ("url", models.URLField()),
                 ("kind", models.CharField(choices=[("sub", "Sub"), ("dub", "Dub"), ("raw", "Raw")], default="sub", max_length=10)),
-                ("availability", models.CharField(choices=[("available", "Available"), ("unavailable", "Unavailable"), ("restricted", "Restricted")], default="available", max_length=20)),
+                ("availability", models.CharField(choices=[("available", "Available"), ("unavailable", "Unavailable"), ("geo_blocked", "Geo blocked"), ("expired", "Expired"), ("provider_error", "Provider error")], default="available", max_length=20)),
                 ("availability_reason", models.CharField(blank=True, max_length=240)),
                 ("episode", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="sources", to="catalog.episode")),
             ],

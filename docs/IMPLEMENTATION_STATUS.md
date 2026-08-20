@@ -1,4 +1,23 @@
-# AniCast — статус технического фундамента
+# AniCast — статус MVP discovery slice
+
+Дата: 20 августа 2026
+
+## Готовый сквозной срез
+
+Гостевой путь «найти тайтл → открыть карточку → понять метаданные и франшизу → увидеть эпизоды и честный статус источника» реализован локально:
+
+- read-only API `/api/v1/titles/` с поиском `q`, пагинацией и фильтрами `type`, `status`, `genre`;
+- детальная выдача по slug с жанрами, франшизой, эпизодами и availability states источников;
+- deterministic demo seed через `python manage.py seed_catalog`;
+- frontend `/catalog` и `/titles/<slug>` с responsive layout, loading/error/empty/not-found states;
+- unavailable, geo-blocked, expired и provider-error источники показываются как статусы, без обманчивого playback/embed;
+- навигация будущих разделов явно отключена, без inert `href="#"`.
+
+## Ограничения проверки
+
+Frontend-проверки требуют установки зависимостей из `frontend/package-lock.json`. Backend-проверки требуют Python packages из `backend/requirements.txt`; если окружение не содержит pip/Django, команды остаются заблокированными и не считаются успешно пройденными.
+
+## Что реализовано
 
 Дата: 20 августа 2026
 
@@ -64,8 +83,6 @@ Backend-тесты выполнялись с локальным SQLite. PostgreS
 
 Следующие части оставлены для следующих итераций:
 
-- доменные модели каталога, франшиз, эпизодов и источников;
-- REST API `/api/v1/`;
 - регистрация, вход и пользовательские сессии на уровне продукта;
 - история, прогресс, списки и расписание;
 - provider adapter, playback states и rights registry;
