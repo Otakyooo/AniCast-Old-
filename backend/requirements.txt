@@ -1,0 +1,21 @@
+Django==5.2.5
+djangorestframework==3.16.1
+celery==5.5.3
+redis==6.4.0
+psycopg[binary]==3.2.10
+
+# Development
+pytest==8.4.1
+pytest-xdist==3.8.0
+pytest-django==4.11.1
+ruff==0.12.9
+mypy==1.17.1
+django-stubs==5.2.2
+
+uvicorn==0.35.0
+gunicorn==23.0.0
+
+-c constraints.txt
+
+
+# constraints.txt is intentionally generated separately for reproducible installs.

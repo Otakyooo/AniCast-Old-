@@ -1,0 +1,27 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+node_modules/
+.next/
+dist/
+coverage/
+*.sqlite3
+*.tsbuildinfo
+*.log
+.DS_Store
+.idea/
+.vscode/
+.cache/
+
+# Local deployment and credential files
+/etc/anicast/
+**/.env.local
+**/.env.production
+**/secrets/
+**/credentials/

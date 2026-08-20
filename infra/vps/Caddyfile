@@ -1,0 +1,15 @@
+www.anicast.online {
+    redir https://anicast.online{uri} permanent
+}
+
+anicast.online {
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy 10.78.0.2:8000
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+}

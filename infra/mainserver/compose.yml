@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+  backend:
+    build: ../../backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports:
+      - "10.78.0.2:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+  celery-worker:
+    build: ../../backend
+    restart: unless-stopped
+    env_file: .env
+    command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications,providers,maintenance,analytics"]
+    depends_on: {backend: {condition: service_healthy}}
+    networks: [internal]
+  celery-beat:
+    build: ../../backend
+    restart: unless-stopped
+    env_file: .env
+    command: ["celery", "-A", "config", "beat", "-l", "INFO"]
+    depends_on: {backend: {condition: service_healthy}}
+    networks: [internal]
+networks:
+  internal:
+    internal: true
+volumes:
+  postgres_data:
+  redis_data:

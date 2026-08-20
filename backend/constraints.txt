@@ -1,0 +1,2 @@
+# Dependency constraints are kept separate so production and development installs
+# can share the same application requirements file.
