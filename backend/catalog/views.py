@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.db import IntegrityError
+from django.http import HttpResponseRedirect
 from django.db.models import Count, Prefetch, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -13,7 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
 
 from .models import Character, Episode, Franchise, MediaAsset, SourceReport, Title
-from .playback import authorized_playback_source
+from .playback import issue_playback, resolve_playback
 from .serializers import (
     FranchiseDetailSerializer,
     FranchiseSummarySerializer,
@@ -126,12 +127,27 @@ class SourceReportView(ListAPIView):
 
 class PlaybackView(APIView):
     def get(self, request, source_id):
-        source = authorized_playback_source(source_id)
-        if source is None:
+        playback = issue_playback(source_id)
+        if playback is None:
             from rest_framework.exceptions import NotFound
 
             raise NotFound("Источник недоступен для просмотра.")
-        return Response({"mode": "external_link", "url": source.url})
+        response = Response({"mode": playback.mode, "url": playback.url, "expires_at": playback.expires_at})
+        response["Cache-Control"] = "no-store, private"
+        return response
+
+
+class PlaybackResolveView(APIView):
+    def get(self, request, token):
+        target = resolve_playback(token)
+        if target is None:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("Ссылка просмотра недействительна или истекла.")
+        response = HttpResponseRedirect(target)
+        response["Cache-Control"] = "no-store, private"
+        response["Referrer-Policy"] = "no-referrer"
+        return response
 
 
 class FranchiseListView(ListAPIView):

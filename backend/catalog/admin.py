@@ -1,4 +1,6 @@
+from django import forms
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .models import (
@@ -21,7 +23,44 @@ from .models import (
     TitleCharacter,
     TitleTranslation,
 )
-from .playback import source_url_allowed
+from .playback import source_url_allowed, validate_provider_configuration
+
+
+class ProviderAdminForm(forms.ModelForm):
+    class Meta:
+        model = Provider
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        try:
+            adapter, config, hosts = validate_provider_configuration(
+                cleaned_data.get("playback_adapter"),
+                cleaned_data.get("playback_config"),
+                cleaned_data.get("allowed_hosts"),
+            )
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
+        cleaned_data["playback_adapter"] = adapter
+        cleaned_data["playback_config"] = config
+        cleaned_data["allowed_hosts"] = hosts
+        return cleaned_data
+
+
+class SourceAdminForm(forms.ModelForm):
+    class Meta:
+        model = Source
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        provider = cleaned_data.get("provider")
+        url = cleaned_data.get("url")
+        if provider is not None and url:
+            candidate = Source(provider=provider, url=url)
+            if not source_url_allowed(candidate):
+                raise ValidationError("URL must be credential-free HTTPS on the provider allowlist.")
+        return cleaned_data
 
 
 class EpisodeInline(admin.TabularInline):
@@ -90,6 +129,7 @@ class CharacterMediaInline(admin.TabularInline):
 
 class SourceInline(admin.TabularInline):
     model = Source
+    form = SourceAdminForm
     fields = ["provider", "name", "kind", "url", "availability", "availability_reason"]
     extra = 0
 
@@ -151,6 +191,7 @@ class MediaAssetAdmin(admin.ModelAdmin):
 
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):
+    form = SourceAdminForm
     list_display = ["episode", "provider", "name", "kind", "availability", "last_http_status", "consecutive_failures", "last_checked_at"]
     list_filter = ["kind", "availability"]
     search_fields = ["name", "episode__title__name"]
@@ -177,10 +218,12 @@ class SourceHealthCheckAdmin(admin.ModelAdmin):
 
 @admin.register(Provider)
 class ProviderAdmin(admin.ModelAdmin):
+    form = ProviderAdminForm
     list_display = ["name", "slug", "is_enabled", "updated_at"]
     list_filter = ["is_enabled"]
     search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
+    fields = ["name", "slug", "website_url", "allowed_hosts", "playback_adapter", "playback_config", "is_enabled"]
 
 
 @admin.register(RightsGrant)

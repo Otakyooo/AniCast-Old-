@@ -18,6 +18,7 @@ from catalog.models import (
     Title,
     TitleTranslation,
 )
+from catalog.playback import source_url_allowed, validate_provider_configuration
 
 SUPPORTED_LANGUAGES = {code for code, _ in LANGUAGE_CHOICES}
 
@@ -41,9 +42,14 @@ def validate_payload(payload):
             require_string(item.get("name"), f"{section}[{index}].name")
             validate_translations(item.get("translations", {}), f"{section}[{index}].translations")
             if section == "providers":
-                hosts = item.get("allowed_hosts", [])
-                if not isinstance(hosts, list) or any(not isinstance(host, str) or not host for host in hosts):
-                    raise CommandError(f"providers[{index}].allowed_hosts: ожидается массив hostname")
+                try:
+                    validate_provider_configuration(
+                        item.get("playback_adapter"),
+                        item.get("playback_config", {}),
+                        item.get("allowed_hosts", []),
+                    )
+                except ValueError as error:
+                    raise CommandError(f"providers[{index}]: {error}") from error
     title_slugs = set()
     for index, item in enumerate(payload.get("titles", [])):
         if not isinstance(item, dict):
@@ -126,7 +132,12 @@ def apply_payload(payload):
         )
         provider.name = require_string(item.get("name"), "providers.name")
         provider.website_url = str(item.get("website_url", ""))
-        provider.allowed_hosts = item.get("allowed_hosts", []) if isinstance(item.get("allowed_hosts", []), list) else []
+        adapter, config, hosts = validate_provider_configuration(
+            item.get("playback_adapter"), item.get("playback_config", {}), item.get("allowed_hosts", [])
+        )
+        provider.allowed_hosts = hosts
+        provider.playback_adapter = adapter
+        provider.playback_config = config
         if created:
             provider.is_enabled = False
         provider.save()
@@ -170,6 +181,9 @@ def apply_payload(payload):
                 provider = Provider.objects.filter(slug=source_item["provider"]).first()
                 if provider is None:
                     raise CommandError(f"Источник {source_item['name']}: provider {source_item['provider']} не найден")
+                candidate = Source(provider=provider, url=source_item["url"])
+                if not source_url_allowed(candidate):
+                    raise CommandError(f"Источник {source_item['name']}: URL не соответствует provider allowlist")
                 Source.objects.update_or_create(
                     episode=episode, name=source_item["name"], kind=source_item.get("kind", "sub"),
                     defaults={"provider": provider, "url": source_item["url"], "availability": source_item.get("availability", "available"), "availability_reason": str(source_item.get("availability_reason", ""))},

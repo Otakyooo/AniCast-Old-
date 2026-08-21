@@ -243,6 +243,8 @@ class Provider(models.Model):
     slug = models.SlugField(max_length=140, unique=True)
     website_url = models.URLField(blank=True)
     allowed_hosts = models.JSONField(default=list, blank=True)
+    playback_adapter = models.CharField(max_length=64, blank=True)
+    playback_config = models.JSONField(default=dict, blank=True)
     is_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
