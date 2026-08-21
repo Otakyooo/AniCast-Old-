@@ -1,100 +1,106 @@
-# AniCast — статус MVP discovery slice
+# AniCast — статус реализации
 
-Дата: 20 августа 2026
+Дата: 21 августа 2026
 
-## Готовый сквозной срез
+## Production
 
-Гостевой путь «найти тайтл → открыть карточку → понять метаданные и франшизу → увидеть эпизоды и честный статус источника» реализован локально:
+- сайт: `https://anicast.online`;
+- frontend: Next.js 15 на VPS за Caddy;
+- backend: Django 5.2 + DRF на MainServer;
+- backend доступен с VPS через AmneziaWG по `10.78.0.2:8000`;
+- PostgreSQL, Redis, Celery worker и Celery Beat запущены через Docker Compose;
+- Caddy маршрутизирует `/api/*` на MainServer, остальные запросы — на Next.js;
+- readiness проверяет PostgreSQL и Redis;
+- перед миграциями создаются локальные PostgreSQL backups в `backups/`.
 
-- read-only API `/api/v1/titles/` с поиском `q`, пагинацией и фильтрами `type`, `status`, `genre`;
-- детальная выдача по slug с жанрами, франшизой, эпизодами и availability states источников;
-- deterministic demo seed через `python manage.py seed_catalog`;
-- frontend `/catalog` и `/titles/<slug>` с responsive layout, loading/error/empty/not-found states;
-- unavailable, geo-blocked, expired и provider-error источники показываются как статусы, без обманчивого playback/embed;
-- навигация будущих разделов явно отключена, без inert `href="#"`.
+## Discovery
 
-## Ограничения проверки
+- каталог `/catalog` с поиском, фильтрами и пагинацией;
+- API `/api/v1/titles/` и детальная выдача по slug;
+- жанры, франшизы, эпизоды и статусы источников;
+- отдельные страницы тайтла и эпизода;
+- unavailable, geo-blocked, expired и provider-error источники показываются честно, без фиктивного playback;
+- deterministic demo seed через `python manage.py seed_catalog`.
 
-Frontend-проверки требуют установки зависимостей из `frontend/package-lock.json`. Backend-проверки требуют Python packages из `backend/requirements.txt`; если окружение не содержит pip/Django, команды остаются заблокированными и не считаются успешно пройденными.
+## Аккаунты
 
-## Что реализовано
+- email-регистрация и вход;
+- Django cookie sessions, Secure/HttpOnly cookies и CSRF-защита;
+- проверка сложности пароля и rate limiting auth endpoints;
+- страницы `/login`, `/register` и `/account`;
+- email может отсутствовать у аккаунта, созданного через внешний identity provider;
+- внешние identity хранятся отдельно от основной модели пользователя.
 
-Дата: 20 августа 2026
+### Telegram
 
-## Изученные требования
+- legacy Telegram Login Widget удалён из пользовательского потока;
+- вход выполняется подтверждением через `@anicast_auth_bot`, без ввода номера на сайте;
+- сайт создаёт одноразовый challenge сроком на пять минут;
+- challenge хранится в БД только как SHA-256 hash и привязывается к браузерной Django-сессии;
+- пользователь открывает deep link `t.me/<bot>?start=<challenge>` и нажимает Start;
+- Telegram webhook защищён отдельным `X-Telegram-Bot-Api-Secret-Token`;
+- webhook подтверждает Telegram identity, браузер получает сессию через polling;
+- challenge имеет состояния pending, approved, consumed и expired;
+- повторное использование, истёкший challenge и попытка завершения из другого браузера отклоняются;
+- production webhook зарегистрирован на `/api/v1/auth/telegram/webhook/`.
 
-Перед началом реализации изучены три документа в `docs/`:
+## Личная библиотека
 
-- функциональная концепция и приоритеты v2.0;
-- техническая архитектура и план развертывания v2.0;
-- дизайн-концепция и UX-направление v0.1.
+- приватный API `/api/v1/library/`;
+- страница `/library`;
+- статусы: смотрю, запланировано, просмотрено, отложено и брошено;
+- избранное хранится независимо от статуса;
+- добавление, изменение и удаление доступны со страницы тайтла;
+- библиотека изолирована по пользователю и синхронизируется через серверную сессию.
 
-Документы в `docs/` сохранены без изменений.
+## История эпизодов
 
-## Что реализовано
-
-### Backend
-
-- Django 5.2 + Django REST Framework;
-- базовый модульный монолит `config`/`common`;
-- endpoints `/health/live` и `/health/ready`;
-- PostgreSQL как production database и SQLite-режим для локальных тестов;
-- Django Sessions, HttpOnly/Secure cookies и CSRF baseline;
-- Celery configuration;
-- Dockerfile, pytest, Ruff и mypy configuration.
-
-### Frontend
-
-- Next.js 15 + React + TypeScript;
-- standalone production build;
-- базовая главная страница AniCast;
-- тёмная UI-система с фиолетовым акцентом;
-- desktop-sidebar и mobile-adaptive layout;
-- базовая поисковая строка и персональный вход;
-- ESLint и TypeScript configuration.
-
-### Infrastructure
-
-- MainServer Compose: PostgreSQL, Redis, Django, Celery worker и Celery Beat;
-- внутренние Docker networks и healthchecks;
-- backend bind на `10.78.0.2:8000`;
-- VPS Compose с frontend на `127.0.0.1:3000`;
-- Caddy routing: `/api/*` через AmneziaWG на backend, остальной трафик на Next.js;
-- env-примеры без production secrets;
-- корневой `.gitignore` и README.
+- отдельная страница `/history`;
+- открытие страницы эпизода создаёт подтверждённую запись истории;
+- пользователь может явно отметить эпизод просмотренным и снять отметку;
+- повторное открытие не сбрасывает watched-state;
+- главная показывает блок «Недавно открывали» только авторизованному пользователю;
+- точный таймкод не имитируется и не сохраняется без подтверждённого provider callback.
 
 ## Проверки
 
-На этапе подготовки были успешно выполнены:
+Последний полный локальный прогон:
 
-- backend tests: `2 passed`;
-- Ruff: `All checks passed`;
-- mypy: `Success: no issues found`;
+- backend: `23 passed`;
+- Ruff: без ошибок;
+- mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
+- `makemigrations --check --dry-run`: изменений нет;
 - frontend lint: без warnings и errors;
 - frontend typecheck: успешно;
 - frontend production build: успешно;
-- MainServer Docker Compose config: успешно;
-- VPS Docker Compose config: успешно.
+- `git diff --check`: успешно.
 
-Backend-тесты выполнялись с локальным SQLite. PostgreSQL hostname `postgres` доступен внутри Docker Compose network.
+Production smoke-check подтверждает:
 
-## Не реализовано на этом этапе
+- публичные страницы и API отвечают;
+- регистрация, cookie session, библиотека и история работают end-to-end;
+- Telegram challenge возвращает pending до подтверждения;
+- неверный webhook secret отклоняется;
+- webhook approval создаёт identity;
+- challenge завершается только в исходной браузерной сессии;
+- после завершения `/auth/me/` возвращает авторизованного пользователя;
+- Telegram сообщает healthy webhook status без last error.
 
-Следующие части оставлены для следующих итераций:
+## Следующие задачи
 
-- регистрация, вход и пользовательские сессии на уровне продукта;
-- история, прогресс, списки и расписание;
-- provider adapter, playback states и rights registry;
-- контентная админка, аудит и аналитика;
-- персонажи, личные заметки, community и moderation;
-- уведомления, рекомендации, Premium и внешние каналы;
-- production deployment, backup/restore и monitoring automation.
+- provider adapter и rights registry;
+- разрешённый внешний playback или embed с callback прогресса;
+- расписание релизов;
+- контентная админка и аудит изменений;
+- жалобы на недоступные источники;
+- мониторинг ошибок, метрики и автоматизированный rollback;
+- персонажи, заметки, community и moderation;
+- уведомления, рекомендации и Premium.
 
-## Известное расхождение требований
+## Ограничения
 
-Дизайн-концепция фиксирует персонажей и личные заметки как часть Wiki-направления v0.1, а функциональная концепция относит соответствующую функциональность к последующим этапам. В текущей итерации это учтено как будущее расширение, без включения в P0-функциональность.
-
-## Git
-
-Перенос выполнен в репозиторий `/home/lama_admin/anicast`. Существующий Git history сохранён. Commit, push и merge не выполнялись.
+- точная позиция просмотра не реализована без доверенного callback от провайдера;
+- источники не запускаются, пока не определены права и разрешённый способ интеграции;
+- Telegram bot token и webhook secret должны храниться только в игнорируемом production `.env`;
+- test suite использует SQLite, а критический Telegram polling flow дополнительно проверяется production smoke-тестом на PostgreSQL.

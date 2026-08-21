@@ -45,3 +45,26 @@ class ExternalIdentity(models.Model):
 
     def __str__(self) -> str:
         return f"{self.provider}:{self.subject}"
+
+
+class TelegramLoginChallenge(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        CONSUMED = "consumed", "Consumed"
+        EXPIRED = "expired", "Expired"
+
+    token_hash = models.CharField(max_length=64, unique=True)
+    session_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    user = models.ForeignKey(User, related_name="telegram_login_challenges", null=True, blank=True, on_delete=models.SET_NULL)
+    expires_at = models.DateTimeField()
+    approved_at = models.DateTimeField(null=True, blank=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "expires_at"])]
+
+    def __str__(self) -> str:
+        return f"Telegram challenge {self.pk} ({self.status})"
