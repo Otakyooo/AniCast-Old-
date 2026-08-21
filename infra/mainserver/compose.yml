@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
-    env_file: .env
+    env_file: ${ANICAST_ENV_FILE:-.env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -10,6 +10,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
+    logging: &container-logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
     networks: [internal]
   redis:
     image: redis:7-alpine
@@ -22,35 +26,56 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    logging: *container-logging
     networks: [internal]
   backend:
+    image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
     restart: unless-stopped
-    env_file: .env
+    env_file: ${ANICAST_ENV_FILE:-.env}
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
     ports:
       - "10.78.0.2:8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/health/live', headers={'X-Forwarded-Proto': 'https'}))"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/health/ready', headers={'X-Forwarded-Proto': 'https'}), timeout=4)"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    logging: *container-logging
     networks: [internal]
   celery-worker:
+    image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
     restart: unless-stopped
-    env_file: .env
+    env_file: ${ANICAST_ENV_FILE:-.env}
     command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications,providers,maintenance,analytics"]
     depends_on: {backend: {condition: service_healthy}}
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config inspect ping --destination celery@$${HOSTNAME} --timeout 5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *container-logging
     networks: [internal]
   celery-beat:
+    image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
     restart: unless-stopped
-    env_file: .env
-    command: ["celery", "-A", "config", "beat", "-l", "INFO"]
+    env_file: ${ANICAST_ENV_FILE:-.env}
+    command: ["celery", "-A", "config", "beat", "-l", "INFO", "--pidfile=/tmp/celerybeat.pid"]
     depends_on: {backend: {condition: service_healthy}}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; pid=int(open('/tmp/celerybeat.pid').read()); os.kill(pid, 0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *container-logging
     networks: [internal]
 networks:
   internal:

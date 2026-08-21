@@ -1,4 +1,5 @@
 from urllib.error import HTTPError
+import logging
 
 from celery import shared_task
 from django.conf import settings
@@ -9,6 +10,9 @@ from catalog.i18n import translated_value_for_language
 
 from .models import NotificationDelivery, TelegramNotificationChannel, TitleNotificationSubscription
 from .telegram import send_notification
+from common.metrics import increment
+
+logger = logging.getLogger("anicast.notifications")
 
 
 @shared_task
@@ -50,8 +54,9 @@ def dispatch_episode_notifications():
                 send_notification(channel.chat_id, message)
             except Exception as error:
                 delivery.status = NotificationDelivery.Status.FAILED
-                delivery.error = str(error)[:500]
+                delivery.error = type(error).__name__[:500]
                 failed += 1
+                increment("notification_deliveries", "failed")
                 if isinstance(error, HTTPError) and error.code in {400, 403}:
                     TelegramNotificationChannel.objects.filter(pk=channel.pk).update(
                         is_active=False, disabled_at=timezone.now(), last_error=delivery.error
@@ -61,5 +66,9 @@ def dispatch_episode_notifications():
                 delivery.sent_at = timezone.now()
                 delivery.error = ""
                 sent += 1
+                increment("notification_deliveries", "sent")
             delivery.save(update_fields=["status", "attempts", "error", "sent_at", "updated_at"])
+    logger.info("notification batch completed", extra={
+        "event": "notification_batch_completed", "sent": sent, "failed": failed,
+    })
     return {"sent": sent, "failed": failed}

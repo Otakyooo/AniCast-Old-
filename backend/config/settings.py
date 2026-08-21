@@ -10,7 +10,7 @@ ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,12
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
     "django.contrib.messages", "django.contrib.staticfiles", "rest_framework",
-    "common",
+    "common.apps.CommonConfig",
     "catalog",
     "accounts",
     "library",
@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "community",
 ]
 MIDDLEWARE = [
+    "common.middleware.ObservabilityMiddleware",
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware", "django.middleware.csrf.CsrfViewMiddleware",
@@ -75,6 +76,13 @@ PLAYBACK_URL_TTL_SECONDS = int(os.environ.get("PLAYBACK_URL_TTL_SECONDS", "60"))
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
+CELERY_TASK_ROUTES = {
+    "push.tasks.dispatch_episode_notifications": {"queue": "notifications"},
+    "catalog.tasks.check_provider_sources": {"queue": "providers"},
+}
+CELERY_TASK_SOFT_TIME_LIMIT = 540
+CELERY_TASK_TIME_LIMIT = 570
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BEAT_SCHEDULE = {
     "dispatch-episode-notifications": {
         "task": "push.tasks.dispatch_episode_notifications",
@@ -92,3 +100,16 @@ SECURE_HSTS_SECONDS = 31_536_000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 X_FRAME_OPTIONS = "DENY"
+METRICS_BEARER_TOKEN = os.environ.get("METRICS_BEARER_TOKEN", "")
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "common.logging.JsonFormatter"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django.server": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "anicast": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+    },
+}

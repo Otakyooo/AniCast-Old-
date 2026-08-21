@@ -33,7 +33,7 @@ def test_health_check_rejects_private_dns(monitored_source):
 
     result = check_source(monitored_source, resolver=resolver)
     assert result.is_healthy is False
-    assert "private" in result.error
+    assert result.error == "private_destination"
 
 
 @pytest.mark.django_db
@@ -70,6 +70,18 @@ def test_task_marks_three_failures_and_recovers_automatic_error(monitored_source
     monitored_source.refresh_from_db()
     assert monitored_source.availability == "available"
     assert monitored_source.consecutive_failures == 0
+
+
+@pytest.mark.django_db
+def test_health_error_does_not_persist_source_url(monitored_source, monkeypatch):
+    secret_url = "https://watch.example.com/episode/1?token=must-not-leak"
+    monitored_source.url = secret_url
+    monitored_source.save(update_fields=["url"])
+    monkeypatch.setattr("catalog.tasks.check_source", lambda source: HealthResult(False, None, 5, "network_error"))
+    check_provider_sources()
+    check = SourceHealthCheck.objects.get(source=monitored_source)
+    assert check.error == "network_error"
+    assert secret_url not in check.error
 
 
 def import_payload():

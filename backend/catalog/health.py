@@ -10,6 +10,23 @@ from .models import Source
 from .playback import source_url_allowed
 
 
+def safe_error_code(error: Exception) -> str:
+    if isinstance(error, TimeoutError):
+        return "timeout"
+    if isinstance(error, socket.gaierror):
+        return "dns_error"
+    if isinstance(error, HTTPError):
+        return f"http_{error.code // 100}xx"
+    if isinstance(error, ValueError):
+        text = str(error).lower()
+        if "private" in text or "reserved" in text:
+            return "private_destination"
+        if "redirect" in text:
+            return "redirect"
+        return "invalid_destination"
+    return "network_error"
+
+
 class NoRedirectHandler(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -55,4 +72,4 @@ def check_source(source: Source, *, resolver=socket.getaddrinfo, opener=None) ->
         healthy = 200 <= status < 300 or status in {401, 403, 405}
         return HealthResult(healthy, status, round((time.monotonic() - started) * 1000), "" if healthy else f"HTTP {status}")
     except Exception as error:
-        return HealthResult(False, getattr(error, "code", None), round((time.monotonic() - started) * 1000), str(error)[:500])
+        return HealthResult(False, getattr(error, "code", None), round((time.monotonic() - started) * 1000), safe_error_code(error))
