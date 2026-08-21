@@ -1,14 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import type { CatalogItem } from "../lib/api";
-
-const statusLabels: Record<string, string> = {
-  ongoing: "Выходит",
-  finished: "Завершено",
-  planned: "Скоро",
-};
+import { useI18n } from "./i18n-provider";
 
 export function CatalogCard({ item }: { item: CatalogItem }) {
-  const status = item.status ? statusLabels[item.status] ?? item.status : "Аниме";
+  const { t } = useI18n();
+  const status = item.status ? t(`status.${item.status}`) : t("type.anime");
 
   return (
     <Link className="catalog-card" href={`/titles/${item.slug}`}>
@@ -22,7 +20,7 @@ export function CatalogCard({ item }: { item: CatalogItem }) {
       <div className="catalog-card-body">
         <span className="card-kicker">{status}</span>
         <h2>{item.name}</h2>
-        <p>{item.year ?? "Год не указан"}{item.title_type ? ` · ${item.title_type}` : ""}</p>
+        <p>{item.year ?? t("year.unknown")}{item.title_type ? ` · ${t(`type.${item.title_type}`)}` : ""}</p>
       </div>
     </Link>
   );

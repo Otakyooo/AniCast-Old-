@@ -14,9 +14,12 @@ def request_language(context) -> str:
 
 
 def translated_value(instance, field: str, context) -> str:
+    return translated_value_for_language(instance, field, request_language(context))
+
+
+def translated_value_for_language(instance, field: str, requested: str) -> str:
     translations = list(instance.translations.all())
     by_language = {translation.language: translation for translation in translations}
-    requested = request_language(context)
     requested_translation = by_language.get(requested)
     if requested_translation is not None:
         return getattr(requested_translation, field)

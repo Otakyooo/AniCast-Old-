@@ -7,7 +7,13 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "display_name"]
+        fields = ["id", "email", "display_name", "preferred_language"]
+
+
+class UserPreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["preferred_language"]
 
 
 class RegisterSerializer(serializers.Serializer):

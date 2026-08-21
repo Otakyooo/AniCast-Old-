@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 
 from .models import ExternalIdentity, TelegramLoginChallenge, User
-from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from .serializers import LoginSerializer, RegisterSerializer, UserPreferencesSerializer, UserSerializer
 from .telegram_bot import create_challenge_token, hash_secret, valid_challenge_token
 
 
@@ -76,6 +76,15 @@ def sign_out(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def current_user(request):
+    return Response(UserSerializer(request.user).data)
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def user_preferences(request):
+    serializer = UserPreferencesSerializer(request.user, data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
     return Response(UserSerializer(request.user).data)
 
 

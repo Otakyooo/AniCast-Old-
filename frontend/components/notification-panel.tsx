@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { createNotificationChallenge, disconnectNotificationChannel, getNotificationChannel } from "../lib/notifications";
 import styles from "../app/notifications.module.css";
+import { useI18n } from "./i18n-provider";
 
 export function NotificationPanel({ botUsername }: { botUsername?: string }) {
+  const { t } = useI18n();
   const [connected, setConnected] = useState<boolean>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -21,10 +23,10 @@ export function NotificationPanel({ botUsername }: { botUsername?: string }) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         if ((await getNotificationChannel()).connected) { setConnected(true); setPending(false); return; }
       }
-      throw new Error("Время подключения истекло.");
-    } catch (reason) { popup?.close(); setError(reason instanceof Error ? reason.message : "Не удалось подключить бота."); setPending(false); }
+      throw new Error(t("common.error"));
+    } catch (reason) { popup?.close(); setError(reason instanceof Error ? reason.message : t("common.error")); setPending(false); }
   }
-  async function disconnect() { setPending(true); try { await disconnectNotificationChannel(); setConnected(false); } catch (reason) { setError(reason instanceof Error ? reason.message : "Ошибка отключения."); } finally { setPending(false); } }
+  async function disconnect() { setPending(true); try { await disconnectNotificationChannel(); setConnected(false); } catch (reason) { setError(reason instanceof Error ? reason.message : t("common.error")); } finally { setPending(false); } }
   if (!botUsername) return null;
-  return <section className={styles.panel}><h3>Telegram-уведомления</h3><p>{connected ? `Подключён @${botUsername}` : "Подключите отдельного бота для уведомлений о новых эпизодах."}</p><button type="button" disabled={pending || connected === undefined} onClick={connected ? disconnect : connect}>{pending ? "Подождите..." : connected ? "Отключить" : "Подключить бота"}</button>{error && <span>{error}</span>}</section>;
+  return <section className={styles.panel}><h3>{t("notifications.title")}</h3><p>{connected ? t("notifications.connected", { bot: botUsername }) : t("notifications.description")}</p><button type="button" disabled={pending || connected === undefined} onClick={connected ? disconnect : connect}>{pending ? t("notifications.pending") : connected ? t("notifications.disconnect") : t("notifications.connect")}</button>{error && <span>{error}</span>}</section>;
 }

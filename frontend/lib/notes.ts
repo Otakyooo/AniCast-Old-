@@ -1,9 +1,10 @@
 import type { CatalogItem } from "./api";
 import { getCsrfToken } from "./auth";
+import { clientMessage } from "../i18n/client";
 
 export interface TitleNote { title: CatalogItem; body: string; created_at: string; updated_at: string }
 export interface NotesResponse { count: number; next: string | null; previous: string | null; results: TitleNote[] }
-export class NoteApiError extends Error { constructor(public status: number) { super("Не удалось выполнить запрос заметки."); } }
+export class NoteApiError extends Error { constructor(public status: number) { super(clientMessage("Не удалось выполнить запрос заметки.", "Note request failed.")); } }
 
 async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) throw new NoteApiError(response.status);

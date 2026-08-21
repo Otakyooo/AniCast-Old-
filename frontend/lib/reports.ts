@@ -1,4 +1,5 @@
 import { getCsrfToken } from "./auth";
+import { clientLanguage, clientMessage } from "../i18n/client";
 
 export type SourceReportReason = "unavailable" | "wrong_content" | "geo_blocked" | "quality" | "other";
 
@@ -18,8 +19,8 @@ export async function createSourceReport(payload: { source: number; reason: Sour
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null) as Record<string, string | string[]> | null;
-    const message = body ? Object.values(body).flat().find(Boolean) : null;
-    throw new SourceReportApiError(response.status, message ?? "Не удалось отправить жалобу.");
+    const message = clientLanguage() === "en" ? null : body ? Object.values(body).flat().find(Boolean) : null;
+    throw new SourceReportApiError(response.status, message ?? clientMessage("Не удалось отправить жалобу.", "Could not send report."));
   }
   return response.json();
 }

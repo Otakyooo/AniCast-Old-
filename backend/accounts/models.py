@@ -8,9 +8,11 @@ from .managers import UserManager
 
 
 class User(AbstractUser):
+    LANGUAGE_CHOICES = [("ru", "Русский"), ("en", "English")]
     username = None  # type: ignore[assignment]
     email = models.EmailField(unique=True, null=True, blank=True)  # type: ignore[assignment]
     display_name = models.CharField(max_length=80, blank=True)
+    preferred_language = models.CharField("Язык интерфейса", max_length=8, choices=LANGUAGE_CHOICES, default="ru")
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: ClassVar[list[str]] = []

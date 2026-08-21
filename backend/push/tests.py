@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Episode, Title
+from catalog.models import Episode, EpisodeTranslation, Title, TitleTranslation
 from push.models import NotificationDelivery, TelegramNotificationChannel, TitleNotificationSubscription
 from push.tasks import dispatch_episode_notifications
 
@@ -99,3 +99,21 @@ def test_delivery_task_is_idempotent(notification_data, monkeypatch):
     delivery = NotificationDelivery.objects.get(episode=episode)
     assert delivery.status == NotificationDelivery.Status.SENT
     assert delivery.attempts == 1
+
+
+@override_settings(TELEGRAM_NOTIFY_BOT_TOKEN="notify-token")
+@pytest.mark.django_db
+def test_delivery_uses_user_language_and_content_translation(notification_data, monkeypatch):
+    user, title, episode = notification_data
+    user.preferred_language = "en"
+    user.save(update_fields=["preferred_language"])
+    TitleTranslation.objects.create(title=title, language="en", name="English title")
+    EpisodeTranslation.objects.create(episode=episode, language="en", name="English episode")
+    TelegramNotificationChannel.objects.create(user=user, telegram_user_id=456, chat_id=456)
+    TitleNotificationSubscription.objects.create(user=user, title=title)
+    sent = []
+    monkeypatch.setattr("push.tasks.send_notification", lambda chat_id, text: sent.append(text))
+    dispatch_episode_notifications()
+    assert "New AniCast episode" in sent[0]
+    assert "English title" in sent[0]
+    assert "English episode" in sent[0]

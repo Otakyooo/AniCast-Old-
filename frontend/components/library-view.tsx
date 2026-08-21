@@ -6,14 +6,12 @@ import { useEffect, useState } from "react";
 import { CatalogCard } from "./catalog-card";
 import { getLibrary, LibraryApiError, type LibraryResponse } from "../lib/library";
 import styles from "../app/library/library.module.css";
-
-const filters = [
-  ["Все", "/library"], ["Смотрю", "/library?status=watching"], ["Запланировано", "/library?status=planned"],
-  ["Просмотрено", "/library?status=completed"], ["Отложено", "/library?status=on_hold"], ["Брошено", "/library?status=dropped"], ["Избранное", "/library?favorite=true"],
-];
-const statusLabels: Record<string, string> = { planned: "Запланировано", watching: "Смотрю", completed: "Просмотрено", on_hold: "Отложено", dropped: "Брошено" };
+import { useI18n } from "./i18n-provider";
 
 export function LibraryView() {
+  const { t } = useI18n();
+  const filters = [[t("library.all"), "/library"], [t("nav.watching"), "/library?status=watching"], [t("nav.planned"), "/library?status=planned"], [t("nav.completed"), "/library?status=completed"], [t("library.onHold"), "/library?status=on_hold"], [t("library.dropped"), "/library?status=dropped"], [t("nav.favorites"), "/library?favorite=true"]];
+  const statusLabels: Record<string, string> = { planned: t("nav.planned"), watching: t("nav.watching"), completed: t("nav.completed"), on_hold: t("library.onHold"), dropped: t("library.dropped") };
   const params = useSearchParams();
   const [data, setData] = useState<LibraryResponse>();
   const [guest, setGuest] = useState(false);
@@ -28,21 +26,21 @@ export function LibraryView() {
     getLibrary({ status, favorite, page }, controller.signal).then(setData).catch((reason) => {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
       if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
-      else setError("Не удалось загрузить библиотеку.");
+      else setError(t("common.error"));
     });
     return () => controller.abort();
-  }, [status, favorite, page]);
+  }, [status, favorite, page, t]);
 
-  if (guest) return <div className="empty-state"><strong>Войдите в аккаунт</strong><span>Личная библиотека синхронизируется между устройствами.</span><Link className={styles.primary} href="/login">Войти</Link></div>;
-  if (error) return <div className="empty-state" role="alert"><strong>{error}</strong><span>Обновите страницу или попробуйте позже.</span></div>;
-  if (!data) return <div className="empty-state" role="status"><strong>Загружаем библиотеку...</strong></div>;
+  if (guest) return <div className="empty-state"><strong>{t("common.login")}</strong><span>{t("library.guest")}</span><Link className={styles.primary} href="/login">{t("common.login")}</Link></div>;
+  if (error) return <div className="empty-state" role="alert"><strong>{error}</strong></div>;
+  if (!data) return <div className="empty-state" role="status"><strong>{t("common.loading")}</strong></div>;
 
   const filterQuery = status ? `status=${status}` : favorite ? "favorite=true" : "";
   const pageHref = (target: number) => `/library?${filterQuery}${filterQuery ? "&" : ""}page=${target}`;
   const pageCount = Math.max(1, Math.ceil(data.count / 20));
   return <>
-    <nav className={styles.filters} aria-label="Фильтры библиотеки">{filters.map(([label, href]) => <Link href={href} key={label}>{label}</Link>)}</nav>
-    {data.results.length ? <div className={styles.grid}>{data.results.map((entry) => <div className={styles.entry} key={entry.title.slug}><CatalogCard item={entry.title} /><div className={styles.entryMeta}><span>{statusLabels[entry.status]}</span>{entry.is_favorite && <span>Избранное</span>}</div></div>)}</div> : <div className="empty-state"><strong>Здесь пока пусто</strong><span>Добавляйте тайтлы из каталога и распределяйте их по статусам.</span><Link className={styles.primary} href="/catalog">Открыть каталог</Link></div>}
-    {pageCount > 1 && <div className={styles.pagination}>{page > 1 && <Link href={pageHref(page - 1)}>← Назад</Link>}<span>{page} из {pageCount}</span>{page < pageCount && <Link href={pageHref(page + 1)}>Вперёд →</Link>}</div>}
+    <nav className={styles.filters}>{filters.map(([label, href]) => <Link href={href} key={label}>{label}</Link>)}</nav>
+    {data.results.length ? <div className={styles.grid}>{data.results.map((entry) => <div className={styles.entry} key={entry.title.slug}><CatalogCard item={entry.title} /><div className={styles.entryMeta}><span>{statusLabels[entry.status]}</span>{entry.is_favorite && <span>{t("nav.favorites")}</span>}</div></div>)}</div> : <div className="empty-state"><strong>{t("library.empty")}</strong><span>{t("library.emptyText")}</span><Link className={styles.primary} href="/catalog">{t("home.openCatalog")}</Link></div>}
+    {pageCount > 1 && <div className={styles.pagination}>{page > 1 && <Link href={pageHref(page - 1)}>{t("common.back")}</Link>}<span>{t("catalog.page", { current: page, total: pageCount })}</span>{page < pageCount && <Link href={pageHref(page + 1)}>{t("common.next")}</Link>}</div>}
   </>;
 }

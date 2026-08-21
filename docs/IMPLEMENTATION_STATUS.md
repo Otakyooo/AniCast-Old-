@@ -177,11 +177,23 @@
 - seed создаёт RU/EN версии demo-контента;
 - JSON import поддерживает объект `translations` и валидирует языковые коды.
 
+## Мультиязычный интерфейс
+
+- весь основной frontend переведён через единый типизированный RU/EN dictionary;
+- локализованы навигация, metadata, auth, account, catalog, schedule, franchises и страницы тайтлов;
+- локализованы client states библиотеки, истории, заметок, жалоб, playback и Telegram notifications;
+- `<html lang>`, `Intl.DateTimeFormat` и даты заметок соответствуют выбранному языку;
+- `preferred_language` хранится в аккаунте и синхронизируется между устройствами;
+- анонимный выбор хранится в безопасной cookie `anicast_lang`;
+- после email/Telegram login cookie синхронизируется с настройкой пользователя;
+- push-бот формирует RU/EN сообщение и использует переведённые название тайтла и эпизода;
+- пользовательские client-side ошибки имеют английский fallback вместо русских backend messages.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `47 passed`;
+- backend: `49 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -212,6 +224,7 @@ Production smoke-check подтверждает:
 - notification smoke подтверждает отдельный webhook secret, challenge link, active channel, подписку, `/stop`, Celery task registration и каскадную очистку.
 - monitoring/import smoke подтверждает private DNS rejection, автоматический `provider_error` после трёх сбоев, dry-run rollback, atomic apply и disabled provider без grants.
 - content i18n smoke подтверждает default RU, explicit EN, cookie-based SSR, поиск по русскому названию и русские translation inlines в staff.
+- full UI i18n smoke подтверждает RU/EN navigation, pages, metadata, account preference API и английский Telegram push template с переведённым контентом.
 
 ## Следующие задачи
 

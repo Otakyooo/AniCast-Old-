@@ -1,5 +1,6 @@
 import type { CatalogItem } from "./api";
 import { getCsrfToken } from "./auth";
+import { clientMessage } from "../i18n/client";
 
 export type LibraryStatus = "planned" | "watching" | "completed" | "on_hold" | "dropped";
 
@@ -19,7 +20,7 @@ export interface LibraryResponse {
 }
 
 export class LibraryApiError extends Error {
-  constructor(public status: number, message = "Не удалось выполнить запрос к библиотеке.") {
+  constructor(public status: number, message = clientMessage("Не удалось выполнить запрос к библиотеке.", "Library request failed.")) {
     super(message);
   }
 }

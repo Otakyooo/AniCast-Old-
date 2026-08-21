@@ -4,8 +4,10 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { createSourceReport, SourceReportApiError, type SourceReportReason } from "../lib/reports";
 import styles from "../app/reports.module.css";
+import { useI18n } from "./i18n-provider";
 
 export function SourceReportControl({ sourceId }: { sourceId: number }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -25,17 +27,17 @@ export function SourceReportControl({ sourceId }: { sourceId: number }) {
       setSubmitted(true);
     } catch (reason) {
       if (reason instanceof SourceReportApiError && [401, 403].includes(reason.status)) setGuest(true);
-      else setError(reason instanceof Error ? reason.message : "Не удалось отправить жалобу.");
+      else setError(reason instanceof Error ? reason.message : t("common.error"));
     } finally { setPending(false); }
   }
 
-  if (submitted) return <span className={styles.success}>Жалоба отправлена</span>;
-  if (guest) return <span className={styles.guest}><Link href="/login">Войдите</Link>, чтобы сообщить о проблеме.</span>;
-  if (!open) return <button className={styles.open} type="button" onClick={() => setOpen(true)}>Сообщить о проблеме</button>;
+  if (submitted) return <span className={styles.success}>{t("report.sent")}</span>;
+  if (guest) return <span className={styles.guest}><Link href="/login">{t("common.login")}</Link>: {t("report.guest")}</span>;
+  if (!open) return <button className={styles.open} type="button" onClick={() => setOpen(true)}>{t("report.open")}</button>;
   return <form className={styles.form} onSubmit={submit}>
-    <label><span>Что случилось</span><select name="reason" defaultValue="unavailable"><option value="unavailable">Источник не открывается</option><option value="wrong_content">Неверный эпизод или контент</option><option value="geo_blocked">Недоступно в регионе</option><option value="quality">Проблема качества</option><option value="other">Другое</option></select></label>
-    <label><span>Комментарий</span><textarea name="message" maxLength={500} rows={3} placeholder="Дополнительные детали" /></label>
-    <div className={styles.actions}><button type="submit" disabled={pending}>{pending ? "Отправляем..." : "Отправить"}</button><button type="button" disabled={pending} onClick={() => setOpen(false)}>Отмена</button></div>
+    <label><span>{t("report.what")}</span><select name="reason" defaultValue="unavailable"><option value="unavailable">{t("report.unavailable")}</option><option value="wrong_content">{t("report.wrong")}</option><option value="geo_blocked">{t("report.geo")}</option><option value="quality">{t("report.quality")}</option><option value="other">{t("report.other")}</option></select></label>
+    <label><span>{t("report.comment")}</span><textarea name="message" maxLength={500} rows={3} placeholder={t("report.details")} /></label>
+    <div className={styles.actions}><button type="submit" disabled={pending}>{pending ? t("report.sending") : t("report.send")}</button><button type="button" disabled={pending} onClick={() => setOpen(false)}>{t("common.cancel")}</button></div>
     {error && <span className={styles.error} role="alert">{error}</span>}
   </form>;
 }

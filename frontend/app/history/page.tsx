@@ -1,7 +1,9 @@
 import { AccountLink } from "../../components/account-link";
 import { HistoryView } from "../../components/history-view";
 import { Sidebar } from "../../components/sidebar";
+import { getI18n } from "../../i18n/server";
 
-export default function HistoryPage() {
-  return <main className="shell"><Sidebar active="library" /><section className="content"><header className="topbar"><span className="eyebrow">ЛИЧНОЕ ПРОСТРАНСТВО</span><AccountLink /></header><div className="page-heading"><h1>История</h1><p className="muted">Только действительно открытые эпизоды и ваши явные отметки.</p></div><HistoryView /></section></main>;
+export default async function HistoryPage() {
+  const { t } = await getI18n();
+  return <main className="shell"><Sidebar active="library" /><section className="content"><header className="topbar"><span className="eyebrow">{t("library.eyebrow")}</span><AccountLink /></header><div className="page-heading"><h1>{t("history.title")}</h1><p className="muted">{t("history.subtitle")}</p></div><HistoryView /></section></main>;
 }

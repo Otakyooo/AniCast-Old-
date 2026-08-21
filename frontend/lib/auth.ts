@@ -1,7 +1,28 @@
+import type { Locale } from "../i18n/config";
+import { clientLanguage, clientMessage } from "../i18n/client";
+
 export interface SessionUser {
   id: number;
   email: string | null;
   display_name: string;
+  preferred_language: Locale;
+}
+
+export function setLanguageCookie(language: Locale) {
+  const secure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `anicast_lang=${language}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+}
+
+export async function setPreferredLanguage(language: Locale) {
+  const csrf = await getCsrfToken();
+  const response = await fetch("/api/v1/auth/preferences/", {
+    method: "PUT", credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+    body: JSON.stringify({ preferred_language: language }),
+  });
+  if (response.status === 401 || response.status === 403) return null;
+  if (!response.ok) throw new Error("Could not save language preference.");
+  return response.json() as Promise<SessionUser>;
 }
 
 type AuthPayload = {
@@ -12,16 +33,17 @@ type AuthPayload = {
 
 export async function getCsrfToken() {
   const response = await fetch("/api/v1/auth/csrf/", { credentials: "same-origin" });
-  if (!response.ok) throw new Error("Не удалось подготовить защищённый запрос.");
+  if (!response.ok) throw new Error(clientMessage("Не удалось подготовить защищённый запрос.", "Could not prepare a secure request."));
   const body = await response.json() as { csrfToken: string };
   return body.csrfToken;
 }
 
 async function parseError(response: Response) {
+  if (clientLanguage() === "en") return "Request failed. Check the entered data and try again.";
   const body = await response.json().catch(() => null) as Record<string, string | string[]> | null;
-  if (!body) return "Не удалось выполнить запрос. Попробуйте ещё раз.";
+  if (!body) return clientMessage("Не удалось выполнить запрос. Попробуйте ещё раз.", "Request failed. Please try again.");
   const message = Object.values(body).flat().find(Boolean);
-  return message ?? "Не удалось выполнить запрос. Попробуйте ещё раз.";
+  return message ?? clientMessage("Не удалось выполнить запрос. Попробуйте ещё раз.", "Request failed. Please try again.");
 }
 
 async function mutateSession(path: string, payload?: AuthPayload): Promise<SessionUser | null> {
@@ -51,7 +73,7 @@ export function signOut() {
 export async function getSessionUser(): Promise<SessionUser | null> {
   const response = await fetch("/api/v1/auth/me/", { credentials: "same-origin", cache: "no-store" });
   if (response.status === 401 || response.status === 403) return null;
-  if (!response.ok) throw new Error("Не удалось загрузить данные аккаунта.");
+  if (!response.ok) throw new Error(clientMessage("Не удалось загрузить данные аккаунта.", "Could not load account data."));
   return response.json() as Promise<SessionUser>;
 }
 

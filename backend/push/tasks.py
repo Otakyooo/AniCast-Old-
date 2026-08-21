@@ -5,6 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from catalog.models import Episode
+from catalog.i18n import translated_value_for_language
 
 from .models import NotificationDelivery, TelegramNotificationChannel, TitleNotificationSubscription
 from .telegram import send_notification
@@ -14,7 +15,9 @@ from .telegram import send_notification
 def dispatch_episode_notifications():
     if not settings.TELEGRAM_NOTIFY_BOT_TOKEN:
         return {"sent": 0, "failed": 0}
-    episodes = Episode.objects.filter(air_date=timezone.localdate()).select_related("title")
+    episodes = Episode.objects.filter(air_date=timezone.localdate()).select_related("title").prefetch_related(
+        "translations", "title__translations"
+    )
     sent = failed = 0
     for episode in episodes:
         subscriptions = TitleNotificationSubscription.objects.filter(
@@ -27,13 +30,24 @@ def dispatch_episode_notifications():
             if delivery.status == NotificationDelivery.Status.SENT or delivery.attempts >= 3:
                 continue
             channel = subscription.user.telegram_notification_channel
+            language = subscription.user.preferred_language
+            title_name = translated_value_for_language(episode.title, "name", language)
+            episode_name = translated_value_for_language(episode, "name", language)
+            if language == "en":
+                message = (
+                    f"New AniCast episode\n\n{title_name} — episode {episode.number}"
+                    f"{f' · {episode_name}' if episode_name else ''}\n"
+                    f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}"
+                )
+            else:
+                message = (
+                    f"Новый эпизод AniCast\n\n{title_name} — эпизод {episode.number}"
+                    f"{f' · {episode_name}' if episode_name else ''}\n"
+                    f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}"
+                )
             delivery.attempts += 1
             try:
-                send_notification(
-                    channel.chat_id,
-                    f"Новый эпизод AniCast\n\n{episode.title.name} — эпизод {episode.number}\n"
-                    f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}",
-                )
+                send_notification(channel.chat_id, message)
             except Exception as error:
                 delivery.status = NotificationDelivery.Status.FAILED
                 delivery.error = str(error)[:500]

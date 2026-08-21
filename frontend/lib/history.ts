@@ -1,5 +1,6 @@
 import type { CatalogItem, Episode } from "./api";
 import { getCsrfToken } from "./auth";
+import { clientMessage } from "../i18n/client";
 
 export interface EpisodeProgress {
   title: CatalogItem;
@@ -18,7 +19,7 @@ export interface HistoryResponse {
 
 export class HistoryApiError extends Error {
   constructor(public status: number) {
-    super("Не удалось выполнить запрос истории.");
+    super(clientMessage("Не удалось выполнить запрос истории.", "History request failed."));
   }
 }
 

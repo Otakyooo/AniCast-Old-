@@ -83,3 +83,16 @@ def test_login_does_not_reveal_which_credential_failed():
     )
     assert response.status_code == 400
     assert "Неверный email или пароль" in str(response.json())
+
+
+@pytest.mark.django_db
+def test_user_can_update_preferred_language():
+    user = User.objects.create_user(email="language@example.com", password="A-strong-passphrase-2042")
+    client = APIClient()
+    client.force_login(user)
+    response = client.put("/api/v1/auth/preferences/", {"preferred_language": "en"}, format="json")
+    assert response.status_code == 200
+    assert response.json()["preferred_language"] == "en"
+    user.refresh_from_db()
+    assert user.preferred_language == "en"
+    assert client.put("/api/v1/auth/preferences/", {"preferred_language": "xx"}, format="json").status_code == 400
