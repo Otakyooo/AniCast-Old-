@@ -6,7 +6,7 @@ import { FormEvent, useState } from "react";
 import { register, signIn } from "../lib/auth";
 import styles from "../app/auth.module.css";
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+export function AuthForm({ mode, returnTo = "/account" }: { mode: "login" | "register"; returnTo?: string }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -24,7 +24,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         ...(isRegister ? { display_name: String(data.get("display_name") ?? "") } : {}),
       };
       await (isRegister ? register(payload) : signIn(payload));
-      router.push("/account");
+      router.replace(returnTo);
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Не удалось выполнить запрос.");

@@ -82,6 +82,9 @@
 - admin static assets собираются в Docker image и отдаются через WhiteNoise;
 - production включает HTTPS redirect, HSTS, proxy SSL detection и clickjacking protection.
 - production-аккаунту владельца выданы staff и superuser permissions; доступ работает через обычную Telegram-сессию без отдельного пароля.
+- `/staff/login/` перенаправляет на общую `/login` с email и Telegram bot confirmation;
+- после успешного входа безопасный локальный `next=/staff/` возвращает пользователя прямо в админку;
+- внешние и protocol-relative return URL не принимаются.
 
 ## Жалобы на источники
 
@@ -124,6 +127,7 @@ Production smoke-check подтверждает:
 - admin static CSS доступен в production image.
 - жалобы изолированы по пользователю, защищены от открытых дублей и обрабатываются audited staff actions.
 - production smoke подтверждает создание жалобы, HTTP 400 для дубля, приватный список и CSRF Origin enforcement.
+- production owner flow подтверждает цепочку `/staff/` → Telegram challenge → staff session → `/staff/` HTTP 200 → logout.
 
 ## Следующие задачи
 

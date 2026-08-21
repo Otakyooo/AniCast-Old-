@@ -18,6 +18,9 @@ def test_admin_requires_staff(client):
     response = client.get("/staff/")
     assert response.status_code == 302
     assert response.url.startswith("/staff/login/")
+    login_redirect = client.get("/staff/login/?next=/staff/")
+    assert login_redirect.status_code == 302
+    assert login_redirect.url == "/login?next=%2Fstaff%2F"
 
     user = User.objects.create_user(email="viewer@example.com", password="A-strong-passphrase-2042")
     client.force_login(user)
@@ -31,6 +34,7 @@ def test_admin_requires_staff(client):
 @pytest.mark.django_db
 def test_staff_can_open_admin_and_changes_are_audited(staff_client):
     assert staff_client.get("/staff/").status_code == 200
+    assert staff_client.get("/staff/login/").url == "/staff/"
     response = staff_client.post(
         reverse("admin:catalog_genre_add"),
         {"name": "Science Fiction", "slug": "science-fiction", "_save": "Сохранить"},

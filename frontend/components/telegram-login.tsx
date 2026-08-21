@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { completeTelegramChallenge, createTelegramChallenge, type TelegramChallenge } from "../lib/auth";
 import styles from "../app/auth.module.css";
 
-export function TelegramLogin({ botUsername }: { botUsername?: string }) {
+export function TelegramLogin({ botUsername, returnTo = "/account" }: { botUsername?: string; returnTo?: string }) {
   const router = useRouter();
   const [challenge, setChallenge] = useState<TelegramChallenge>();
   const [pending, setPending] = useState(false);
@@ -20,7 +20,7 @@ export function TelegramLogin({ botUsername }: { botUsername?: string }) {
         const user = await completeTelegramChallenge(challenge);
         if (!active) return;
         if (user) {
-          router.replace("/account");
+          router.replace(returnTo);
           router.refresh();
           return;
         }
@@ -34,7 +34,7 @@ export function TelegramLogin({ botUsername }: { botUsername?: string }) {
     };
     timer = setTimeout(poll, 1200);
     return () => { active = false; clearTimeout(timer); };
-  }, [challenge, router]);
+  }, [challenge, returnTo, router]);
 
   async function start() {
     const popup = window.open("about:blank", "anicast-telegram-login", "popup,width=520,height=720");
