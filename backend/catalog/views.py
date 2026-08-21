@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.db import IntegrityError
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import ValidationError
@@ -9,10 +9,19 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
 
-from .models import Episode, SourceReport, Title
-from .serializers import ScheduleEpisodeSerializer, SourceReportSerializer, TitleDetailSerializer, TitleSerializer
+from .models import Episode, Franchise, SourceReport, Title
+from .playback import authorized_playback_source
+from .serializers import (
+    FranchiseDetailSerializer,
+    FranchiseSummarySerializer,
+    ScheduleEpisodeSerializer,
+    SourceReportSerializer,
+    TitleDetailSerializer,
+    TitleSerializer,
+)
 
 
 class CatalogPagination(PageNumberPagination):
@@ -101,3 +110,27 @@ class SourceReportView(ListAPIView):
         except IntegrityError:
             raise ValidationError({"reason": "Такая жалоба уже находится на рассмотрении."}) from None
         return Response(self.get_serializer(report).data, status=201)
+
+
+class PlaybackView(APIView):
+    def get(self, request, source_id):
+        source = authorized_playback_source(source_id)
+        if source is None:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("Источник недоступен для просмотра.")
+        return Response({"mode": "external_link", "url": source.url})
+
+
+class FranchiseListView(ListAPIView):
+    serializer_class = FranchiseSummarySerializer
+    pagination_class = CatalogPagination
+    queryset = Franchise.objects.annotate(title_count=Count("titles")).order_by("sort_order", "name")
+
+
+class FranchiseDetailView(RetrieveAPIView):
+    serializer_class = FranchiseDetailSerializer
+    lookup_field = "slug"
+    queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related(
+        Prefetch("titles", queryset=Title.objects.prefetch_related("genres").order_by("name", "slug"))
+    )

@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Episode, Franchise, Genre, Source, SourceReport, Title
+from catalog.models import Episode, Franchise, Genre, Provider, RightsGrant, Source, SourceReport, Title
 
 
 @pytest.fixture
@@ -40,6 +40,8 @@ def test_title_detail_includes_nested_relations(catalog_data):
     assert body["genres"][0]["slug"] == "action"
     assert body["episodes"][0]["sources"][0]["availability"] == "available"
     assert body["episodes"][0]["sources"][0]["is_available"] is True
+    assert "url" not in body["episodes"][0]["sources"][0]
+    assert body["episodes"][0]["sources"][0]["playback_available"] is False
 
 
 @pytest.mark.django_db
@@ -113,3 +115,42 @@ def test_duplicate_open_report_and_empty_other_reason_are_rejected(catalog_data)
         {"source": source.id, "reason": "other", "message": ""},
         format="json",
     ).status_code == 400
+
+
+@pytest.mark.django_db
+def test_playback_is_fail_closed_and_requires_active_approved_right(catalog_data):
+    source = Source.objects.get(episode__title=catalog_data)
+    assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 404
+    provider = Provider.objects.create(name="Provider Registry", slug="provider-registry", is_enabled=True, allowed_hosts=["example.invalid"])
+    source.provider = provider
+    source.save(update_fields=["provider"])
+    approver = User.objects.create_user(email="rights@example.com", password="A-strong-passphrase-2042")
+    now = timezone.now()
+    grant = RightsGrant.objects.create(
+        source=source,
+        status="active",
+        valid_from=now - timedelta(days=1),
+        valid_until=now + timedelta(days=1),
+        contract_reference="CONTRACT-1",
+        approved_by=approver,
+        approved_at=now,
+    )
+    response = APIClient().get(f"/api/v1/sources/{source.id}/playback/")
+    assert response.status_code == 200
+    assert response.json()["url"] == source.url
+    grant.status = "revoked"
+    grant.save(update_fields=["status"])
+    assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_franchise_list_and_detail_are_ordered(catalog_data):
+    Franchise.objects.create(name="Alpha Editorial", slug="alpha-editorial", sort_order=0)
+    response = APIClient().get("/api/v1/franchises/")
+    assert response.status_code == 200
+    assert [item["slug"] for item in response.json()["results"]][:2] == ["alpha-editorial", "test-franchise"]
+    detail = APIClient().get("/api/v1/franchises/test-franchise/")
+    assert detail.status_code == 200
+    assert detail.json()["title_count"] == 1
+    assert detail.json()["titles"][0]["slug"] == "sky-test"
+    assert APIClient().get("/api/v1/franchises/missing/").status_code == 404

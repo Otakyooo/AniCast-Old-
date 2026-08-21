@@ -11,10 +11,16 @@ class GenreSerializer(serializers.ModelSerializer):
 
 class SourceSerializer(serializers.ModelSerializer):
     is_available = serializers.BooleanField(read_only=True)
+    playback_available = serializers.SerializerMethodField()
 
     class Meta:
         model = Source
-        fields = ["id", "name", "kind", "url", "availability", "availability_reason", "is_available"]
+        fields = ["id", "name", "kind", "availability", "availability_reason", "is_available", "playback_available"]
+
+    def get_playback_available(self, obj):
+        from .playback import authorized_playback_source
+
+        return authorized_playback_source(obj.id) is not None
 
 
 class EpisodeSerializer(serializers.ModelSerializer):
@@ -89,3 +95,26 @@ class SourceReportSerializer(serializers.ModelSerializer):
         ).exists():
             raise serializers.ValidationError({"reason": "Такая жалоба уже находится на рассмотрении."})
         return attrs
+
+
+class FranchiseSummarySerializer(serializers.ModelSerializer):
+    title_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Franchise
+        fields = ["name", "slug", "description", "title_count"]
+
+
+class FranchiseTitleSerializer(serializers.ModelSerializer):
+    genres = GenreSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Title
+        fields = ["name", "slug", "original_name", "synopsis", "title_type", "status", "year", "poster_url", "genres"]
+
+
+class FranchiseDetailSerializer(FranchiseSummarySerializer):
+    titles = FranchiseTitleSerializer(many=True, read_only=True)
+
+    class Meta(FranchiseSummarySerializer.Meta):
+        fields = FranchiseSummarySerializer.Meta.fields + ["titles"]

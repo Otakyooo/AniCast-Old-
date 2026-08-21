@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | "library" }) {
+export function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | "franchises" | "library" }) {
   const linkClass = (section: typeof active) => section === active ? "active" : undefined;
   return <aside className="sidebar">
     <Link className="brand" href="/">Ani<span>Cast</span></Link>
@@ -8,7 +8,7 @@ export function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | 
       <Link className={linkClass("home")} href="/">Главная</Link>
       <Link className={linkClass("catalog")} href="/catalog">Каталог</Link>
       <Link className={linkClass("schedule")} href="/schedule">Расписание</Link>
-      <span className="nav-disabled" aria-disabled="true">Франшизы</span>
+      <Link className={linkClass("franchises")} href="/franchises">Франшизы</Link>
       <span className="nav-disabled" aria-disabled="true">Персонажи</span>
       <span className="nav-disabled" aria-disabled="true">Медиа</span>
     </nav>
@@ -20,7 +20,7 @@ export function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | 
       <Link href="/library?status=planned">Запланировано</Link>
       <Link href="/library?status=completed">Просмотрено</Link>
       <Link href="/library?favorite=true">Избранное</Link>
-      <span className="nav-disabled" aria-disabled="true">Заметки</span>
+      <Link href="/notes">Заметки</Link>
     </div>
   </aside>;
 }

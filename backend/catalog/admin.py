@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import Episode, Franchise, Genre, Source, SourceReport, Title
+from .models import Episode, Franchise, Genre, Provider, RightsGrant, Source, SourceReport, Title
+from .playback import source_url_allowed
 
 
 class EpisodeInline(admin.TabularInline):
@@ -13,7 +14,7 @@ class EpisodeInline(admin.TabularInline):
 
 class SourceInline(admin.TabularInline):
     model = Source
-    fields = ["name", "kind", "url", "availability", "availability_reason"]
+    fields = ["provider", "name", "kind", "url", "availability", "availability_reason"]
     extra = 0
 
 
@@ -55,10 +56,53 @@ class EpisodeAdmin(admin.ModelAdmin):
 
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):
-    list_display = ["episode", "name", "kind", "availability"]
+    list_display = ["episode", "provider", "name", "kind", "availability"]
     list_filter = ["kind", "availability"]
     search_fields = ["name", "episode__title__name"]
-    autocomplete_fields = ["episode"]
+    autocomplete_fields = ["episode", "provider"]
+
+
+@admin.register(Provider)
+class ProviderAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug", "is_enabled", "updated_at"]
+    list_filter = ["is_enabled"]
+    search_fields = ["name", "slug"]
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(RightsGrant)
+class RightsGrantAdmin(admin.ModelAdmin):
+    list_display = ["source", "status", "valid_from", "valid_until", "approved_by", "approved_at"]
+    list_filter = ["status", "valid_from", "valid_until"]
+    search_fields = ["source__episode__title__name", "source__name", "contract_reference"]
+    autocomplete_fields = ["source"]
+    readonly_fields = ["status", "approved_by", "approved_at", "revoked_at", "created_at", "updated_at"]
+    actions = ["activate_grants", "revoke_grants"]
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.action(description="Активировать права")
+    def activate_grants(self, request, queryset):
+        for grant in queryset.select_related("source__provider"):
+            if grant.status != RightsGrant.Status.DRAFT or not grant.source.provider or not grant.source.provider.is_enabled:
+                continue
+            if not source_url_allowed(grant.source):
+                continue
+            grant.status = RightsGrant.Status.ACTIVE
+            grant.approved_by = request.user
+            grant.approved_at = timezone.now()
+            grant.revoked_at = None
+            grant.save(update_fields=["status", "approved_by", "approved_at", "revoked_at", "updated_at"])
+            self.log_change(request, grant, "Права активированы.")
+
+    @admin.action(description="Отозвать права")
+    def revoke_grants(self, request, queryset):
+        for grant in queryset.filter(status=RightsGrant.Status.ACTIVE):
+            grant.status = RightsGrant.Status.REVOKED
+            grant.revoked_at = timezone.now()
+            grant.save(update_fields=["status", "revoked_at", "updated_at"])
+            self.log_change(request, grant, "Права отозваны.")
 
 
 @admin.register(SourceReport)

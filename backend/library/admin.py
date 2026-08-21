@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import EpisodeProgress, LibraryEntry
+from .models import EpisodeProgress, LibraryEntry, TitleNote
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
@@ -31,3 +31,10 @@ class EpisodeProgressAdmin(ReadOnlyAdmin):
     list_filter = ["is_watched", "last_opened_at"]
     search_fields = ["user__email", "user__display_name", "episode__title__name"]
     list_select_related = ["user", "episode", "episode__title"]
+
+
+@admin.register(TitleNote)
+class TitleNoteAdmin(ReadOnlyAdmin):
+    list_display = ["user", "title", "updated_at"]
+    search_fields = ["user__email", "user__display_name", "title__name"]
+    list_select_related = ["user", "title"]

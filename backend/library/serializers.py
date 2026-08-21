@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from catalog.serializers import EpisodeSerializer, TitleSerializer
 
-from .models import EpisodeProgress, LibraryEntry
+from .models import EpisodeProgress, LibraryEntry, TitleNote
 
 
 class LibraryEntrySerializer(serializers.ModelSerializer):
@@ -30,3 +30,20 @@ class EpisodeProgressSerializer(serializers.ModelSerializer):
 
 class EpisodeProgressWriteSerializer(serializers.Serializer):
     is_watched = serializers.BooleanField()
+
+
+class TitleNoteSerializer(serializers.ModelSerializer):
+    title = TitleSerializer(read_only=True)
+
+    class Meta:
+        model = TitleNote
+        fields = ["title", "body", "created_at", "updated_at"]
+
+
+class TitleNoteWriteSerializer(serializers.Serializer):
+    body = serializers.CharField(max_length=2000, trim_whitespace=False)
+
+    def validate_body(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Заметка не может быть пустой.")
+        return value

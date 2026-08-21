@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountLink } from "../../../components/account-link";
 import { LibraryControl } from "../../../components/library-control";
 import { Sidebar } from "../../../components/sidebar";
+import { TitleNoteControl } from "../../../components/title-note-control";
 import { getCatalogItem, type Episode, type Source } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,8 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
             </div>
             {genres.length > 0 && <div className="tag-list">{genres.map((genre) => <span key={genre.slug}>{genre.name}</span>)}</div>}
             <LibraryControl slug={item.slug} />
-            {item.franchise && <section className="franchise-panel"><p className="eyebrow">ФРАНШИЗА</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</section>}
+            <TitleNoteControl slug={item.slug} />
+            {item.franchise && <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}><p className="eyebrow">ФРАНШИЗА</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</Link>}
           </div>
         </article>
         <section className="episodes-section" aria-labelledby="episodes-heading">

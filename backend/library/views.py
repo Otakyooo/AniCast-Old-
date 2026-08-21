@@ -9,12 +9,14 @@ from rest_framework.views import APIView
 
 from catalog.models import Episode, Title
 
-from .models import EpisodeProgress, LibraryEntry
+from .models import EpisodeProgress, LibraryEntry, TitleNote
 from .serializers import (
     EpisodeProgressSerializer,
     EpisodeProgressWriteSerializer,
     LibraryEntrySerializer,
     LibraryEntryWriteSerializer,
+    TitleNoteSerializer,
+    TitleNoteWriteSerializer,
 )
 
 
@@ -146,3 +148,44 @@ class EpisodeProgressView(APIView):
             EpisodeProgressSerializer(progress).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+
+
+class TitleNoteListView(ListAPIView):
+    serializer_class = TitleNoteSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = LibraryPagination
+
+    def get_queryset(self):
+        return TitleNote.objects.filter(user=self.request.user).select_related(
+            "title", "title__franchise"
+        ).prefetch_related("title__genres")
+
+
+class TitleNoteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_note(self, request, slug):
+        return get_object_or_404(
+            TitleNote.objects.select_related("title", "title__franchise").prefetch_related("title__genres"),
+            user=request.user,
+            title__slug=slug,
+        )
+
+    def get(self, request, slug):
+        return Response(TitleNoteSerializer(self.get_note(request, slug)).data)
+
+    def put(self, request, slug):
+        serializer = TitleNoteWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        title = get_object_or_404(Title, slug=slug)
+        note, created = TitleNote.objects.update_or_create(
+            user=request.user,
+            title=title,
+            defaults={"body": serializer.validated_data["body"]},
+        )
+        note = TitleNote.objects.select_related("title", "title__franchise").prefetch_related("title__genres").get(pk=note.pk)
+        return Response(TitleNoteSerializer(note).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request, slug):
+        self.get_note(request, slug).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

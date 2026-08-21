@@ -46,3 +46,19 @@ class EpisodeProgress(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} / {self.episode}"
+
+
+class TitleNote(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="title_notes", on_delete=models.CASCADE)
+    title = models.ForeignKey(Title, related_name="user_notes", on_delete=models.CASCADE)
+    body = models.CharField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "title"], name="unique_user_title_note")]
+        indexes = [models.Index(fields=["user", "updated_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.user} / {self.title}"

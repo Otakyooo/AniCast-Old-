@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from catalog.models import Episode, Title
-from library.models import EpisodeProgress, LibraryEntry
+from library.models import EpisodeProgress, LibraryEntry, TitleNote
 
 
 @pytest.fixture
@@ -125,3 +125,31 @@ def test_episode_progress_requires_auth_and_csrf(users, titles):
     client = APIClient(enforce_csrf_checks=True)
     client.force_login(users[0])
     assert client.post("/api/v1/episodes/first/1/progress/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_title_note_upsert_list_and_delete_are_private(users, titles):
+    client = APIClient()
+    assert client.get("/api/v1/notes/").status_code in {401, 403}
+    client.force_login(users[0])
+    created = client.put("/api/v1/notes/first/", {"body": "Remember this detail"}, format="json")
+    assert created.status_code == 201
+    updated = client.put("/api/v1/notes/first/", {"body": "Updated detail"}, format="json")
+    assert updated.status_code == 200
+    assert TitleNote.objects.filter(user=users[0], title=titles[0]).count() == 1
+    TitleNote.objects.create(user=users[1], title=titles[1], body="Private")
+    listing = client.get("/api/v1/notes/")
+    assert listing.status_code == 200
+    assert listing.json()["count"] == 1
+    assert client.get("/api/v1/notes/second/").status_code == 404
+    assert client.delete("/api/v1/notes/first/").status_code == 204
+
+
+@pytest.mark.django_db
+def test_title_note_rejects_empty_body_and_requires_csrf(users, titles):
+    client = APIClient()
+    client.force_login(users[0])
+    assert client.put("/api/v1/notes/first/", {"body": "   "}, format="json").status_code == 400
+    checked = APIClient(enforce_csrf_checks=True)
+    checked.force_login(users[0])
+    assert checked.put("/api/v1/notes/first/", {"body": "Blocked"}, format="json").status_code == 403

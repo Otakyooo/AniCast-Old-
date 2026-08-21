@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils.text import slugify
 
 
@@ -71,6 +71,22 @@ class Episode(models.Model):
         return f"{self.title.name} #{self.number}"
 
 
+class Provider(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=140, unique=True)
+    website_url = models.URLField(blank=True)
+    allowed_hosts = models.JSONField(default=list, blank=True)
+    is_enabled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Source(models.Model):
     KIND_CHOICES = [("sub", "Sub"), ("dub", "Dub"), ("raw", "Raw")]
     AVAILABILITY_CHOICES = [
@@ -81,6 +97,7 @@ class Source(models.Model):
         ("provider_error", "Provider error"),
     ]
     episode = models.ForeignKey(Episode, related_name="sources", on_delete=models.CASCADE)
+    provider = models.ForeignKey(Provider, related_name="sources", null=True, blank=True, on_delete=models.PROTECT)
     name = models.CharField(max_length=120)
     url = models.URLField()
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default="sub")
@@ -97,6 +114,41 @@ class Source(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.kind})"
+
+
+class RightsGrant(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Черновик"
+        ACTIVE = "active", "Активно"
+        REVOKED = "revoked", "Отозвано"
+
+    source = models.ForeignKey(Source, related_name="rights_grants", on_delete=models.PROTECT)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    valid_from = models.DateTimeField()
+    valid_until = models.DateTimeField()
+    contract_reference = models.CharField(max_length=200)
+    notes = models.TextField(blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="approved_rights_grants",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.CheckConstraint(condition=Q(valid_until__gt=F("valid_from")), name="rights_grant_valid_interval"),
+            models.UniqueConstraint(fields=["source"], condition=Q(status="active"), name="one_active_grant_per_source"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source} — {self.get_status_display()}"
 
 
 class SourceReport(models.Model):

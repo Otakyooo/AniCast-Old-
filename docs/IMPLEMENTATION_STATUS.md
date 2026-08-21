@@ -97,11 +97,39 @@
 - staff-очередь доступна в `/staff/` со статусами новая, на проверке, решена и отклонена;
 - admin actions записывают обработчика, время и audit log entry.
 
+## Providers и права
+
+- добавлен provider registry с enabled-флагом и allowlist HTTPS-хостов;
+- существующие источники мигрируются к disabled providers без автоматического права просмотра;
+- прямой `Source.url` удалён из всех публичных serializers;
+- rights grant привязан к конкретному источнику, имеет обязательный интервал и contract reference;
+- одновременно допускается только один active grant на источник;
+- playback endpoint работает fail closed и повторно проверяет provider, availability, approved grant, срок и hostname;
+- activation и revocation выполняются audited admin actions;
+- frontend показывает «Открыть у провайдера» только при `playback_available=true`.
+
+## Франшизы
+
+- публичные API `/api/v1/franchises/` и `/api/v1/franchises/<slug>/`;
+- страницы `/franchises` и `/franchises/<slug>`;
+- редакторский порядок учитывает `sort_order`, затем название;
+- detail показывает связанные тайтлы с жанрами и ведёт на карточки;
+- блок франшизы на странице тайтла стал ссылкой.
+
+## Личные заметки
+
+- приватный CRUD `/api/v1/notes/` и `/api/v1/notes/<slug>/`;
+- одна заметка до 2000 символов на пользователя и тайтл;
+- заметка не зависит от наличия тайтла в библиотеке;
+- пустой текст и чужие заметки недоступны;
+- редактирование доступно на странице тайтла, список — на `/notes`;
+- заметки отображаются staff только read-only.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `32 passed`;
+- backend: `36 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -128,11 +156,12 @@ Production smoke-check подтверждает:
 - жалобы изолированы по пользователю, защищены от открытых дублей и обрабатываются audited staff actions.
 - production smoke подтверждает создание жалобы, HTTP 400 для дубля, приватный список и CSRF Origin enforcement.
 - production owner flow подтверждает цепочку `/staff/` → Telegram challenge → staff session → `/staff/` HTTP 200 → logout.
+- multi-slice smoke подтверждает fail-closed legacy sources, approved playback gate без URL в catalog payload, franchise list/detail и приватный CRUD заметок.
 
 ## Следующие задачи
 
-- provider adapter и rights registry;
-- разрешённый внешний playback или embed с callback прогресса;
+- provider-specific adapters и короткоживущие playback URL;
+- embed/callback прогресса для провайдеров, которые разрешают такую интеграцию;
 - мониторинг ошибок, метрики и автоматизированный rollback;
 - персонажи, заметки, community и moderation;
 - уведомления, рекомендации и Premium.

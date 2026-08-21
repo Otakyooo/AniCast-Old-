@@ -9,10 +9,10 @@ export interface Source {
   id: number;
   name: string;
   kind: string;
-  url: string;
   availability: "available" | "unavailable" | "geo_blocked" | "expired" | "provider_error" | string;
   availability_reason?: string;
   is_available: boolean;
+  playback_available: boolean;
 }
 
 export interface Episode {
@@ -70,6 +70,10 @@ export interface ScheduleResponse {
   results: ScheduleItem[];
 }
 
+export interface FranchiseSummary { name: string; slug: string; description: string; title_count: number }
+export interface FranchiseDetail extends FranchiseSummary { titles: CatalogItem[] }
+export interface FranchiseResponse { count: number; next: string | null; previous: string | null; results: FranchiseSummary[] }
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -114,4 +118,12 @@ export async function getCatalogItem(slug: string): Promise<CatalogItem> {
 export async function getSchedule(from: string, to: string): Promise<ScheduleResponse> {
   const query = new URLSearchParams({ from, to, page_size: "200" });
   return request<ScheduleResponse>(`/schedule/?${query}`, { cache: "no-store" });
+}
+
+export async function getFranchises(page = 1): Promise<FranchiseResponse> {
+  return request<FranchiseResponse>(`/franchises/${page > 1 ? `?page=${page}` : ""}`, { cache: "no-store" });
+}
+
+export async function getFranchise(slug: string): Promise<FranchiseDetail> {
+  return request<FranchiseDetail>(`/franchises/${encodeURIComponent(slug)}/`, { cache: "no-store" });
 }
