@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Episode, Franchise, Genre, Source, Title
+from .models import Episode, Franchise, Genre, Source, SourceReport, Title
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -14,7 +14,7 @@ class SourceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Source
-        fields = ["name", "kind", "url", "availability", "availability_reason", "is_available"]
+        fields = ["id", "name", "kind", "url", "availability", "availability_reason", "is_available"]
 
 
 class EpisodeSerializer(serializers.ModelSerializer):
@@ -62,3 +62,30 @@ class ScheduleEpisodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Episode
         fields = ["id", "number", "name", "synopsis", "air_date", "title"]
+
+
+class SourceReportSerializer(serializers.ModelSerializer):
+    source_name = serializers.CharField(source="source.name", read_only=True)
+    title_slug = serializers.CharField(source="source.episode.title.slug", read_only=True)
+    episode_number = serializers.IntegerField(source="source.episode.number", read_only=True)
+
+    class Meta:
+        model = SourceReport
+        fields = [
+            "id", "source", "source_name", "title_slug", "episode_number",
+            "reason", "message", "status", "resolution_note", "created_at", "updated_at",
+        ]
+        read_only_fields = ["status", "resolution_note"]
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        if attrs["reason"] == SourceReport.Reason.OTHER and not attrs.get("message", "").strip():
+            raise serializers.ValidationError({"message": "Опишите проблему."})
+        if SourceReport.objects.filter(
+            source=attrs["source"],
+            reporter=request.user,
+            reason=attrs["reason"],
+            status__in=[SourceReport.Status.NEW, SourceReport.Status.REVIEWING],
+        ).exists():
+            raise serializers.ValidationError({"reason": "Такая жалоба уже находится на рассмотрении."})
+        return attrs

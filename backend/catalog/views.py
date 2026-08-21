@@ -1,14 +1,18 @@
 from datetime import timedelta
 
+from django.db import IntegrityError
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 
-from .models import Episode, Title
-from .serializers import ScheduleEpisodeSerializer, TitleDetailSerializer, TitleSerializer
+from .models import Episode, SourceReport, Title
+from .serializers import ScheduleEpisodeSerializer, SourceReportSerializer, TitleDetailSerializer, TitleSerializer
 
 
 class CatalogPagination(PageNumberPagination):
@@ -69,3 +73,31 @@ class ScheduleView(ListAPIView):
         return Episode.objects.filter(air_date__range=(start, end)).select_related("title").order_by(
             "air_date", "title__name", "number"
         )
+
+
+class SourceReportThrottle(UserRateThrottle):
+    rate = "10/hour"
+
+
+class SourceReportView(ListAPIView):
+    serializer_class = SourceReportSerializer
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [SourceReportThrottle]
+    pagination_class = CatalogPagination
+
+    def get_throttles(self):
+        return [] if self.request.method == "GET" else super().get_throttles()
+
+    def get_queryset(self):
+        return SourceReport.objects.filter(reporter=self.request.user).select_related(
+            "source", "source__episode", "source__episode__title"
+        )
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            report = serializer.save(reporter=request.user)
+        except IntegrityError:
+            raise ValidationError({"reason": "Такая жалоба уже находится на рассмотрении."}) from None
+        return Response(self.get_serializer(report).data, status=201)

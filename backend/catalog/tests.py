@@ -4,7 +4,8 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from catalog.models import Episode, Franchise, Genre, Source, Title
+from accounts.models import User
+from catalog.models import Episode, Franchise, Genre, Source, SourceReport, Title
 
 
 @pytest.fixture
@@ -75,3 +76,40 @@ def test_schedule_defaults_to_seven_days_and_orders_episodes(catalog_data):
 def test_schedule_rejects_invalid_or_unbounded_ranges(query):
     response = APIClient().get(f"/api/v1/schedule/?{query}")
     assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_source_reports_require_auth_and_are_private(catalog_data):
+    source = Source.objects.get(episode__title=catalog_data)
+    client = APIClient()
+    assert client.post("/api/v1/source-reports/", {"source": source.id, "reason": "unavailable"}).status_code in {401, 403}
+    first = User.objects.create_user(email="first@example.com", password="A-strong-passphrase-2042")
+    second = User.objects.create_user(email="second@example.com", password="A-strong-passphrase-2042")
+    SourceReport.objects.create(source=source, reporter=second, reason="quality")
+    client.force_login(first)
+    created = client.post(
+        "/api/v1/source-reports/",
+        {"source": source.id, "reason": "unavailable", "message": "Returns an error"},
+        format="json",
+    )
+    assert created.status_code == 201
+    assert created.json()["title_slug"] == "sky-test"
+    listing = client.get("/api/v1/source-reports/")
+    assert listing.status_code == 200
+    assert listing.json()["count"] == 1
+
+
+@pytest.mark.django_db
+def test_duplicate_open_report_and_empty_other_reason_are_rejected(catalog_data):
+    source = Source.objects.get(episode__title=catalog_data)
+    user = User.objects.create_user(email="viewer@example.com", password="A-strong-passphrase-2042")
+    client = APIClient()
+    client.force_login(user)
+    payload = {"source": source.id, "reason": "unavailable"}
+    assert client.post("/api/v1/source-reports/", payload, format="json").status_code == 201
+    assert client.post("/api/v1/source-reports/", payload, format="json").status_code == 400
+    assert client.post(
+        "/api/v1/source-reports/",
+        {"source": source.id, "reason": "other", "message": ""},
+        format="json",
+    ).status_code == 400

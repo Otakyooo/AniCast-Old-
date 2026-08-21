@@ -6,6 +6,7 @@ export interface Genre {
 }
 
 export interface Source {
+  id: number;
   name: string;
   kind: string;
   url: string;

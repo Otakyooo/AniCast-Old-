@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.text import slugify
 
 
@@ -95,3 +97,49 @@ class Source(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.kind})"
+
+
+class SourceReport(models.Model):
+    class Reason(models.TextChoices):
+        UNAVAILABLE = "unavailable", "Источник не открывается"
+        WRONG_CONTENT = "wrong_content", "Неверный эпизод или контент"
+        GEO_BLOCKED = "geo_blocked", "Недоступно в регионе"
+        QUALITY = "quality", "Проблема качества"
+        OTHER = "other", "Другое"
+
+    class Status(models.TextChoices):
+        NEW = "new", "Новая"
+        REVIEWING = "reviewing", "На проверке"
+        RESOLVED = "resolved", "Решена"
+        REJECTED = "rejected", "Отклонена"
+
+    source = models.ForeignKey(Source, related_name="reports", on_delete=models.CASCADE)
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="source_reports", on_delete=models.CASCADE)
+    reason = models.CharField(max_length=32, choices=Reason.choices)
+    message = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.NEW)
+    resolution_note = models.CharField(max_length=500, blank=True)
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="handled_source_reports",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    handled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "reporter", "reason"],
+                condition=Q(status__in=["new", "reviewing"]),
+                name="unique_open_source_report",
+            )
+        ]
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.source} — {self.get_reason_display()}"

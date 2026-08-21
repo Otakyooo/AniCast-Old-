@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AccountLink } from "../../../../../components/account-link";
 import { EpisodeProgressControl } from "../../../../../components/episode-progress-control";
 import { Sidebar } from "../../../../../components/sidebar";
+import { SourceReportControl } from "../../../../../components/source-report-control";
 import { getCatalogItem } from "../../../../../lib/api";
 import styles from "../../../../history.module.css";
 
@@ -18,5 +19,5 @@ export default async function EpisodePage({ params }: { params: Promise<{ slug: 
   if (!episode) notFound();
   const sources = episode.sources ?? [];
 
-  return <main className="shell"><Sidebar active="catalog" /><section className="content"><header className="topbar"><Link className="back-link" href={`/titles/${title.slug}`}>← {title.name}</Link><AccountLink /></header><article className={styles.episodePage}><p className="eyebrow">ЭПИЗОД {episode.number}</p><h1>{episode.name || title.name}</h1><p className="muted">{episode.synopsis || "Описание эпизода пока не добавлено."}</p><EpisodeProgressControl slug={title.slug} number={episode.number} /><section><div className="section-heading"><h2>Источники</h2></div>{sources.length ? <ul className={styles.sources}>{sources.map((source) => <li className={styles.source} key={`${source.name}-${source.kind}`}><strong>{source.name}</strong><span>{source.kind.toUpperCase()} · {availabilityLabels[source.availability] ?? source.availability}</span>{source.availability_reason && <small>{source.availability_reason}</small>}</li>)}</ul> : <div className="empty-state"><strong>Источники пока не добавлены</strong></div>}</section></article></section></main>;
+  return <main className="shell"><Sidebar active="catalog" /><section className="content"><header className="topbar"><Link className="back-link" href={`/titles/${title.slug}`}>← {title.name}</Link><AccountLink /></header><article className={styles.episodePage}><p className="eyebrow">ЭПИЗОД {episode.number}</p><h1>{episode.name || title.name}</h1><p className="muted">{episode.synopsis || "Описание эпизода пока не добавлено."}</p><EpisodeProgressControl slug={title.slug} number={episode.number} /><section><div className="section-heading"><h2>Источники</h2></div>{sources.length ? <ul className={styles.sources}>{sources.map((source) => <li className={styles.source} key={source.id}><strong>{source.name}</strong><span>{source.kind.toUpperCase()} · {availabilityLabels[source.availability] ?? source.availability}</span>{source.availability_reason && <small>{source.availability_reason}</small>}<SourceReportControl sourceId={source.id} /></li>)}</ul> : <div className="empty-state"><strong>Источники пока не добавлены</strong></div>}</section></article></section></main>;
 }
