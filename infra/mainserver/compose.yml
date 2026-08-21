@@ -54,7 +54,6 @@ services:
     networks: [internal]
 networks:
   internal:
-    internal: true
 volumes:
   postgres_data:
   redis_data:
