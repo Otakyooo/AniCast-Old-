@@ -71,11 +71,22 @@
 - произвольный API-диапазон ограничен 31 днём;
 - неверный формат, обратный и слишком большой диапазон возвращают контролируемый HTTP 400.
 
+## Контентная админка и аудит
+
+- Django admin доступен на `/staff/` только staff-пользователям;
+- тайтлы редактируются вместе с эпизодами, эпизоды — вместе с источниками;
+- доступны жанры, франшизы, даты расписания и availability источников;
+- аккаунты и staff permissions управляются через адаптированный email-based UserAdmin;
+- external identities, Telegram challenges, библиотеки и история доступны в read-only режиме;
+- создание, изменение и удаление контента фиксируются встроенным `django_admin_log`;
+- admin static assets собираются в Docker image и отдаются через WhiteNoise;
+- production включает HTTPS redirect, HSTS, proxy SSL detection и clickjacking protection.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `27 passed`;
+- backend: `29 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -96,12 +107,14 @@ Production smoke-check подтверждает:
 - challenge завершается только в исходной браузерной сессии;
 - после завершения `/auth/me/` возвращает авторизованного пользователя;
 - Telegram сообщает healthy webhook status без last error.
+- anonymous и обычные пользователи не получают доступ к `/staff/`;
+- staff-операции с контентом создают audit log entry;
+- admin static CSS доступен в production image.
 
 ## Следующие задачи
 
 - provider adapter и rights registry;
 - разрешённый внешний playback или embed с callback прогресса;
-- контентная админка и аудит изменений;
 - жалобы на недоступные источники;
 - мониторинг ошибок, метрики и автоматизированный rollback;
 - персонажи, заметки, community и moderation;
@@ -112,4 +125,5 @@ Production smoke-check подтверждает:
 - точная позиция просмотра не реализована без доверенного callback от провайдера;
 - источники не запускаются, пока не определены права и разрешённый способ интеграции;
 - Telegram bot token и webhook secret должны храниться только в игнорируемом production `.env`;
+- для первого входа в `/staff/` требуется отдельно создать superuser с сильным уникальным паролем;
 - test suite использует SQLite, а критический Telegram polling flow дополнительно проверяется production smoke-тестом на PostgreSQL.

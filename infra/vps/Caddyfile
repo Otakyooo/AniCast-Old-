@@ -15,6 +15,14 @@ anicast.online {
 		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
 	}
 
+	handle /staff* {
+		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
+	}
+
+	handle /static/* {
+		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
+	}
+
 	handle {
 		reverse_proxy 127.0.0.1:3000
 	}

@@ -33,7 +33,7 @@ services:
     ports:
       - "10.78.0.2:8000:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/health/live', headers={'X-Forwarded-Proto': 'https'}))"]
       interval: 10s
       timeout: 5s
       retries: 5
