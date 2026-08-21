@@ -1,25 +1,41 @@
 services:
   frontend:
+    image: ${FRONTEND_IMAGE:-anicast-frontend:local}
     build:
       context: ../../frontend
       args:
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
         NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME:-}
     restart: unless-stopped
-    env_file: .env
+    env_file: ${ANICAST_ENV_FILE:-.env}
     ports:
       - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: &container-logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     network_mode: host
-    env_file: .env
+    env_file: ${ANICAST_ENV_FILE:-.env}
     depends_on:
-      - frontend
+      frontend: {condition: service_healthy}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *container-logging
 volumes:
   caddy_data:
   caddy_config:

@@ -10,8 +10,16 @@
 - backend доступен с VPS через AmneziaWG по `10.78.0.2:8000`;
 - PostgreSQL, Redis, Celery worker и Celery Beat запущены через Docker Compose;
 - Caddy маршрутизирует `/api/*` на MainServer, остальные запросы — на Next.js;
-- readiness проверяет PostgreSQL и Redis;
-- перед миграциями создаются локальные PostgreSQL backups в `backups/`.
+- readiness проверяет PostgreSQL и Redis.
+
+## Observability и rollback в репозитории
+
+Production deployment этой темы не выполнялся:
+
+- backend пишет безопасные JSON-логи с request ID и bounded operational fields;
+- приватный `/internal/metrics` требует bearer token, доступен только через MainServer listener и не маршрутизируется публичным Caddy;
+- Compose healthchecks покрывают PostgreSQL, Redis, readiness backend, Celery worker/Beat, frontend и Caddy;
+- deploy/rollback scripts используют immutable image digest, `current/previous` manifests, smoke/readiness gates и image-only automatic rollback.
 
 ## Discovery
 
@@ -142,7 +150,7 @@
 - Celery Beat проверяет enabled provider sources каждые 10 минут;
 - URL обязан быть HTTPS, входить в provider allowlist и резолвиться только в public global IP;
 - private/reserved адреса и redirects отклоняются до изменения состояния;
-- сохраняются HTTP status, latency, ошибка и история проверок;
+- сохраняются HTTP status, latency, безопасный bounded error code и история проверок;
 - после трёх последовательных сбоев выставляется `provider_error` и playback немедленно закрывается;
 - успешная проверка восстанавливает только автоматически выставленный `provider_error`;
 - ручные `unavailable`, `geo_blocked` и `expired` мониторинг не перезаписывает;
@@ -162,6 +170,7 @@
 - GitHub Actions проверяет backend tests, Ruff, mypy, migration drift и Django checks;
 - frontend проходит clean `npm ci`, lint, typecheck и production build;
 - infrastructure job валидирует оба Compose-файла, Docker images и Caddyfile;
+- CI валидирует shell deploy scripts, запрет публичного metrics route, Django deploy checks и whitespace diff;
 - workflow запускается на push и pull request с read-only repository permissions.
 
 ## Мультиязычный контент
@@ -250,15 +259,18 @@
 
 Последний полный локальный прогон:
 
-- backend: `56 passed`;
+- backend: `61 passed`;
 - Ruff: без ошибок;
-- mypy: без ошибок в 50 source files;
-- Django system check: без ошибок;
+- mypy: без ошибок в 95 source files;
+- Django system check и `check --deploy`: без ошибок;
 - `makemigrations --check --dry-run`: изменений нет;
-- frontend lint: без warnings и errors;
+- frontend lint: без ESLint errors; Next.js сообщил только deprecation/workspace-root warnings;
 - frontend typecheck: успешно;
 - frontend production build: успешно;
 - `git diff --check`: успешно.
+- оба Compose config, shell syntax, Caddyfile и запрет public metrics route: успешно;
+- hermetic deploy failure test подтвердил automatic rollback на previous VPS manifest;
+- backend и frontend Docker images: успешно собраны.
 
 Production smoke-check подтверждает:
 
@@ -290,7 +302,6 @@ Production smoke-check подтверждает:
 
 - provider-specific adapters и короткоживущие playback URL;
 - embed/callback прогресса для провайдеров, которые разрешают такую интеграцию;
-- мониторинг ошибок, метрики и автоматизированный rollback;
 - персонажи, заметки, community и moderation;
 - уведомления, рекомендации и Premium.
 
@@ -301,3 +312,6 @@ Production smoke-check подтверждает:
 - Telegram bot token и webhook secret должны храниться только в игнорируемом production `.env`;
 - для первого входа в `/staff/` требуется отдельно создать superuser с сильным уникальным паролем;
 - test suite использует SQLite, а критический Telegram polling flow дополнительно проверяется production smoke-тестом на PostgreSQL.
+- metrics counters хранятся в Redis и могут сброситься при потере Redis; endpoint не заменяет внешний alert evaluator;
+- автоматический rollback откатывает только application images и требует backward-compatible expand/contract migrations; restore PostgreSQL остаётся ручной DR-операцией;
+- image publication, production backup/restore automation, Prometheus server/alerts и production deployment этой темы не выполнялись.

@@ -10,6 +10,10 @@ www.anicast.online {
 
 anicast.online {
 	encode zstd gzip
+	log {
+		output stdout
+		format json
+	}
 
 	handle /api/* {
 		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
