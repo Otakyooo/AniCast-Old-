@@ -1,7 +1,24 @@
 services:
   frontend:
-    build: ../../frontend
+    build:
+      context: ../../frontend
+      args:
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
     restart: unless-stopped
     env_file: .env
     ports:
       - "127.0.0.1:3000:3000"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    depends_on:
+      - frontend
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  caddy_data:
+  caddy_config:

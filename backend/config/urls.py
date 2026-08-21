@@ -7,4 +7,6 @@ urlpatterns = [
     path("health/live", health_live, name="health-live"),
     path("health/ready", health_ready, name="health-ready"),
     path("api/v1/", include("catalog.urls")),
+    path("api/v1/", include("accounts.urls")),
+    path("api/v1/", include("library.urls")),
 ]

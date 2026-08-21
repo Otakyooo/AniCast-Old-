@@ -1,37 +1,55 @@
 import Link from "next/link";
-import { getCatalog, type CatalogItem } from "../../lib/api";
+import { AccountLink } from "../../components/account-link";
+import { CatalogCard } from "../../components/catalog-card";
+import { Sidebar } from "../../components/sidebar";
+import { getCatalog, type CatalogFilters } from "../../lib/api";
+import styles from "./catalog.module.css";
 
 export const dynamic = "force-dynamic";
 
-function statusLabel(status?: string | null) {
-  const labels: Record<string, string> = { ongoing: "Выходит", finished: "Завершено", planned: "Скоро" };
-  return status ? labels[status] ?? status : "Аниме";
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-function CatalogCard({ item }: { item: CatalogItem }) {
-  return (
-    <Link className="catalog-card" href={`/titles/${item.slug}`}>
-      <div className="poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-hidden="true">
-        <span>{item.name.slice(0, 1).toUpperCase()}</span>
-      </div>
-      <div className="catalog-card-body">
-        <span className="card-kicker">{statusLabel(item.status)}</span>
-        <h2>{item.name}</h2>
-        <p>{item.year ?? "Год не указан"}{item.title_type ? ` · ${item.title_type}` : ""}</p>
-      </div>
-    </Link>
-  );
+function catalogHref(filters: CatalogFilters, page: number) {
+  const query = new URLSearchParams();
+  if (filters.q) query.set("q", filters.q);
+  if (filters.type) query.set("type", filters.type);
+  if (filters.status) query.set("status", filters.status);
+  if (page > 1) query.set("page", String(page));
+  const suffix = query.toString();
+  return suffix ? `/catalog?${suffix}` : "/catalog";
 }
 
-export default async function CatalogPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
-  const { search } = await searchParams;
-  const catalog = await getCatalog(search);
+export default async function CatalogPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams;
+  const requestedPage = Number.parseInt(firstValue(params.page), 10);
+  const filters: CatalogFilters = {
+    q: firstValue(params.q).trim(),
+    type: firstValue(params.type),
+    status: firstValue(params.status),
+    page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
+  };
+  const catalog = await getCatalog(filters);
+  const currentPage = filters.page ?? 1;
+  const pageCount = Math.max(1, Math.ceil(catalog.count / 20));
+  const hasFilters = Boolean(filters.q || filters.type || filters.status);
 
   return <main className="shell">
-    <aside className="sidebar"><Link className="brand" href="/">Ani<span>Cast</span></Link><nav aria-label="Основная навигация"><Link href="/">Главная</Link><Link className="active" href="/catalog" aria-current="page">Каталог</Link><span className="nav-disabled" aria-disabled="true">Расписание</span><span className="nav-disabled" aria-disabled="true">Франшизы</span><span className="nav-disabled" aria-disabled="true">Персонажи</span><span className="nav-disabled" aria-disabled="true">Медиа</span></nav><div className="nav-group"><small>МОЯ БИБЛИОТЕКА</small>{["Смотрю", "Запланировано", "Просмотрено", "Избранное", "Заметки"].map(item => <span className="nav-disabled" aria-disabled="true" key={item}>{item}</span>)}</div></aside>
-    <section className="content"><header className="topbar"><form className="search" action="/catalog"><span aria-hidden="true">⌕</span><input name="q" defaultValue={search} aria-label="Поиск по каталогу" placeholder="Поиск тайтлов, персонажей, франшиз..." /><button type="submit" className="search-submit">Найти</button></form><button className="profile">Войти</button></header>
+    <Sidebar active="catalog" />
+    <section className="content"><header className="topbar"><form className="search" action="/catalog"><span aria-hidden="true">⌕</span><input name="q" defaultValue={filters.q} aria-label="Поиск по каталогу" placeholder="Поиск тайтлов, персонажей, франшиз..." />{filters.type && <input type="hidden" name="type" value={filters.type} />}{filters.status && <input type="hidden" name="status" value={filters.status} />}<button type="submit" className="search-submit">Найти</button></form><AccountLink /></header>
       <div className="page-heading"><p className="eyebrow">КОЛЛЕКЦИЯ ANICAST</p><h1>Каталог</h1><p className="muted">Находи новые миры и собирай библиотеку, к которой хочется возвращаться.</p></div>
-      {catalog.results.length ? <div className="catalog-grid">{catalog.results.map(item => <CatalogCard item={item} key={item.id} />)}</div> : <div className="empty-state" role="status"><strong>{search ? "Ничего не найдено" : "Каталог пока пуст"}</strong><span>{search ? "Попробуй изменить запрос или посмотреть всю коллекцию." : "Скоро здесь появятся тайтлы AniCast."}</span>{search && <Link className="secondary" href="/catalog">Сбросить поиск</Link>}</div>}
+      <form className={styles.filters} action="/catalog">
+        {filters.q && <input type="hidden" name="q" value={filters.q} />}
+        <label className={styles.field}><span>Формат</span><select name="type" defaultValue={filters.type}><option value="">Все форматы</option><option value="anime">Сериал</option><option value="movie">Фильм</option><option value="ova">OVA</option><option value="special">Спешл</option></select></label>
+        <label className={styles.field}><span>Статус</span><select name="status" defaultValue={filters.status}><option value="">Любой статус</option><option value="ongoing">Выходит</option><option value="finished">Завершено</option><option value="planned">Запланировано</option></select></label>
+        <button className={styles.submit} type="submit">Применить</button>
+        {hasFilters && <Link className={styles.reset} href="/catalog">Сбросить</Link>}
+      </form>
+      {catalog.results.length ? <div className="catalog-grid">{catalog.results.map(item => <CatalogCard item={item} key={item.slug} />)}</div> : <div className="empty-state" role="status"><strong>{hasFilters ? "Ничего не найдено" : "Каталог пока пуст"}</strong><span>{hasFilters ? "Попробуй изменить параметры или посмотреть всю коллекцию." : "Скоро здесь появятся тайтлы AniCast."}</span>{hasFilters && <Link className="secondary" href="/catalog">Сбросить фильтры</Link>}</div>}
+      {pageCount > 1 && <nav className={styles.pagination} aria-label="Пагинация каталога">{currentPage > 1 && <Link className={styles.pageLink} href={catalogHref(filters, currentPage - 1)}>← Назад</Link>}<span>Страница {currentPage} из {pageCount}</span>{currentPage < pageCount && <Link className={styles.pageLink} href={catalogHref(filters, currentPage + 1)}>Вперёд →</Link>}</nav>}
     </section>
   </main>;
 }

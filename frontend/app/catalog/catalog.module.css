@@ -1,0 +1,85 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 0 0 28px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  min-width: 180px;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field select {
+  min-height: 40px;
+  padding: 0 34px 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+
+.submit,
+.reset,
+.pageLink {
+  min-height: 40px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.submit {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+}
+
+.reset,
+.pageLink {
+  background: transparent;
+  color: var(--text);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 32px;
+  color: var(--muted);
+}
+
+.pageLink:hover,
+.reset:hover {
+  border-color: var(--primary);
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .field {
+    width: 100%;
+  }
+
+  .submit,
+  .reset {
+    flex: 1;
+    text-align: center;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+  }
+}

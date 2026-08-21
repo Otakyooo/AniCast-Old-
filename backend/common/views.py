@@ -1,4 +1,5 @@
 from django.db import connection
+from django.core.cache import cache
 from rest_framework.response import Response
 from rest_framework.status import HTTP_503_SERVICE_UNAVAILABLE
 from rest_framework.decorators import api_view, permission_classes
@@ -17,6 +18,9 @@ def health_ready(request):
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
+        cache.set("health-ready", "ok", timeout=10)
+        if cache.get("health-ready") != "ok":
+            raise RuntimeError("Cache is unavailable")
     except Exception:
         return Response({"status": "unavailable", "service": "backend"}, status=HTTP_503_SERVICE_UNAVAILABLE)
-    return Response({"status": "ok", "service": "backend", "dependencies": {"database": "ok"}})
+    return Response({"status": "ok", "service": "backend", "dependencies": {"database": "ok", "cache": "ok"}})

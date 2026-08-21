@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { AccountLink } from "../../../components/account-link";
+import { LibraryControl } from "../../../components/library-control";
+import { Sidebar } from "../../../components/sidebar";
 import { getCatalogItem, type Episode, type Source } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -68,17 +71,11 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
 
   return (
     <main className="shell">
-      <aside className="sidebar">
-        <Link className="brand" href="/">Ani<span>Cast</span></Link>
-        <nav aria-label="Основная навигация">
-          <Link href="/">Главная</Link>
-          <Link className="active" href="/catalog" aria-current="page">Каталог</Link>
-        </nav>
-      </aside>
+      <Sidebar active="catalog" />
       <section className="content">
         <header className="topbar">
           <Link className="back-link" href="/catalog">← Каталог</Link>
-          <button className="profile" type="button" disabled>Войти</button>
+          <AccountLink />
         </header>
         <article className="detail">
           <div className="detail-poster poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-label={`Обложка: ${item.name}`}>
@@ -95,6 +92,7 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
               <span>{item.status ?? "Статус уточняется"}</span>
             </div>
             {genres.length > 0 && <div className="tag-list">{genres.map((genre) => <span key={genre.slug}>{genre.name}</span>)}</div>}
+            <LibraryControl slug={item.slug} />
             {item.franchise && <section className="franchise-panel"><p className="eyebrow">ФРАНШИЗА</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</section>}
           </div>
         </article>
