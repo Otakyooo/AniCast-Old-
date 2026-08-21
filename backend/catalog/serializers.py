@@ -48,3 +48,17 @@ class TitleDetailSerializer(TitleSerializer):
 
     class Meta(TitleSerializer.Meta):
         fields = TitleSerializer.Meta.fields + ["episodes"]
+
+
+class ScheduleTitleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Title
+        fields = ["name", "slug", "poster_url", "title_type", "status"]
+
+
+class ScheduleEpisodeSerializer(serializers.ModelSerializer):
+    title = ScheduleTitleSerializer(read_only=True)
+
+    class Meta:
+        model = Episode
+        fields = ["id", "number", "name", "synopsis", "air_date", "title"]

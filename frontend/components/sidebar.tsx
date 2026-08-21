@@ -1,13 +1,13 @@
 import Link from "next/link";
 
-export function Sidebar({ active }: { active: "home" | "catalog" | "library" }) {
+export function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | "library" }) {
   const linkClass = (section: typeof active) => section === active ? "active" : undefined;
   return <aside className="sidebar">
     <Link className="brand" href="/">Ani<span>Cast</span></Link>
     <nav aria-label="Основная навигация">
       <Link className={linkClass("home")} href="/">Главная</Link>
       <Link className={linkClass("catalog")} href="/catalog">Каталог</Link>
-      <span className="nav-disabled" aria-disabled="true">Расписание</span>
+      <Link className={linkClass("schedule")} href="/schedule">Расписание</Link>
       <span className="nav-disabled" aria-disabled="true">Франшизы</span>
       <span className="nav-disabled" aria-disabled="true">Персонажи</span>
       <span className="nav-disabled" aria-disabled="true">Медиа</span>

@@ -53,6 +53,22 @@ export interface CatalogFilters {
   pageSize?: number;
 }
 
+export interface ScheduleItem {
+  id: number;
+  number: number;
+  name: string;
+  synopsis?: string;
+  air_date: string;
+  title: Pick<CatalogItem, "name" | "slug" | "title_type" | "status"> & { poster_url?: string };
+}
+
+export interface ScheduleResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ScheduleItem[];
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -92,4 +108,9 @@ export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogR
 
 export async function getCatalogItem(slug: string): Promise<CatalogItem> {
   return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+}
+
+export async function getSchedule(from: string, to: string): Promise<ScheduleResponse> {
+  const query = new URLSearchParams({ from, to, page_size: "200" });
+  return request<ScheduleResponse>(`/schedule/?${query}`, { cache: "no-store" });
 }

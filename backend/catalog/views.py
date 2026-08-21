@@ -1,9 +1,14 @@
+from datetime import timedelta
+
 from django.db.models import Q
+from django.utils import timezone
+from django.utils.dateparse import parse_date
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Title
-from .serializers import TitleDetailSerializer, TitleSerializer
+from .models import Episode, Title
+from .serializers import ScheduleEpisodeSerializer, TitleDetailSerializer, TitleSerializer
 
 
 class CatalogPagination(PageNumberPagination):
@@ -35,3 +40,32 @@ class TitleDetailView(RetrieveAPIView):
     queryset = Title.objects.select_related("franchise").prefetch_related("genres", "episodes__sources")
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
+
+
+class SchedulePagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+
+class ScheduleView(ListAPIView):
+    serializer_class = ScheduleEpisodeSerializer
+    pagination_class = SchedulePagination
+
+    def get_queryset(self):
+        today = timezone.localdate()
+        raw_start = self.request.query_params.get("from")
+        raw_end = self.request.query_params.get("to")
+        start = parse_date(raw_start) if raw_start else today
+        if start is None:
+            raise ValidationError({"date": "Используйте формат даты YYYY-MM-DD."})
+        end = parse_date(raw_end) if raw_end else start + timedelta(days=6)
+        if end is None:
+            raise ValidationError({"date": "Используйте формат даты YYYY-MM-DD."})
+        if end < start:
+            raise ValidationError({"date": "Конечная дата не может быть раньше начальной."})
+        if (end - start).days > 30:
+            raise ValidationError({"date": "Диапазон расписания не может превышать 31 день."})
+        return Episode.objects.filter(air_date__range=(start, end)).select_related("title").order_by(
+            "air_date", "title__name", "number"
+        )
