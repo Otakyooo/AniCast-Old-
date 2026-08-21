@@ -5,7 +5,20 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Episode, Franchise, Genre, Provider, RightsGrant, Source, SourceReport, Title
+from catalog.models import (
+    Episode,
+    EpisodeTranslation,
+    Franchise,
+    FranchiseTranslation,
+    Genre,
+    GenreTranslation,
+    Provider,
+    RightsGrant,
+    Source,
+    SourceReport,
+    Title,
+    TitleTranslation,
+)
 
 
 @pytest.fixture
@@ -154,3 +167,34 @@ def test_franchise_list_and_detail_are_ordered(catalog_data):
     assert detail.json()["title_count"] == 1
     assert detail.json()["titles"][0]["slug"] == "sky-test"
     assert APIClient().get("/api/v1/franchises/missing/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_catalog_localizes_content_and_searches_translations(catalog_data):
+    genre = Genre.objects.get(slug="action")
+    franchise = catalog_data.franchise
+    episode = catalog_data.episodes.get(number=1)
+    GenreTranslation.objects.create(genre=genre, language="ru", name="Экшен")
+    FranchiseTranslation.objects.create(franchise=franchise, language="ru", name="Тестовая франшиза", description="Описание")
+    TitleTranslation.objects.create(title=catalog_data, language="ru", name="Небесный тест", synopsis="Русское описание")
+    EpisodeTranslation.objects.create(episode=episode, language="ru", name="Начало", synopsis="Первый эпизод")
+
+    russian = APIClient().get("/api/v1/titles/sky-test/")
+    assert russian.json()["name"] == "Небесный тест"
+    assert russian.json()["genres"][0]["name"] == "Экшен"
+    assert russian.json()["franchise"]["name"] == "Тестовая франшиза"
+    assert russian.json()["episodes"][0]["name"] == "Начало"
+
+    english = APIClient().get("/api/v1/titles/sky-test/?lang=en")
+    assert english.json()["name"] == "Sky Test"
+    search = APIClient().get("/api/v1/titles/?q=Небесный")
+    assert search.json()["count"] == 1
+
+
+@pytest.mark.django_db
+def test_language_cookie_and_unsupported_language_fallback(catalog_data):
+    TitleTranslation.objects.create(title=catalog_data, language="ru", name="Русское имя")
+    client = APIClient()
+    client.cookies["anicast_lang"] = "en"
+    assert client.get("/api/v1/titles/sky-test/").json()["name"] == "Sky Test"
+    assert client.get("/api/v1/titles/sky-test/?lang=xx").json()["name"] == "Русское имя"

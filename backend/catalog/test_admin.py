@@ -37,7 +37,11 @@ def test_staff_can_open_admin_and_changes_are_audited(staff_client):
     assert staff_client.get("/staff/login/").url == "/staff/"
     response = staff_client.post(
         reverse("admin:catalog_genre_add"),
-        {"name": "Science Fiction", "slug": "science-fiction", "_save": "Сохранить"},
+        {
+            "name": "Science Fiction", "slug": "science-fiction", "_save": "Сохранить",
+            "translations-TOTAL_FORMS": "1", "translations-INITIAL_FORMS": "0",
+            "translations-MIN_NUM_FORMS": "0", "translations-MAX_NUM_FORMS": "1000",
+        },
     )
     assert response.status_code == 302
     genre = Genre.objects.get(slug="science-fiction")

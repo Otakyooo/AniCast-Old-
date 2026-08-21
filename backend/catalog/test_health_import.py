@@ -75,6 +75,7 @@ def import_payload():
         "providers": [{"name": "Import Provider", "slug": "import-provider", "allowed_hosts": ["video.example.com"]}],
         "titles": [{
             "name": "Import Title", "slug": "import-title", "genres": ["import-genre"], "franchise": "import-franchise",
+            "translations": {"ru": {"name": "Импортированный тайтл", "synopsis": "Описание"}},
             "episodes": [{"number": 1, "air_date": "2026-08-21", "sources": [{"provider": "import-provider", "name": "Import Source", "url": "https://video.example.com/1"}]}],
         }],
     }
@@ -91,6 +92,7 @@ def test_import_catalog_dry_run_rolls_back_and_apply_persists(tmp_path):
     call_command("import_catalog", path, apply=True, stdout=output)
     title = Title.objects.get(slug="import-title")
     assert title.episodes.get(number=1).sources.get().provider.is_enabled is False
+    assert title.translations.get(language="ru").name == "Импортированный тайтл"
 
 
 @pytest.mark.django_db

@@ -1,9 +1,15 @@
 from rest_framework import serializers
 
+from .i18n import translated_value
 from .models import Episode, Franchise, Genre, Source, SourceReport, Title
 
 
 class GenreSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
     class Meta:
         model = Genre
         fields = ["name", "slug"]
@@ -25,6 +31,14 @@ class SourceSerializer(serializers.ModelSerializer):
 
 class EpisodeSerializer(serializers.ModelSerializer):
     sources = SourceSerializer(many=True, read_only=True)
+    name = serializers.SerializerMethodField()
+    synopsis = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_synopsis(self, obj):
+        return translated_value(obj, "synopsis", self.context)
 
     class Meta:
         model = Episode
@@ -32,6 +46,15 @@ class EpisodeSerializer(serializers.ModelSerializer):
 
 
 class FranchiseSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_description(self, obj):
+        return translated_value(obj, "description", self.context)
+
     class Meta:
         model = Franchise
         fields = ["name", "slug", "description"]
@@ -40,6 +63,14 @@ class FranchiseSerializer(serializers.ModelSerializer):
 class TitleSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True, read_only=True)
     franchise = FranchiseSerializer(read_only=True)
+    name = serializers.SerializerMethodField()
+    synopsis = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_synopsis(self, obj):
+        return translated_value(obj, "synopsis", self.context)
 
     class Meta:
         model = Title
@@ -57,6 +88,11 @@ class TitleDetailSerializer(TitleSerializer):
 
 
 class ScheduleTitleSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
     class Meta:
         model = Title
         fields = ["name", "slug", "poster_url", "title_type", "status"]
@@ -64,6 +100,14 @@ class ScheduleTitleSerializer(serializers.ModelSerializer):
 
 class ScheduleEpisodeSerializer(serializers.ModelSerializer):
     title = ScheduleTitleSerializer(read_only=True)
+    name = serializers.SerializerMethodField()
+    synopsis = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_synopsis(self, obj):
+        return translated_value(obj, "synopsis", self.context)
 
     class Meta:
         model = Episode
@@ -99,6 +143,14 @@ class SourceReportSerializer(serializers.ModelSerializer):
 
 class FranchiseSummarySerializer(serializers.ModelSerializer):
     title_count = serializers.IntegerField(read_only=True)
+    name = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_description(self, obj):
+        return translated_value(obj, "description", self.context)
 
     class Meta:
         model = Franchise
@@ -107,6 +159,14 @@ class FranchiseSummarySerializer(serializers.ModelSerializer):
 
 class FranchiseTitleSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True, read_only=True)
+    name = serializers.SerializerMethodField()
+    synopsis = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_synopsis(self, obj):
+        return translated_value(obj, "synopsis", self.context)
 
     class Meta:
         model = Title

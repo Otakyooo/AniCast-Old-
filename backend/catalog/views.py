@@ -35,11 +35,15 @@ class TitleListView(ListAPIView):
     pagination_class = CatalogPagination
 
     def get_queryset(self):
-        queryset = Title.objects.select_related("franchise").prefetch_related("genres")
+        queryset = Title.objects.select_related("franchise").prefetch_related(
+            "translations", "franchise__translations", "genres", "genres__translations"
+        )
         params = self.request.query_params
         query = params.get("q", "").strip()
         if query:
-            queryset = queryset.filter(Q(name__icontains=query) | Q(original_name__icontains=query))
+            queryset = queryset.filter(
+                Q(name__icontains=query) | Q(original_name__icontains=query) | Q(translations__name__icontains=query)
+            )
         if genre := params.get("genre", "").strip():
             queryset = queryset.filter(genres__slug=genre)
         if status := params.get("status", "").strip():
@@ -50,7 +54,10 @@ class TitleListView(ListAPIView):
 
 
 class TitleDetailView(RetrieveAPIView):
-    queryset = Title.objects.select_related("franchise").prefetch_related("genres", "episodes__sources")
+    queryset = Title.objects.select_related("franchise").prefetch_related(
+        "translations", "franchise__translations", "genres", "genres__translations",
+        "episodes__translations", "episodes__sources",
+    )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
 
@@ -79,7 +86,9 @@ class ScheduleView(ListAPIView):
             raise ValidationError({"date": "Конечная дата не может быть раньше начальной."})
         if (end - start).days > 30:
             raise ValidationError({"date": "Диапазон расписания не может превышать 31 день."})
-        return Episode.objects.filter(air_date__range=(start, end)).select_related("title").order_by(
+        return Episode.objects.filter(air_date__range=(start, end)).select_related("title").prefetch_related(
+            "translations", "title__translations"
+        ).order_by(
             "air_date", "title__name", "number"
         )
 
@@ -125,12 +134,16 @@ class PlaybackView(APIView):
 class FranchiseListView(ListAPIView):
     serializer_class = FranchiseSummarySerializer
     pagination_class = CatalogPagination
-    queryset = Franchise.objects.annotate(title_count=Count("titles")).order_by("sort_order", "name")
+    queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related("translations").order_by("sort_order", "name")
 
 
 class FranchiseDetailView(RetrieveAPIView):
     serializer_class = FranchiseDetailSerializer
     lookup_field = "slug"
     queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related(
-        Prefetch("titles", queryset=Title.objects.prefetch_related("genres").order_by("name", "slug"))
+        "translations",
+        Prefetch(
+            "titles",
+            queryset=Title.objects.prefetch_related("translations", "genres", "genres__translations").order_by("name", "slug"),
+        ),
     )

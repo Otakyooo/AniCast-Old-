@@ -1,15 +1,26 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from catalog.models import Episode, Franchise, Genre, Provider, Source, Title
+from catalog.models import (
+    Episode,
+    EpisodeTranslation,
+    Franchise,
+    FranchiseTranslation,
+    Genre,
+    GenreTranslation,
+    Provider,
+    Source,
+    Title,
+    TitleTranslation,
+)
 
 
 GENRES = [
-    ("Action", "action"),
-    ("Adventure", "adventure"),
-    ("Comedy", "comedy"),
-    ("Drama", "drama"),
-    ("Fantasy", "fantasy"),
+    ("Action", "Экшен", "action"),
+    ("Adventure", "Приключения", "adventure"),
+    ("Comedy", "Комедия", "comedy"),
+    ("Drama", "Драма", "drama"),
+    ("Fantasy", "Фэнтези", "fantasy"),
 ]
 
 
@@ -18,9 +29,20 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        genres = {slug: Genre.objects.update_or_create(slug=slug, defaults={"name": name})[0] for name, slug in GENRES}
+        genres = {}
+        for english_name, russian_name, slug in GENRES:
+            genre = Genre.objects.update_or_create(slug=slug, defaults={"name": english_name})[0]
+            GenreTranslation.objects.update_or_create(genre=genre, language="en", defaults={"name": english_name})
+            GenreTranslation.objects.update_or_create(genre=genre, language="ru", defaults={"name": russian_name})
+            genres[slug] = genre
         franchise, _ = Franchise.objects.update_or_create(
             slug="demo-franchise", defaults={"name": "Demo Franchise", "description": "Seed catalog franchise.", "sort_order": 0}
+        )
+        FranchiseTranslation.objects.update_or_create(
+            franchise=franchise, language="en", defaults={"name": "Demo Franchise", "description": "Seed catalog franchise."}
+        )
+        FranchiseTranslation.objects.update_or_create(
+            franchise=franchise, language="ru", defaults={"name": "Демо-франшиза", "description": "Тестовая франшиза каталога."}
         )
         title, _ = Title.objects.update_or_create(
             slug="demo-title",
@@ -34,9 +56,21 @@ class Command(BaseCommand):
                 "franchise": franchise,
             },
         )
+        TitleTranslation.objects.update_or_create(
+            title=title, language="en", defaults={"name": "Demo Title", "synopsis": "A deterministic sample title for development."}
+        )
+        TitleTranslation.objects.update_or_create(
+            title=title, language="ru", defaults={"name": "Демо-тайтл", "synopsis": "Детерминированный пример тайтла для разработки."}
+        )
         title.genres.set([genres["action"], genres["adventure"]])
         episode, _ = Episode.objects.update_or_create(
             title=title, number=1, defaults={"name": "First Episode", "synopsis": "The story begins."}
+        )
+        EpisodeTranslation.objects.update_or_create(
+            episode=episode, language="en", defaults={"name": "First Episode", "synopsis": "The story begins."}
+        )
+        EpisodeTranslation.objects.update_or_create(
+            episode=episode, language="ru", defaults={"name": "Первый эпизод", "synopsis": "История начинается."}
         )
         provider, _ = Provider.objects.update_or_create(
             slug="demo-provider",

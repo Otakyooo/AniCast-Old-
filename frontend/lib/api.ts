@@ -76,10 +76,24 @@ export interface FranchiseResponse { count: number; next: string | null; previou
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
+async function contentLanguage() {
+  if (typeof window !== "undefined") {
+    return document.cookie.match(/(?:^|; )anicast_lang=([^;]+)/)?.[1] ?? "ru";
+  }
+  try {
+    const { cookies } = await import("next/headers");
+    return (await cookies()).get("anicast_lang")?.value ?? "ru";
+  } catch {
+    return "ru";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const language = await contentLanguage();
+  const separator = path.includes("?") ? "&" : "?";
+  const response = await fetch(`${API_BASE_URL}${path}${separator}lang=${encodeURIComponent(language)}`, {
     ...init,
-    headers: { Accept: "application/json", ...init?.headers },
+    headers: { Accept: "application/json", "Accept-Language": language, ...init?.headers },
   });
 
   if (!response.ok) {

@@ -164,11 +164,24 @@
 - infrastructure job валидирует оба Compose-файла, Docker images и Caddyfile;
 - workflow запускается на push и pull request с read-only repository permissions.
 
+## Мультиязычный контент
+
+- переводы хранятся отдельно для жанров, франшиз, тайтлов и эпизодов;
+- поддерживаются `ru`, `en`, `uk`, `be`, `kk`, `de`, `fr`, `es`, `it`, `ja`, `ko`, `zh`;
+- русский язык используется по умолчанию, английский — обязательный fallback для существующего каталога;
+- API принимает `?lang=`, cookie `anicast_lang` и `Accept-Language`;
+- поиск работает по базовым и переведённым названиям;
+- frontend получил постоянный переключатель RU/EN;
+- admin содержит русскоязычные inline-блоки переводов и выбор языка;
+- data migration переносит существующие значения в English translations и добавляет русские названия распространённых жанров;
+- seed создаёт RU/EN версии demo-контента;
+- JSON import поддерживает объект `translations` и валидирует языковые коды.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `45 passed`;
+- backend: `47 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -198,6 +211,7 @@ Production smoke-check подтверждает:
 - multi-slice smoke подтверждает fail-closed legacy sources, approved playback gate без URL в catalog payload, franchise list/detail и приватный CRUD заметок.
 - notification smoke подтверждает отдельный webhook secret, challenge link, active channel, подписку, `/stop`, Celery task registration и каскадную очистку.
 - monitoring/import smoke подтверждает private DNS rejection, автоматический `provider_error` после трёх сбоев, dry-run rollback, atomic apply и disabled provider без grants.
+- content i18n smoke подтверждает default RU, explicit EN, cookie-based SSR, поиск по русскому названию и русские translation inlines в staff.
 
 ## Следующие задачи
 

@@ -3,6 +3,12 @@ from django.db import models
 from django.db.models import F, Q
 from django.utils.text import slugify
 
+LANGUAGE_CHOICES = [
+    ("ru", "Русский"), ("en", "English"), ("uk", "Українська"), ("be", "Беларуская"),
+    ("kk", "Қазақша"), ("de", "Deutsch"), ("fr", "Français"), ("es", "Español"),
+    ("it", "Italiano"), ("ja", "日本語"), ("ko", "한국어"), ("zh", "中文"),
+]
+
 
 class Genre(models.Model):
     name = models.CharField(max_length=80, unique=True)
@@ -10,9 +16,26 @@ class Genre(models.Model):
 
     class Meta:
         ordering = ["name"]
+        verbose_name = "Жанр"
+        verbose_name_plural = "Жанры"
 
     def __str__(self) -> str:
         return self.name
+
+
+class GenreTranslation(models.Model):
+    genre = models.ForeignKey(Genre, related_name="translations", on_delete=models.CASCADE)
+    language = models.CharField("Язык", max_length=8, choices=LANGUAGE_CHOICES)
+    name = models.CharField("Название", max_length=80)
+
+    class Meta:
+        ordering = ["language"]
+        verbose_name = "Перевод жанра"
+        verbose_name_plural = "Переводы жанра"
+        constraints = [models.UniqueConstraint(fields=["genre", "language"], name="unique_genre_language")]
+
+    def __str__(self) -> str:
+        return f"{self.genre.slug} / {self.language}"
 
 
 class Franchise(models.Model):
@@ -23,9 +46,27 @@ class Franchise(models.Model):
 
     class Meta:
         ordering = ["sort_order", "name"]
+        verbose_name = "Франшиза"
+        verbose_name_plural = "Франшизы"
 
     def __str__(self) -> str:
         return self.name
+
+
+class FranchiseTranslation(models.Model):
+    franchise = models.ForeignKey(Franchise, related_name="translations", on_delete=models.CASCADE)
+    language = models.CharField("Язык", max_length=8, choices=LANGUAGE_CHOICES)
+    name = models.CharField("Название", max_length=200)
+    description = models.TextField("Описание", blank=True)
+
+    class Meta:
+        ordering = ["language"]
+        verbose_name = "Перевод франшизы"
+        verbose_name_plural = "Переводы франшизы"
+        constraints = [models.UniqueConstraint(fields=["franchise", "language"], name="unique_franchise_language")]
+
+    def __str__(self) -> str:
+        return f"{self.franchise.slug} / {self.language}"
 
 
 class Title(models.Model):
@@ -46,6 +87,8 @@ class Title(models.Model):
     class Meta:
         ordering = ["name"]
         indexes = [models.Index(fields=["status"]), models.Index(fields=["title_type"])]
+        verbose_name = "Тайтл"
+        verbose_name_plural = "Тайтлы"
 
     def __str__(self) -> str:
         return self.name
@@ -54,6 +97,22 @@ class Title(models.Model):
         if not self.slug:
             self.slug = slugify(self.name)
         super().save(*args, **kwargs)
+
+
+class TitleTranslation(models.Model):
+    title = models.ForeignKey(Title, related_name="translations", on_delete=models.CASCADE)
+    language = models.CharField("Язык", max_length=8, choices=LANGUAGE_CHOICES)
+    name = models.CharField("Название", max_length=240)
+    synopsis = models.TextField("Описание", blank=True)
+
+    class Meta:
+        ordering = ["language"]
+        verbose_name = "Перевод тайтла"
+        verbose_name_plural = "Переводы тайтла"
+        constraints = [models.UniqueConstraint(fields=["title", "language"], name="unique_title_language")]
+
+    def __str__(self) -> str:
+        return f"{self.title.slug} / {self.language}"
 
 
 class Episode(models.Model):
@@ -66,9 +125,27 @@ class Episode(models.Model):
     class Meta:
         ordering = ["number"]
         constraints = [models.UniqueConstraint(fields=["title", "number"], name="unique_title_episode_number")]
+        verbose_name = "Эпизод"
+        verbose_name_plural = "Эпизоды"
 
     def __str__(self) -> str:
         return f"{self.title.name} #{self.number}"
+
+
+class EpisodeTranslation(models.Model):
+    episode = models.ForeignKey(Episode, related_name="translations", on_delete=models.CASCADE)
+    language = models.CharField("Язык", max_length=8, choices=LANGUAGE_CHOICES)
+    name = models.CharField("Название", max_length=240, blank=True)
+    synopsis = models.TextField("Описание", blank=True)
+
+    class Meta:
+        ordering = ["language"]
+        verbose_name = "Перевод эпизода"
+        verbose_name_plural = "Переводы эпизода"
+        constraints = [models.UniqueConstraint(fields=["episode", "language"], name="unique_episode_language")]
+
+    def __str__(self) -> str:
+        return f"{self.episode} / {self.language}"
 
 
 class Provider(models.Model):

@@ -1,7 +1,21 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import Episode, Franchise, Genre, Provider, RightsGrant, Source, SourceHealthCheck, SourceReport, Title
+from .models import (
+    Episode,
+    EpisodeTranslation,
+    Franchise,
+    FranchiseTranslation,
+    Genre,
+    GenreTranslation,
+    Provider,
+    RightsGrant,
+    Source,
+    SourceHealthCheck,
+    SourceReport,
+    Title,
+    TitleTranslation,
+)
 from .playback import source_url_allowed
 
 
@@ -10,6 +24,26 @@ class EpisodeInline(admin.TabularInline):
     fields = ["number", "name", "air_date"]
     ordering = ["number"]
     extra = 0
+
+
+class GenreTranslationInline(admin.TabularInline):
+    model = GenreTranslation
+    extra = 1
+
+
+class FranchiseTranslationInline(admin.StackedInline):
+    model = FranchiseTranslation
+    extra = 1
+
+
+class TitleTranslationInline(admin.StackedInline):
+    model = TitleTranslation
+    extra = 1
+
+
+class EpisodeTranslationInline(admin.StackedInline):
+    model = EpisodeTranslation
+    extra = 1
 
 
 class SourceInline(admin.TabularInline):
@@ -23,6 +57,7 @@ class GenreAdmin(admin.ModelAdmin):
     list_display = ["name", "slug"]
     search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
+    inlines = [GenreTranslationInline]
 
 
 @admin.register(Franchise)
@@ -31,6 +66,7 @@ class FranchiseAdmin(admin.ModelAdmin):
     search_fields = ["name", "slug"]
     ordering = ["sort_order", "name"]
     prepopulated_fields = {"slug": ("name",)}
+    inlines = [FranchiseTranslationInline]
 
 
 @admin.register(Title)
@@ -41,7 +77,7 @@ class TitleAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     filter_horizontal = ["genres"]
     list_select_related = ["franchise"]
-    inlines = [EpisodeInline]
+    inlines = [TitleTranslationInline, EpisodeInline]
 
 
 @admin.register(Episode)
@@ -51,7 +87,7 @@ class EpisodeAdmin(admin.ModelAdmin):
     search_fields = ["title__name", "name"]
     autocomplete_fields = ["title"]
     date_hierarchy = "air_date"
-    inlines = [SourceInline]
+    inlines = [EpisodeTranslationInline, SourceInline]
 
 
 @admin.register(Source)

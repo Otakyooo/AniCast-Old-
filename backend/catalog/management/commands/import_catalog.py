@@ -5,7 +5,21 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils.dateparse import parse_date
 
-from catalog.models import Episode, Franchise, Genre, Provider, Source, Title
+from catalog.models import (
+    LANGUAGE_CHOICES,
+    Episode,
+    EpisodeTranslation,
+    Franchise,
+    FranchiseTranslation,
+    Genre,
+    GenreTranslation,
+    Provider,
+    Source,
+    Title,
+    TitleTranslation,
+)
+
+SUPPORTED_LANGUAGES = {code for code, _ in LANGUAGE_CHOICES}
 
 
 def require_string(value, path):
@@ -25,6 +39,7 @@ def validate_payload(payload):
                 raise CommandError(f"{section}[{index}]: ожидается объект")
             require_string(item.get("slug"), f"{section}[{index}].slug")
             require_string(item.get("name"), f"{section}[{index}].name")
+            validate_translations(item.get("translations", {}), f"{section}[{index}].translations")
             if section == "providers":
                 hosts = item.get("allowed_hosts", [])
                 if not isinstance(hosts, list) or any(not isinstance(host, str) or not host for host in hosts):
@@ -49,6 +64,11 @@ def validate_payload(payload):
             if not isinstance(number, int) or isinstance(number, bool) or number < 1 or number in numbers:
                 raise CommandError(f"titles[{index}].episodes[{episode_index}].number: неверный или повторяющийся номер")
             numbers.add(number)
+            validate_translations(
+                episode.get("translations", {}),
+                f"titles[{index}].episodes[{episode_index}].translations",
+                require_name=False,
+            )
             sources = episode.get("sources", [])
             if not isinstance(sources, list):
                 raise CommandError(f"titles[{index}].episodes[{episode_index}].sources: ожидается массив")
@@ -68,16 +88,36 @@ def validate_payload(payload):
     return payload
 
 
+def validate_translations(translations, path, *, require_name=True):
+    if not isinstance(translations, dict):
+        raise CommandError(f"{path}: ожидается объект с кодами языков")
+    for language, value in translations.items():
+        if language not in SUPPORTED_LANGUAGES or not isinstance(value, dict):
+            raise CommandError(f"{path}.{language}: неподдерживаемый язык или формат")
+        if require_name and "name" not in value:
+            raise CommandError(f"{path}.{language}.name: обязательное поле")
+        if "name" in value:
+            require_string(value["name"], f"{path}.{language}.name")
+
+
 def apply_payload(payload):
-    stats = {key: 0 for key in ["genres", "franchises", "providers", "titles", "episodes", "sources"]}
+    stats = {key: 0 for key in ["genres", "franchises", "providers", "titles", "episodes", "sources", "translations"]}
     for item in payload.get("genres", []):
-        Genre.objects.update_or_create(slug=require_string(item.get("slug"), "genres.slug"), defaults={"name": require_string(item.get("name"), "genres.name")})
+        genre = Genre.objects.update_or_create(slug=require_string(item.get("slug"), "genres.slug"), defaults={"name": require_string(item.get("name"), "genres.name")})[0]
+        values = {"en": {"name": item["name"]}, **item.get("translations", {})}
+        for language, value in values.items():
+            GenreTranslation.objects.update_or_create(genre=genre, language=language, defaults={"name": value["name"]})
+            stats["translations"] += 1
         stats["genres"] += 1
     for item in payload.get("franchises", []):
-        Franchise.objects.update_or_create(
+        franchise = Franchise.objects.update_or_create(
             slug=require_string(item.get("slug"), "franchises.slug"),
             defaults={"name": require_string(item.get("name"), "franchises.name"), "description": str(item.get("description", "")), "sort_order": int(item.get("sort_order", 0))},
-        )
+        )[0]
+        values = {"en": {"name": item["name"], "description": str(item.get("description", ""))}, **item.get("translations", {})}
+        for language, value in values.items():
+            FranchiseTranslation.objects.update_or_create(franchise=franchise, language=language, defaults={"name": value["name"], "description": str(value.get("description", ""))})
+            stats["translations"] += 1
         stats["franchises"] += 1
     for item in payload.get("providers", []):
         provider, created = Provider.objects.get_or_create(
@@ -107,6 +147,10 @@ def apply_payload(payload):
             "franchise": franchise,
         }
         title, _ = Title.objects.update_or_create(slug=item["slug"], defaults=defaults)
+        values = {"en": {"name": item["name"], "synopsis": str(item.get("synopsis", ""))}, **item.get("translations", {})}
+        for language, value in values.items():
+            TitleTranslation.objects.update_or_create(title=title, language=language, defaults={"name": value["name"], "synopsis": str(value.get("synopsis", ""))})
+            stats["translations"] += 1
         title.genres.set(genres)
         stats["titles"] += 1
         for episode_item in item.get("episodes", []):
@@ -117,6 +161,10 @@ def apply_payload(payload):
                 title=title, number=episode_item["number"],
                 defaults={"name": str(episode_item.get("name", "")), "synopsis": str(episode_item.get("synopsis", "")), "air_date": air_date},
             )
+            values = {"en": {"name": str(episode_item.get("name", "")), "synopsis": str(episode_item.get("synopsis", ""))}, **episode_item.get("translations", {})}
+            for language, value in values.items():
+                EpisodeTranslation.objects.update_or_create(episode=episode, language=language, defaults={"name": str(value.get("name", "")), "synopsis": str(value.get("synopsis", ""))})
+                stats["translations"] += 1
             stats["episodes"] += 1
             for source_item in episode_item.get("sources", []):
                 provider = Provider.objects.filter(slug=source_item["provider"]).first()
