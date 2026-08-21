@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from catalog.models import Title
+from catalog.models import Episode, Title
 
 
 class LibraryEntry(models.Model):
@@ -29,3 +29,20 @@ class LibraryEntry(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} / {self.title}"
+
+
+class EpisodeProgress(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="episode_progress", on_delete=models.CASCADE)
+    episode = models.ForeignKey(Episode, related_name="user_progress", on_delete=models.CASCADE)
+    is_watched = models.BooleanField(default=False)
+    last_opened_at = models.DateTimeField()
+    watched_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_opened_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "episode"], name="unique_user_episode_progress")]
+        indexes = [models.Index(fields=["user", "last_opened_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.user} / {self.episode}"

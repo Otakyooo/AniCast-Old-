@@ -2,8 +2,8 @@ import pytest
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Title
-from library.models import LibraryEntry
+from catalog.models import Episode, Title
+from library.models import EpisodeProgress, LibraryEntry
 
 
 @pytest.fixture
@@ -83,3 +83,45 @@ def test_library_mutation_requires_csrf(users, titles):
     client.force_login(users[0])
     response = client.put("/api/v1/library/first/", {"status": "planned"}, format="json")
     assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_open_episode_creates_truthful_history_and_preserves_watched_state(users, titles):
+    episode = Episode.objects.create(title=titles[0], number=1, name="Start")
+    client = APIClient()
+    client.force_login(users[0])
+    opened = client.post("/api/v1/episodes/first/1/progress/")
+    assert opened.status_code == 201
+    assert opened.json()["is_watched"] is False
+    assert opened.json()["episode"]["id"] == episode.id
+
+    watched = client.put("/api/v1/episodes/first/1/progress/", {"is_watched": True}, format="json")
+    assert watched.status_code == 200
+    assert watched.json()["watched_at"] is not None
+    reopened = client.post("/api/v1/episodes/first/1/progress/")
+    assert reopened.status_code == 200
+    assert reopened.json()["is_watched"] is True
+
+
+@pytest.mark.django_db
+def test_history_is_private_and_ordered_by_last_open(users, titles):
+    first = Episode.objects.create(title=titles[0], number=1)
+    second = Episode.objects.create(title=titles[1], number=1)
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+    client.post("/api/v1/episodes/second/1/progress/")
+    EpisodeProgress.objects.create(user=users[1], episode=first, last_opened_at="2026-01-01T00:00:00Z")
+    response = client.get("/api/v1/history/")
+    assert response.status_code == 200
+    assert response.json()["count"] == 2
+    assert response.json()["results"][0]["episode"]["id"] == second.id
+
+
+@pytest.mark.django_db
+def test_episode_progress_requires_auth_and_csrf(users, titles):
+    Episode.objects.create(title=titles[0], number=1)
+    assert APIClient().post("/api/v1/episodes/first/1/progress/").status_code in {401, 403}
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(users[0])
+    assert client.post("/api/v1/episodes/first/1/progress/").status_code == 403

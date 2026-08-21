@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -6,10 +7,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from catalog.models import Title
+from catalog.models import Episode, Title
 
-from .models import LibraryEntry
-from .serializers import LibraryEntrySerializer, LibraryEntryWriteSerializer
+from .models import EpisodeProgress, LibraryEntry
+from .serializers import (
+    EpisodeProgressSerializer,
+    EpisodeProgressWriteSerializer,
+    LibraryEntrySerializer,
+    LibraryEntryWriteSerializer,
+)
 
 
 class LibraryPagination(PageNumberPagination):
@@ -75,3 +81,68 @@ class LibraryEntryView(APIView):
     def delete(self, request, slug):
         self.get_entry(request, slug).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class HistoryListView(ListAPIView):
+    serializer_class = EpisodeProgressSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = LibraryPagination
+
+    def get_queryset(self):
+        return EpisodeProgress.objects.filter(user=self.request.user).select_related(
+            "episode", "episode__title", "episode__title__franchise"
+        ).prefetch_related("episode__sources", "episode__title__genres")
+
+
+class EpisodeProgressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_episode(self, slug, number):
+        return get_object_or_404(
+            Episode.objects.select_related("title").prefetch_related("sources"),
+            title__slug=slug,
+            number=number,
+        )
+
+    def get_progress(self, request, slug, number):
+        return get_object_or_404(
+            EpisodeProgress.objects.select_related(
+                "episode", "episode__title", "episode__title__franchise"
+            ).prefetch_related("episode__sources", "episode__title__genres"),
+            user=request.user,
+            episode__title__slug=slug,
+            episode__number=number,
+        )
+
+    def get(self, request, slug, number):
+        return Response(EpisodeProgressSerializer(self.get_progress(request, slug, number)).data)
+
+    def post(self, request, slug, number):
+        episode = self.get_episode(slug, number)
+        progress, created = EpisodeProgress.objects.update_or_create(
+            user=request.user,
+            episode=episode,
+            defaults={"last_opened_at": timezone.now()},
+        )
+        return Response(
+            EpisodeProgressSerializer(progress).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def put(self, request, slug, number):
+        serializer = EpisodeProgressWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        episode = self.get_episode(slug, number)
+        watched = serializer.validated_data["is_watched"]
+        progress, created = EpisodeProgress.objects.get_or_create(
+            user=request.user,
+            episode=episode,
+            defaults={"last_opened_at": timezone.now()},
+        )
+        progress.is_watched = watched
+        progress.watched_at = timezone.now() if watched else None
+        progress.save(update_fields=["is_watched", "watched_at", "updated_at"])
+        return Response(
+            EpisodeProgressSerializer(progress).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )

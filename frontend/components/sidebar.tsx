@@ -15,6 +15,7 @@ export function Sidebar({ active }: { active: "home" | "catalog" | "library" }) 
     <div className="nav-group">
       <small>МОЯ БИБЛИОТЕКА</small>
       <Link className={linkClass("library")} href="/library">Все тайтлы</Link>
+      <Link href="/history">История</Link>
       <Link href="/library?status=watching">Смотрю</Link>
       <Link href="/library?status=planned">Запланировано</Link>
       <Link href="/library?status=completed">Просмотрено</Link>

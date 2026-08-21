@@ -15,6 +15,7 @@ export interface Source {
 }
 
 export interface Episode {
+  id: number;
   number: number;
   name: string;
   synopsis?: string;

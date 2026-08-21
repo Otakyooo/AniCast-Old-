@@ -31,7 +31,7 @@ function SourceStatus({ source }: { source: Source }) {
   );
 }
 
-function EpisodeCard({ episode }: { episode: Episode }) {
+function EpisodeCard({ episode, slug }: { episode: Episode; slug: string }) {
   const sources = episode.sources ?? [];
 
   return (
@@ -42,6 +42,7 @@ function EpisodeCard({ episode }: { episode: Episode }) {
         {episode.air_date && <time dateTime={episode.air_date}>{episode.air_date}</time>}
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
+      <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>Открыть эпизод</Link>
       <div className="episode-sources">
         <h3>Источники</h3>
         {sources.length ? (
@@ -98,7 +99,7 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
         </article>
         <section className="episodes-section" aria-labelledby="episodes-heading">
           <div className="section-heading"><p className="eyebrow">ПРОСМОТР</p><h2 id="episodes-heading">Эпизоды</h2></div>
-          {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} />)}</ol> : <div className="empty-state"><strong>Эпизоды пока не добавлены</strong><span>Мы уточняем данные для этого тайтла.</span></div>}
+          {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} />)}</ol> : <div className="empty-state"><strong>Эпизоды пока не добавлены</strong><span>Мы уточняем данные для этого тайтла.</span></div>}
         </section>
       </section>
     </main>

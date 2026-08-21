@@ -22,7 +22,7 @@ class EpisodeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Episode
-        fields = ["number", "name", "synopsis", "air_date", "sources"]
+        fields = ["id", "number", "name", "synopsis", "air_date", "sources"]
 
 
 class FranchiseSerializer(serializers.ModelSerializer):
