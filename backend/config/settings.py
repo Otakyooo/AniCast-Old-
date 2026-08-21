@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "accounts",
     "library",
     "push",
+    "community",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",

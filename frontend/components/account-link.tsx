@@ -15,5 +15,5 @@ export function AccountLink() {
     getSessionUser().then((user) => setAuthenticated(Boolean(user))).catch(() => undefined);
   }, []);
 
-  return <div className={styles.actions}><LanguageSwitcher /><Link className="profile" href={authenticated ? "/account" : "/login"}>{authenticated ? t("common.account") : t("common.login")}</Link></div>;
+  return <div className={`account-actions ${styles.actions}`}><LanguageSwitcher /><Link className="profile" href={authenticated ? "/account" : "/login"}>{authenticated ? t("common.account") : t("common.login")}</Link></div>;
 }

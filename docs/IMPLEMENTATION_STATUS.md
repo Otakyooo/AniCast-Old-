@@ -215,11 +215,42 @@
 - пустая библиотека получает безопасный fallback каталога;
 - страница `/recommendations` показывает локализованные карточки и score причины.
 
+## Сообщество
+
+- пользователь может поставить одну оценку 1–10 каждому тайтлу и редактировать её;
+- средняя оценка и количество голосов доступны публично;
+- одна рецензия на пользователя/тайтл, длина 20–5000 символов;
+- рецензия поддерживает spoiler flag и после каждого изменения возвращается в pending;
+- публично выдаются только approved reviews;
+- страница тайтла содержит рейтинг, форму рецензии и spoiler disclosure;
+- `/community` показывает одобренные рецензии со ссылками на тайтлы;
+- review mutations ограничены `5/hour` на пользователя;
+- staff actions approve/reject записывают модератора, время публикации и audit log;
+- рейтинги доступны staff read-only, удаление community records через admin запрещено.
+
+## Design shell v0.3 — первая итерация
+
+- `AniCast_Design_Technical_Spec_v0.3.docx` разобран вместе с четырьмя визуальными референсами;
+- desktop sidebar полностью удалён из фактической оболочки;
+- добавлен sticky TopNav: logo, основные routes, global search, notifications и account controls;
+- primary navigation ограничена Главной, Каталогом, Расписанием, Франшизами и Персонажами;
+- Media, Community, Library и Recommendations перенесены в overflow «Ещё»/профильный контекст;
+- active state использует яркий текст и нижний primary indicator 2 px без фоновой таблетки;
+- content ограничен 1600 px с адаптивными gutters 32/24/16 px;
+- grid density следует 6/5/4/2 карточкам по breakpoint;
+- mobile использует compact app bar и fixed bottom navigation из пяти действий;
+- добавлены design tokens Background/Surface/Elevated/Border/Primary/Success/Warning/Danger из freeze;
+- typography переведена на Inter/system stack, focus ring — `#9D87FF`;
+- глобальный hero получил desktop/mobile геометрию и нейтральный art-ready gradient fallback;
+- account route подключён к общей shell вместо отдельного auth-like экрана;
+- motion учитывает `prefers-reduced-motion`;
+- auth/register остаются отдельными экранами намеренно.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `52 passed`;
+- backend: `56 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -252,6 +283,8 @@ Production smoke-check подтверждает:
 - content i18n smoke подтверждает default RU, explicit EN, cookie-based SSR, поиск по русскому названию и русские translation inlines в staff.
 - full UI i18n smoke подтверждает RU/EN navigation, pages, metadata, account preference API и английский Telegram push template с переведённым контентом.
 - discovery smoke подтверждает RU/EN character detail, role links, draft media filtering, rights-attributed published media и genre-ranked recommendations с исключением библиотеки.
+- community smoke подтверждает rating bounds, pending privacy, approval publication, spoiler flag и обязательный reset в moderation queue после edit.
+- design shell smoke подтверждает TopNav/mobile bottom nav, отсутствие desktop sidebar, RU/EN navigation, profile shell и HTTP 200 всех основных routes.
 
 ## Следующие задачи
 

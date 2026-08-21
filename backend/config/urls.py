@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/v1/", include("accounts.urls")),
     path("api/v1/", include("library.urls")),
     path("api/v1/", include("push.urls")),
+    path("api/v1/", include("community.urls")),
 ]

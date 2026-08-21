@@ -1,0 +1,12 @@
+from django.conf import settings
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+    initial = True
+    dependencies = [migrations.swappable_dependency(settings.AUTH_USER_MODEL), ("catalog", "0008_character_media")]
+    operations = [
+        migrations.CreateModel(name="TitleRating", fields=[("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")), ("value", models.PositiveSmallIntegerField()), ("created_at", models.DateTimeField(auto_now_add=True)), ("updated_at", models.DateTimeField(auto_now=True)), ("title", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="ratings", to="catalog.title")), ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="title_ratings", to=settings.AUTH_USER_MODEL))], options={"constraints": [models.UniqueConstraint(fields=("user", "title"), name="unique_user_title_rating"), models.CheckConstraint(condition=models.Q(("value__gte", 1), ("value__lte", 10)), name="rating_between_1_and_10")]}),
+        migrations.CreateModel(name="TitleReview", fields=[("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")), ("body", models.TextField(max_length=5000)), ("contains_spoilers", models.BooleanField(default=False)), ("status", models.CharField(choices=[("pending", "На модерации"), ("approved", "Одобрена"), ("rejected", "Отклонена")], default="pending", max_length=16)), ("moderation_note", models.CharField(blank=True, max_length=500)), ("moderated_at", models.DateTimeField(blank=True, null=True)), ("published_at", models.DateTimeField(blank=True, null=True)), ("created_at", models.DateTimeField(auto_now_add=True)), ("updated_at", models.DateTimeField(auto_now=True)), ("moderated_by", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="moderated_title_reviews", to=settings.AUTH_USER_MODEL)), ("title", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="reviews", to="catalog.title")), ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="title_reviews", to=settings.AUTH_USER_MODEL))], options={"ordering": ["-published_at", "-created_at", "-id"], "indexes": [models.Index(fields=["status", "published_at"], name="community_t_status_6adb5f_idx")], "constraints": [models.UniqueConstraint(fields=("user", "title"), name="unique_user_title_review")]}),
+    ]

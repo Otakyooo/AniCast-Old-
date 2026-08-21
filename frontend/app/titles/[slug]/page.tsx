@@ -4,6 +4,7 @@ import { LibraryControl } from "../../../components/library-control";
 import { Sidebar } from "../../../components/sidebar";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
+import { CommunityPanel } from "../../../components/community-panel";
 import { getCatalogItem, type Episode, type Source } from "../../../lib/api";
 import { getI18n } from "../../../i18n/server";
 
@@ -90,6 +91,7 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
             <LibraryControl slug={item.slug} />
             <NotificationSubscription slug={item.slug} />
             <TitleNoteControl slug={item.slug} />
+            <CommunityPanel slug={item.slug} />
             {item.franchise && <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}><p className="eyebrow">{t("franchise.label")}</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</Link>}
           </div>
         </article>

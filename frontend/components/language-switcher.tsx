@@ -19,5 +19,5 @@ export function LanguageSwitcher() {
     setPreferredLanguage(value).catch(() => undefined);
     router.refresh();
   }
-  return <div className={styles.switcher} aria-label={t("language.label")}><button className={language === "ru" ? styles.active : undefined} type="button" onClick={() => select("ru")}>RU</button><button className={language === "en" ? styles.active : undefined} type="button" onClick={() => select("en")}>EN</button></div>;
+  return <div className={`language-switcher ${styles.switcher}`} aria-label={t("language.label")}><button className={language === "ru" ? styles.active : undefined} type="button" onClick={() => select("ru")}>RU</button><button className={language === "en" ? styles.active : undefined} type="button" onClick={() => select("en")}>EN</button></div>;
 }
