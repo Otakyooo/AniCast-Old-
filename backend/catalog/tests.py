@@ -138,7 +138,13 @@ def test_duplicate_open_report_and_empty_other_reason_are_rejected(catalog_data)
 def test_playback_is_fail_closed_and_requires_active_approved_right(catalog_data):
     source = Source.objects.get(episode__title=catalog_data)
     assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 404
-    provider = Provider.objects.create(name="Provider Registry", slug="provider-registry", is_enabled=True, allowed_hosts=["example.invalid"])
+    provider = Provider.objects.create(
+        name="Provider Registry",
+        slug="provider-registry",
+        is_enabled=True,
+        allowed_hosts=["example.invalid"],
+        playback_adapter="external_link",
+    )
     source.provider = provider
     source.save(update_fields=["provider"])
     approver = User.objects.create_user(email="rights@example.com", password="A-strong-passphrase-2042")
@@ -154,10 +160,139 @@ def test_playback_is_fail_closed_and_requires_active_approved_right(catalog_data
     )
     response = APIClient().get(f"/api/v1/sources/{source.id}/playback/")
     assert response.status_code == 200
-    assert response.json()["url"] == source.url
+    assert response.json()["mode"] == "external_link"
+    assert response.json()["url"].startswith("/api/v1/playback/")
+    assert source.url not in response.json()["url"]
+    assert response["Cache-Control"] == "no-store, private"
+    redirect = APIClient().get(response.json()["url"])
+    assert redirect.status_code == 302
+    assert redirect.url == source.url
+    assert redirect["Referrer-Policy"] == "no-referrer"
     grant.status = "revoked"
     grant.save(update_fields=["status"])
     assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 404
+
+
+@pytest.fixture
+def authorized_source(db):
+    title = Title.objects.create(name="Playback Test", slug="playback-test")
+    episode = Episode.objects.create(title=title, number=1)
+    provider = Provider.objects.create(
+        name="Playback Provider",
+        slug="playback-provider",
+        is_enabled=True,
+        allowed_hosts=["watch.example.com"],
+        playback_adapter="external_link",
+    )
+    source = Source.objects.create(
+        episode=episode,
+        provider=provider,
+        name="Playback Source",
+        url="https://watch.example.com/episode/1",
+    )
+    approver = User.objects.create_user(email="playback-rights@example.com", password="A-strong-passphrase-2042")
+    now = timezone.now()
+    grant = RightsGrant.objects.create(
+        source=source,
+        status=RightsGrant.Status.ACTIVE,
+        valid_from=now - timedelta(hours=1),
+        valid_until=now + timedelta(hours=1),
+        contract_reference="PLAYBACK-CONTRACT",
+        approved_by=approver,
+        approved_at=now,
+    )
+    return source, provider, grant
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("availability", "unavailable"),
+        ("url", "http://watch.example.com/episode/1"),
+        ("url", "https://user:password@watch.example.com/episode/1"),
+        ("url", "https://evil.example.com/episode/1"),
+        ("url", "https://watch.example.com:444/episode/1"),
+        ("url", "https://watch.example.com/episode/1#redirect"),
+    ],
+)
+def test_playback_rejects_unsafe_or_unavailable_source(authorized_source, field, value):
+    source, _, _ = authorized_source
+    setattr(source, field, value)
+    source.save(update_fields=[field])
+    assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_playback_rejects_unknown_adapter_disabled_provider_and_invalid_config(authorized_source):
+    source, provider, _ = authorized_source
+    endpoint = f"/api/v1/sources/{source.id}/playback/"
+    provider.playback_adapter = "missing"
+    provider.save(update_fields=["playback_adapter"])
+    assert APIClient().get(endpoint).status_code == 404
+    provider.playback_adapter = "external_link"
+    provider.playback_config = {"token": "must-not-be-stored"}
+    provider.save(update_fields=["playback_adapter", "playback_config"])
+    assert APIClient().get(endpoint).status_code == 404
+    provider.playback_config = {}
+    provider.is_enabled = False
+    provider.save(update_fields=["playback_config", "is_enabled"])
+    assert APIClient().get(endpoint).status_code == 404
+
+
+@pytest.mark.django_db
+def test_playback_rejects_inactive_or_unapproved_rights(authorized_source):
+    source, _, grant = authorized_source
+    endpoint = f"/api/v1/sources/{source.id}/playback/"
+    grant.approved_at = None
+    grant.save(update_fields=["approved_at"])
+    assert APIClient().get(endpoint).status_code == 404
+    grant.approved_at = timezone.now()
+    grant.valid_from = timezone.now() + timedelta(minutes=1)
+    grant.valid_until = timezone.now() + timedelta(hours=1)
+    grant.save(update_fields=["approved_at", "valid_from", "valid_until"])
+    assert APIClient().get(endpoint).status_code == 404
+    grant.valid_from = timezone.now() - timedelta(hours=2)
+    grant.valid_until = timezone.now() - timedelta(hours=1)
+    grant.save(update_fields=["valid_from", "valid_until"])
+    assert APIClient().get(endpoint).status_code == 404
+
+
+@pytest.mark.django_db
+def test_playback_token_is_tamper_proof_expires_and_rechecks_authorization(authorized_source, monkeypatch, settings):
+    source, provider, grant = authorized_source
+    settings.PLAYBACK_URL_TTL_SECONDS = 1
+    monkeypatch.setattr("django.core.signing.time.time", lambda: 1_000)
+    issued = APIClient().get(f"/api/v1/sources/{source.id}/playback/")
+    url = issued.json()["url"]
+    tampered_url = f"{url[:-2]}{'a' if url[-2] != 'a' else 'b'}/"
+    assert APIClient().get(tampered_url).status_code == 404
+
+    source.availability = "unavailable"
+    source.save(update_fields=["availability"])
+    assert APIClient().get(url).status_code == 404
+    source.availability = "available"
+    source.save(update_fields=["availability"])
+
+    provider.is_enabled = False
+    provider.save(update_fields=["is_enabled"])
+    assert APIClient().get(url).status_code == 404
+    provider.is_enabled = True
+    provider.save(update_fields=["is_enabled"])
+
+    source.url = "https://evil.example.com/redirect"
+    source.save(update_fields=["url"])
+    assert APIClient().get(url).status_code == 404
+    source.url = "https://watch.example.com/episode/1"
+    source.save(update_fields=["url"])
+
+    grant.status = RightsGrant.Status.REVOKED
+    grant.save(update_fields=["status"])
+    assert APIClient().get(url).status_code == 404
+    grant.status = RightsGrant.Status.ACTIVE
+    grant.save(update_fields=["status"])
+    monkeypatch.setattr("django.core.signing.time.time", lambda: 1_002)
+    assert APIClient().get(url).status_code == 404
 
 
 @pytest.mark.django_db

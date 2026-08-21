@@ -105,8 +105,15 @@
 - rights grant привязан к конкретному источнику, имеет обязательный интервал и contract reference;
 - одновременно допускается только один active grant на источник;
 - playback endpoint работает fail closed и повторно проверяет provider, availability, approved grant, срок и hostname;
+- provider явно выбирает зарегистрированный playback adapter; отсутствующий или неизвестный adapter закрывает playback;
+- нейтральный `external_link` adapter не имитирует API поставщика и не принимает credentials/config;
+- API сохраняет контракт `mode + url`, но выдаёт подписанный внутренний URL с TTL 60 секунд вместо постоянного `Source.url`;
+- при открытии короткоживущего URL заново проверяются source, enabled provider, adapter и active approved grant;
+- token не содержит target URL или credentials, а redirect разрешён только на точный HTTPS hostname из allowlist;
+- playback и redirect responses имеют `no-store`, redirect также запрещает передачу referrer;
 - activation и revocation выполняются audited admin actions;
-- frontend показывает «Открыть у провайдера» только при `playback_available=true`.
+- admin и import отклоняют неизвестные adapters, credential config, private/reserved IP hosts и source URL вне allowlist;
+- frontend показывает «Открыть у провайдера» только при `playback_available=true` и принимает только same-origin playback URL.
 
 ## Франшизы
 
@@ -154,7 +161,7 @@
 - режим по умолчанию — dry-run с полной транзакцией и rollback;
 - запись требует явного `--apply`;
 - неизвестные связи, дубли эпизодов, неверные даты/choices и HTTP source URL отклоняются;
-- импортированные providers остаются disabled и не получают rights grants автоматически;
+- импортированные providers требуют явный playback adapter, остаются disabled и не получают rights grants автоматически;
 - apply выполняется атомарно и безопасен для повторного запуска через update-or-create.
 
 ## CI
@@ -250,12 +257,12 @@
 
 Последний полный локальный прогон:
 
-- backend: `56 passed`;
+- backend: `71 passed`;
 - Ruff: без ошибок;
-- mypy: без ошибок в 50 source files;
+- mypy: без ошибок в 91 source files;
 - Django system check: без ошибок;
 - `makemigrations --check --dry-run`: изменений нет;
-- frontend lint: без warnings и errors;
+- frontend lint: без ESLint warnings/errors (Next.js сообщил только deprecation/workspace-root tool warnings);
 - frontend typecheck: успешно;
 - frontend production build: успешно;
 - `git diff --check`: успешно.
@@ -288,7 +295,6 @@ Production smoke-check подтверждает:
 
 ## Следующие задачи
 
-- provider-specific adapters и короткоживущие playback URL;
 - embed/callback прогресса для провайдеров, которые разрешают такую интеграцию;
 - мониторинг ошибок, метрики и автоматизированный rollback;
 - персонажи, заметки, community и moderation;

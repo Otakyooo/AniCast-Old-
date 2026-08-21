@@ -3,7 +3,8 @@ from django.contrib.admin.models import ADDITION, LogEntry
 from django.urls import reverse
 
 from accounts.models import User
-from catalog.models import Episode, Genre, Source, SourceReport, Title
+from catalog.admin import ProviderAdminForm, SourceAdminForm
+from catalog.models import Episode, Genre, Provider, Source, SourceReport, Title
 
 
 @pytest.fixture
@@ -67,3 +68,51 @@ def test_staff_report_action_updates_handler_and_audit_log(staff_client):
     assert report.handled_by.email == "admin@example.com"
     assert report.handled_at is not None
     assert LogEntry.objects.filter(object_id=str(report.pk), change_message__contains="Решена").exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("adapter", "config", "hosts"),
+    [
+        ("unknown", "{}", '["watch.example.com"]'),
+        ("external_link", '{"token": "secret"}', '["watch.example.com"]'),
+        ("external_link", "{}", '["https://watch.example.com/path"]'),
+        ("external_link", "{}", '["127.0.0.1"]'),
+    ],
+)
+def test_provider_admin_form_rejects_unsafe_playback_configuration(adapter, config, hosts):
+    form = ProviderAdminForm(data={
+        "name": "Unsafe Provider",
+        "slug": "unsafe-provider",
+        "website_url": "",
+        "allowed_hosts": hosts,
+        "playback_adapter": adapter,
+        "playback_config": config,
+        "is_enabled": True,
+    })
+    assert form.is_valid() is False
+    assert "__all__" in form.errors
+
+
+@pytest.mark.django_db
+def test_source_admin_form_rejects_url_outside_provider_allowlist():
+    provider = Provider.objects.create(
+        name="Admin Provider",
+        slug="admin-provider",
+        allowed_hosts=["watch.example.com"],
+        playback_adapter="external_link",
+    )
+    title = Title.objects.create(name="Admin Playback", slug="admin-playback")
+    episode = Episode.objects.create(title=title, number=1)
+    form = SourceAdminForm(data={
+        "episode": episode.pk,
+        "provider": provider.pk,
+        "name": "Unsafe Source",
+        "url": "https://evil.example.com/episode/1",
+        "kind": "sub",
+        "availability": "available",
+        "availability_reason": "",
+        "consecutive_failures": 0,
+    })
+    assert form.is_valid() is False
+    assert "__all__" in form.errors

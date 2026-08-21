@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getPlayback } from "../lib/api";
 import { useI18n } from "./i18n-provider";
 
 export function PlaybackLink({ sourceId }: { sourceId: number }) {
@@ -10,10 +11,15 @@ export function PlaybackLink({ sourceId }: { sourceId: number }) {
     const popup = window.open("about:blank", "_blank");
     if (popup) popup.opener = null;
     setError("");
-    const response = await fetch(`/api/v1/sources/${sourceId}/playback/`, { cache: "no-store" });
-    if (!response.ok) { popup?.close(); setError(t("source.gone")); return; }
-    const payload = await response.json() as { url: string };
-    if (popup) popup.location.href = payload.url;
+    try {
+      const payload = await getPlayback(sourceId);
+      const target = new URL(payload.url, window.location.origin);
+      if (payload.mode !== "external_link" || target.origin !== window.location.origin) throw new Error("Unsafe playback response");
+      if (popup) popup.location.href = target.href;
+    } catch {
+      popup?.close();
+      setError(t("source.gone"));
+    }
   }
   return <><button className="primary inline-button" type="button" onClick={open}>{t("source.open")}</button>{error && <small>{error}</small>}</>;
 }

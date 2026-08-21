@@ -15,6 +15,12 @@ export interface Source {
   playback_available: boolean;
 }
 
+export interface PlaybackResponse {
+  mode: "external_link";
+  url: string;
+  expires_at: string;
+}
+
 export interface Episode {
   id: number;
   number: number;
@@ -160,4 +166,8 @@ export async function getCharacter(slug: string): Promise<CharacterDetail> {
 export async function getMedia(kind = ""): Promise<MediaResponse> {
   const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
   return request<MediaResponse>(`/media/${query}`, { cache: "no-store" });
+}
+
+export async function getPlayback(sourceId: number): Promise<PlaybackResponse> {
+  return request<PlaybackResponse>(`/sources/${sourceId}/playback/`, { cache: "no-store" });
 }

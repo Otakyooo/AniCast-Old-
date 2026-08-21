@@ -13,7 +13,11 @@ from catalog.tasks import check_provider_sources
 @pytest.fixture
 def monitored_source(db):
     provider = Provider.objects.create(
-        name="Health Provider", slug="health-provider", is_enabled=True, allowed_hosts=["watch.example.com"]
+        name="Health Provider",
+        slug="health-provider",
+        is_enabled=True,
+        allowed_hosts=["watch.example.com"],
+        playback_adapter="external_link",
     )
     title = Title.objects.create(name="Health Title", slug="health-title")
     episode = Episode.objects.create(title=title, number=1)
@@ -72,7 +76,12 @@ def import_payload():
     return {
         "genres": [{"name": "Import Genre", "slug": "import-genre"}],
         "franchises": [{"name": "Import Franchise", "slug": "import-franchise"}],
-        "providers": [{"name": "Import Provider", "slug": "import-provider", "allowed_hosts": ["video.example.com"]}],
+        "providers": [{
+            "name": "Import Provider",
+            "slug": "import-provider",
+            "allowed_hosts": ["video.example.com"],
+            "playback_adapter": "external_link",
+        }],
         "titles": [{
             "name": "Import Title", "slug": "import-title", "genres": ["import-genre"], "franchise": "import-franchise",
             "translations": {"ru": {"name": "Импортированный тайтл", "synopsis": "Описание"}},
@@ -92,6 +101,7 @@ def test_import_catalog_dry_run_rolls_back_and_apply_persists(tmp_path):
     call_command("import_catalog", path, apply=True, stdout=output)
     title = Title.objects.get(slug="import-title")
     assert title.episodes.get(number=1).sources.get().provider.is_enabled is False
+    assert title.episodes.get(number=1).sources.get().provider.playback_adapter == "external_link"
     assert title.translations.get(language="ru").name == "Импортированный тайтл"
 
 
@@ -104,3 +114,19 @@ def test_import_catalog_rejects_http_source(tmp_path):
     with pytest.raises(CommandError, match="HTTPS"):
         call_command("import_catalog", path, apply=True)
     assert not Title.objects.filter(slug="import-title").exists()
+
+
+@pytest.mark.django_db
+def test_import_catalog_rejects_unknown_adapter_and_host_mismatch(tmp_path):
+    payload = import_payload()
+    payload["providers"][0]["playback_adapter"] = "unknown"
+    path = tmp_path / "unknown-adapter.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(CommandError, match="Unknown"):
+        call_command("import_catalog", path, apply=True)
+
+    payload = import_payload()
+    payload["titles"][0]["episodes"][0]["sources"][0]["url"] = "https://evil.example.com/1"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(CommandError, match="allowlist"):
+        call_command("import_catalog", path, apply=True)
