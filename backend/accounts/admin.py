@@ -22,9 +22,10 @@ class UserAdmin(DjangoUserAdmin):
     list_display = ["email", "display_name", "preferred_language", "is_staff", "is_active", "date_joined"]
     list_filter = ["is_staff", "is_active", "is_superuser", "date_joined"]
     search_fields = ["email", "display_name", "external_identities__username", "external_identities__subject"]
+    readonly_fields = ["public_id"]
     fieldsets = [
         (None, {"fields": ["email", "password"]}),
-        ("Профиль", {"fields": ["display_name", "first_name", "last_name", "preferred_language"]}),
+        ("Профиль", {"fields": ["public_id", "display_name", "first_name", "last_name", "preferred_language"]}),
         ("Доступ", {"fields": ["is_active", "is_staff", "is_superuser", "groups", "user_permissions"]}),
         ("Даты", {"fields": ["last_login", "date_joined"]}),
     ]

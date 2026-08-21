@@ -96,3 +96,14 @@ def test_user_can_update_preferred_language():
     user.refresh_from_db()
     assert user.preferred_language == "en"
     assert client.put("/api/v1/auth/preferences/", {"preferred_language": "xx"}, format="json").status_code == 400
+
+
+@pytest.mark.django_db
+def test_user_public_ids_are_stable_unique_uuids():
+    first = User.objects.create_user(email="public-one@example.com")
+    second = User.objects.create_user(email="public-two@example.com")
+    public_id = first.public_id
+    first.save()
+    first.refresh_from_db()
+    assert first.public_id == public_id
+    assert first.public_id != second.public_id

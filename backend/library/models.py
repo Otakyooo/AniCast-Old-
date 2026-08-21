@@ -62,3 +62,37 @@ class TitleNote(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} / {self.title}"
+
+
+class TitleCollection(models.Model):
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="title_collections", on_delete=models.CASCADE)
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=80)
+    description = models.CharField(max_length=500, blank=True)
+    is_public = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["owner", "slug"], name="unique_owner_collection_slug")]
+
+    def __str__(self) -> str:
+        return f"{self.owner} / {self.name}"
+
+
+class TitleCollectionItem(models.Model):
+    collection = models.ForeignKey(TitleCollection, related_name="items", on_delete=models.CASCADE)
+    title = models.ForeignKey(Title, related_name="collection_items", on_delete=models.CASCADE)
+    position = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["collection", "title"], name="unique_collection_title"),
+            models.UniqueConstraint(fields=["collection", "position"], name="unique_collection_position"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.collection} / {self.title}"

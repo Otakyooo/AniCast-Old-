@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getI18n } from "../i18n/server";
 import { AccountLink } from "./account-link";
 
-type Section = "home" | "catalog" | "schedule" | "franchises" | "characters" | "media" | "community" | "library";
+type Section = "home" | "catalog" | "schedule" | "franchises" | "characters" | "media" | "community" | "library" | "collections";
 
 export async function Sidebar({ active }: { active: Section }) {
   const { t } = await getI18n();
@@ -20,13 +20,14 @@ export async function Sidebar({ active }: { active: Section }) {
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
           <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
           <Link className={linkClass("characters")} href="/characters">{t("nav.characters")}</Link>
-          <details className={`more-nav ${["media", "community", "library"].includes(active) ? "active" : ""}`}>
+          <details className={`more-nav ${["media", "community", "library", "collections"].includes(active) ? "active" : ""}`}>
             <summary>{t("nav.more")}</summary>
             <div className="more-menu">
               <Link className={`compact-only ${linkClass("characters") ?? ""}`} href="/characters">{t("nav.characters")}</Link>
               <Link className={linkClass("media")} href="/media">{t("nav.media")}</Link>
               <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
               <Link className={linkClass("library")} href="/library">{t("nav.libraryShort")}</Link>
+              <Link className={linkClass("collections")} href="/collections">{t("nav.collections")}</Link>
               <Link href="/recommendations">{t("nav.recommendations")}</Link>
             </div>
           </details>

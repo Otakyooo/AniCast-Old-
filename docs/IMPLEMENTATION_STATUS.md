@@ -244,6 +244,18 @@ Production deployment этой темы не выполнялся:
 - staff actions approve/reject записывают модератора, время публикации и audit log;
 - рейтинги доступны staff read-only, удаление community records через admin запрещено.
 
+## Пользовательские коллекции
+
+- авторизованный пользователь создаёт до 50 именованных подборок по 200 тайтлов;
+- коллекции имеют неизменяемый owner-scoped slug, описание и private/public visibility;
+- элементы добавляются, удаляются и переставляются в атомарном плотном порядке;
+- owner API изолирован по пользователю, а чужие и отсутствующие коллекции одинаково возвращают HTTP 404;
+- публичная ссылка использует непрозрачный UUID владельца и не раскрывает email, внутренний ID или external identities;
+- перевод public-коллекции в private немедленно закрывает публичную выдачу с `Cache-Control: no-store`;
+- страницы `/collections`, `/collections/manage/<slug>` и публичный detail поддерживают RU/EN;
+- со страницы тайтла можно добавить или удалить тайтл в собственных коллекциях;
+- Django admin показывает коллекции и элементы только для диагностики без изменения пользовательских данных.
+
 ## Design shell v0.3 — первая итерация
 
 - `AniCast_Design_Technical_Spec_v0.3.docx` разобран вместе с четырьмя визуальными референсами;
@@ -266,9 +278,9 @@ Production deployment этой темы не выполнялся:
 
 Последний полный локальный прогон:
 
-- backend: `76 passed`;
+- backend: `93 passed`;
 - Ruff: без ошибок;
-- mypy: без ошибок в 96 source files;
+- mypy: без ошибок в 98 source files;
 - Django system check и `check --deploy`: без ошибок;
 - `makemigrations --check --dry-run`: изменений нет;
 - frontend lint: без ESLint errors; Next.js сообщил только deprecation/workspace-root warnings;

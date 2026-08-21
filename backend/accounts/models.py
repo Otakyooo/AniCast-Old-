@@ -1,3 +1,4 @@
+import uuid
 from typing import ClassVar
 
 from django.contrib.auth.models import AbstractUser
@@ -12,6 +13,7 @@ class User(AbstractUser):
     username = None  # type: ignore[assignment]
     email = models.EmailField(unique=True, null=True, blank=True)  # type: ignore[assignment]
     display_name = models.CharField(max_length=80, blank=True)
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     preferred_language = models.CharField("Язык интерфейса", max_length=8, choices=LANGUAGE_CHOICES, default="ru")
 
     USERNAME_FIELD = "email"

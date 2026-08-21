@@ -1,25 +1,53 @@
-from django.db.models import Count, Q
+from django.contrib.auth import get_user_model
+from django.http import Http404
+from django.db import IntegrityError, transaction
+from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from catalog.models import Episode, Title
 
-from .models import EpisodeProgress, LibraryEntry, TitleNote
+from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
 from .serializers import (
     EpisodeProgressSerializer,
     EpisodeProgressWriteSerializer,
+    CollectionItemCreateSerializer,
+    CollectionItemMoveSerializer,
+    CollectionItemSerializer,
+    CollectionSerializer,
     LibraryEntrySerializer,
     LibraryEntryWriteSerializer,
     RecommendationSerializer,
+    PublicCollectionSerializer,
     TitleNoteSerializer,
     TitleNoteWriteSerializer,
 )
+
+User = get_user_model()
+
+
+def collection_queryset():
+    return TitleCollection.objects.select_related("owner").prefetch_related(
+        "items__title__translations",
+        "items__title__franchise__translations",
+        "items__title__genres__translations",
+    )
+
+
+def reindex_collection_items(collection, ordered_items):
+    TitleCollectionItem.objects.filter(collection=collection).update(position=F("position") + 201)
+    for position, item in enumerate(ordered_items):
+        if item.pk is not None:
+            item.position = position
+            item.save(update_fields=["position"])
 
 
 class LibraryPagination(PageNumberPagination):
@@ -215,3 +243,169 @@ class RecommendationListView(ListAPIView):
         else:
             queryset = queryset.annotate(score=Count("genres") * 0).order_by("name", "slug")
         return queryset
+
+
+class CollectionListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        collections = collection_queryset().filter(owner=request.user)
+        return Response(CollectionSerializer(collections, many=True, context={"request": request}).data)
+
+    def post(self, request):
+        serializer = CollectionSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            User.objects.select_for_update().get(pk=request.user.pk)
+            if TitleCollection.objects.filter(owner=request.user).count() >= 50:
+                raise ValidationError({"detail": "Достигнут лимит в 50 коллекций."})
+            try:
+                collection = serializer.save(owner=request.user)
+            except IntegrityError as exc:
+                raise ValidationError({"slug": "Коллекция с таким slug уже существует."}) from exc
+        collection = collection_queryset().get(pk=collection.pk)
+        return Response(
+            CollectionSerializer(collection, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CollectionDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, request, slug):
+        return get_object_or_404(collection_queryset(), owner=request.user, slug=slug)
+
+    def get(self, request, slug):
+        return Response(CollectionSerializer(self.get_object(request, slug), context={"request": request}).data)
+
+    def patch(self, request, slug):
+        collection = self.get_object(request, slug)
+        serializer = CollectionSerializer(collection, data=request.data, partial=True, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.save()
+        except IntegrityError as exc:
+            raise ValidationError({"slug": "Коллекция с таким slug уже существует."}) from exc
+        return Response(serializer.data)
+
+    def put(self, request, slug):
+        collection = self.get_object(request, slug)
+        serializer = CollectionSerializer(collection, data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, slug):
+        self.get_object(request, slug).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CollectionItemListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, slug):
+        serializer = CollectionItemCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        title = get_object_or_404(Title, slug=serializer.validated_data["title_slug"])
+        with transaction.atomic():
+            collection = get_object_or_404(
+                TitleCollection.objects.select_for_update(), owner=request.user, slug=slug
+            )
+            items = list(
+                TitleCollectionItem.objects.select_for_update()
+                .filter(collection=collection)
+                .order_by("position", "id")
+            )
+            if len(items) >= 200:
+                raise ValidationError({"detail": "Достигнут лимит в 200 элементов."})
+            if any(item.title_id == title.id for item in items):
+                raise ValidationError({"title_slug": "Тайтл уже добавлен в коллекцию."})
+            position = serializer.validated_data.get("position", len(items))
+            if position > len(items):
+                raise ValidationError({"position": "Позиция выходит за границы коллекции."})
+            reindex_collection_items(collection, items)
+            TitleCollectionItem.objects.filter(collection=collection, position__gte=position).update(
+                position=F("position") + 201
+            )
+            shifted = list(TitleCollectionItem.objects.filter(collection=collection).order_by("position", "id"))
+            for index, item in enumerate(shifted):
+                item.position = index if index < position else index + 1
+                item.save(update_fields=["position"])
+            item = TitleCollectionItem.objects.create(collection=collection, title=title, position=position)
+            collection.save(update_fields=["updated_at"])
+        item = TitleCollectionItem.objects.select_related("title", "title__franchise").prefetch_related(
+            "title__translations", "title__franchise__translations", "title__genres__translations"
+        ).get(pk=item.pk)
+        return Response(
+            CollectionItemSerializer(item, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CollectionItemDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, slug, title_slug):
+        serializer = CollectionItemMoveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            collection = get_object_or_404(
+                TitleCollection.objects.select_for_update(), owner=request.user, slug=slug
+            )
+            items = list(
+                TitleCollectionItem.objects.select_for_update()
+                .filter(collection=collection)
+                .select_related("title")
+                .order_by("position", "id")
+            )
+            item = next((candidate for candidate in items if candidate.title.slug == title_slug), None)
+            if item is None:
+                raise Http404
+            position = serializer.validated_data["position"]
+            if position >= len(items):
+                raise ValidationError({"position": "Позиция выходит за границы коллекции."})
+            items.remove(item)
+            items.insert(position, item)
+            reindex_collection_items(collection, items)
+            collection.save(update_fields=["updated_at"])
+        item = TitleCollectionItem.objects.select_related("title", "title__franchise").prefetch_related(
+            "title__translations", "title__franchise__translations", "title__genres__translations"
+        ).get(pk=item.pk)
+        return Response(CollectionItemSerializer(item, context={"request": request}).data)
+
+    def delete(self, request, slug, title_slug):
+        with transaction.atomic():
+            collection = get_object_or_404(
+                TitleCollection.objects.select_for_update(), owner=request.user, slug=slug
+            )
+            items = list(
+                TitleCollectionItem.objects.select_for_update()
+                .filter(collection=collection)
+                .select_related("title")
+                .order_by("position", "id")
+            )
+            item = next((candidate for candidate in items if candidate.title.slug == title_slug), None)
+            if item is None:
+                raise Http404
+            items.remove(item)
+            item.delete()
+            reindex_collection_items(collection, items)
+            collection.save(update_fields=["updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublicCollectionDetailView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes: list[type[BaseAuthentication]] = []
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    def get(self, request, public_id, slug):
+        collection = get_object_or_404(
+            collection_queryset(), owner__public_id=public_id, slug=slug, is_public=True
+        )
+        return Response(PublicCollectionSerializer(collection, context={"request": request}).data)

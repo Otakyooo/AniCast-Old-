@@ -1,8 +1,14 @@
+import re
+
 from rest_framework import serializers
 
 from catalog.serializers import EpisodeSerializer, TitleSerializer
 
-from .models import EpisodeProgress, LibraryEntry, TitleNote
+from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
+
+
+COLLECTION_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RESERVED_COLLECTION_SLUGS = {"new", "edit", "public", "api"}
 
 
 class LibraryEntrySerializer(serializers.ModelSerializer):
@@ -52,3 +58,51 @@ class TitleNoteWriteSerializer(serializers.Serializer):
 class RecommendationSerializer(serializers.Serializer):
     title = TitleSerializer(source="*", read_only=True)
     score = serializers.IntegerField(read_only=True)
+
+
+class CollectionItemSerializer(serializers.ModelSerializer):
+    title = TitleSerializer(read_only=True)
+
+    class Meta:
+        model = TitleCollectionItem
+        fields = ["position", "title", "created_at"]
+
+
+class PublicCollectionOwnerSerializer(serializers.Serializer):
+    public_id = serializers.UUIDField(read_only=True)
+    display_name = serializers.CharField(read_only=True)
+
+
+class CollectionSerializer(serializers.ModelSerializer):
+    owner = PublicCollectionOwnerSerializer(read_only=True)
+    items = CollectionItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TitleCollection
+        fields = ["owner", "name", "slug", "description", "is_public", "items", "created_at", "updated_at"]
+        read_only_fields = ["owner", "items", "created_at", "updated_at"]
+
+    def validate_slug(self, value):
+        if value in RESERVED_COLLECTION_SLUGS or not COLLECTION_SLUG_RE.fullmatch(value):
+            raise serializers.ValidationError("Slug должен состоять из строчных ASCII-букв, цифр и дефисов.")
+        if self.instance is not None and value != self.instance.slug:
+            raise serializers.ValidationError("Slug нельзя изменить после создания.")
+        return value
+
+
+class PublicCollectionSerializer(serializers.ModelSerializer):
+    owner = PublicCollectionOwnerSerializer(read_only=True)
+    items = CollectionItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TitleCollection
+        fields = ["owner", "name", "slug", "description", "items", "created_at", "updated_at"]
+
+
+class CollectionItemCreateSerializer(serializers.Serializer):
+    title_slug = serializers.SlugField(max_length=260)
+    position = serializers.IntegerField(min_value=0, required=False)
+
+
+class CollectionItemMoveSerializer(serializers.Serializer):
+    position = serializers.IntegerField(min_value=0)
