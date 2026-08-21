@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSessionUser, signOut, type SessionUser } from "../lib/auth";
+import { NotificationPanel } from "./notification-panel";
 import styles from "../app/auth.module.css";
 
-export function AccountPanel() {
+export function AccountPanel({ notificationBotUsername }: { notificationBotUsername?: string }) {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null | undefined>();
   const [error, setError] = useState("");
@@ -30,5 +31,5 @@ export function AccountPanel() {
   if (user === undefined) return <div className={styles.accountState} role="status">Загружаем аккаунт...</div>;
   if (user === null) return <div className={styles.accountState}><h2>Сессия не найдена</h2><p>Войдите, чтобы синхронизировать будущие списки и прогресс.</p><Link className={styles.submit} href="/login">Войти</Link></div>;
 
-  return <div className={styles.accountState}><p className="eyebrow">ВАШ АККАУНТ</p><h2>{user.display_name || "Зритель AniCast"}</h2>{user.email && <p className="muted">{user.email}</p>}<p>Сессия активна. Личная библиотека синхронизируется между устройствами.</p><Link className={styles.submit} href="/library">Открыть библиотеку</Link><button className={styles.secondary} type="button" onClick={logout}>Выйти</button></div>;
+  return <div className={styles.accountState}><p className="eyebrow">ВАШ АККАУНТ</p><h2>{user.display_name || "Зритель AniCast"}</h2>{user.email && <p className="muted">{user.email}</p>}<p>Сессия активна. Личная библиотека синхронизируется между устройствами.</p><Link className={styles.submit} href="/library">Открыть библиотеку</Link><NotificationPanel botUsername={notificationBotUsername} /><button className={styles.secondary} type="button" onClick={logout}>Выйти</button></div>;
 }

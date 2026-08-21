@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "catalog",
     "accounts",
     "library",
+    "push",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -66,9 +67,18 @@ else:
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+TELEGRAM_NOTIFY_BOT_TOKEN = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN", "")
+TELEGRAM_NOTIFY_BOT_USERNAME = os.environ.get("TELEGRAM_NOTIFY_BOT_USERNAME", "")
+TELEGRAM_NOTIFY_WEBHOOK_SECRET = os.environ.get("TELEGRAM_NOTIFY_WEBHOOK_SECRET", "")
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
+CELERY_BEAT_SCHEDULE = {
+    "dispatch-episode-notifications": {
+        "task": "push.tasks.dispatch_episode_notifications",
+        "schedule": 900.0,
+    },
+}
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = not DEBUG and not USE_SQLITE

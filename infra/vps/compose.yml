@@ -4,6 +4,7 @@ services:
       context: ../../frontend
       args:
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+        NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME:-}
     restart: unless-stopped
     env_file: .env
     ports:

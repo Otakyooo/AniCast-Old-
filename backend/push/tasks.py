@@ -1,0 +1,51 @@
+from urllib.error import HTTPError
+
+from celery import shared_task
+from django.conf import settings
+from django.utils import timezone
+
+from catalog.models import Episode
+
+from .models import NotificationDelivery, TelegramNotificationChannel, TitleNotificationSubscription
+from .telegram import send_notification
+
+
+@shared_task
+def dispatch_episode_notifications():
+    if not settings.TELEGRAM_NOTIFY_BOT_TOKEN:
+        return {"sent": 0, "failed": 0}
+    episodes = Episode.objects.filter(air_date=timezone.localdate()).select_related("title")
+    sent = failed = 0
+    for episode in episodes:
+        subscriptions = TitleNotificationSubscription.objects.filter(
+            title=episode.title,
+            is_active=True,
+            user__telegram_notification_channel__is_active=True,
+        ).select_related("user__telegram_notification_channel")
+        for subscription in subscriptions:
+            delivery, _ = NotificationDelivery.objects.get_or_create(subscription=subscription, episode=episode)
+            if delivery.status == NotificationDelivery.Status.SENT or delivery.attempts >= 3:
+                continue
+            channel = subscription.user.telegram_notification_channel
+            delivery.attempts += 1
+            try:
+                send_notification(
+                    channel.chat_id,
+                    f"Новый эпизод AniCast\n\n{episode.title.name} — эпизод {episode.number}\n"
+                    f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}",
+                )
+            except Exception as error:
+                delivery.status = NotificationDelivery.Status.FAILED
+                delivery.error = str(error)[:500]
+                failed += 1
+                if isinstance(error, HTTPError) and error.code in {400, 403}:
+                    TelegramNotificationChannel.objects.filter(pk=channel.pk).update(
+                        is_active=False, disabled_at=timezone.now(), last_error=delivery.error
+                    )
+            else:
+                delivery.status = NotificationDelivery.Status.SENT
+                delivery.sent_at = timezone.now()
+                delivery.error = ""
+                sent += 1
+            delivery.save(update_fields=["status", "attempts", "error", "sent_at", "updated_at"])
+    return {"sent": sent, "failed": failed}

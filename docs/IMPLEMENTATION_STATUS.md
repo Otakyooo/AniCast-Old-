@@ -125,11 +125,23 @@
 - редактирование доступно на странице тайтла, список — на `/notes`;
 - заметки отображаются staff только read-only.
 
+## Telegram-уведомления
+
+- уведомления вынесены в отдельный `@anicast_push_bot`; auth bot не используется для рассылок;
+- авторизованный пользователь создаёт одноразовый challenge и подтверждает привязку через `/start` второго бота;
+- notification token, username, webhook URL и secret полностью отделены от auth-контура;
+- `/stop` отключает канал без удаления аккаунта;
+- на странице тайтла доступна подписка на новые эпизоды;
+- Celery Beat запускает доставку каждые 15 минут;
+- delivery ledger с unique constraint предотвращает повторную отправку одного эпизода одной подписке;
+- неуспешная доставка повторяется не более трёх раз, блокировка бота отключает канал;
+- каналы, подписки, challenges и доставки доступны staff для диагностики.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `36 passed`;
+- backend: `40 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -157,6 +169,7 @@ Production smoke-check подтверждает:
 - production smoke подтверждает создание жалобы, HTTP 400 для дубля, приватный список и CSRF Origin enforcement.
 - production owner flow подтверждает цепочку `/staff/` → Telegram challenge → staff session → `/staff/` HTTP 200 → logout.
 - multi-slice smoke подтверждает fail-closed legacy sources, approved playback gate без URL в catalog payload, franchise list/detail и приватный CRUD заметок.
+- notification smoke подтверждает отдельный webhook secret, challenge link, active channel, подписку, `/stop`, Celery task registration и каскадную очистку.
 
 ## Следующие задачи
 
