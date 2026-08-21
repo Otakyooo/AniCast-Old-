@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import Episode, Franchise, Genre, Provider, RightsGrant, Source, SourceReport, Title
+from .models import Episode, Franchise, Genre, Provider, RightsGrant, Source, SourceHealthCheck, SourceReport, Title
 from .playback import source_url_allowed
 
 
@@ -56,10 +56,28 @@ class EpisodeAdmin(admin.ModelAdmin):
 
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):
-    list_display = ["episode", "provider", "name", "kind", "availability"]
+    list_display = ["episode", "provider", "name", "kind", "availability", "last_http_status", "consecutive_failures", "last_checked_at"]
     list_filter = ["kind", "availability"]
     search_fields = ["name", "episode__title__name"]
     autocomplete_fields = ["episode", "provider"]
+    readonly_fields = ["last_checked_at", "last_http_status", "consecutive_failures"]
+
+
+@admin.register(SourceHealthCheck)
+class SourceHealthCheckAdmin(admin.ModelAdmin):
+    list_display = ["source", "is_healthy", "http_status", "latency_ms", "checked_at"]
+    list_filter = ["is_healthy", "checked_at"]
+    search_fields = ["source__name", "source__episode__title__name", "error"]
+    readonly_fields = ["source", "checked_at", "is_healthy", "http_status", "latency_ms", "error"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return request.method in {"GET", "HEAD", "OPTIONS"} and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Provider)

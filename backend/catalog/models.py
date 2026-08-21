@@ -103,6 +103,9 @@ class Source(models.Model):
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default="sub")
     availability = models.CharField(max_length=20, choices=AVAILABILITY_CHOICES, default="available")
     availability_reason = models.CharField(max_length=240, blank=True)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    last_http_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    consecutive_failures = models.PositiveSmallIntegerField(default=0)
 
     @property
     def is_available(self) -> bool:
@@ -114,6 +117,22 @@ class Source(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.kind})"
+
+
+class SourceHealthCheck(models.Model):
+    source = models.ForeignKey(Source, related_name="health_checks", on_delete=models.CASCADE)
+    checked_at = models.DateTimeField(auto_now_add=True)
+    is_healthy = models.BooleanField()
+    http_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    error = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ["-checked_at", "-id"]
+        indexes = [models.Index(fields=["source", "checked_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.source} / {self.checked_at}"
 
 
 class RightsGrant(models.Model):

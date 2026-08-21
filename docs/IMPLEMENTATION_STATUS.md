@@ -137,11 +137,38 @@
 - неуспешная доставка повторяется не более трёх раз, блокировка бота отключает канал;
 - каналы, подписки, challenges и доставки доступны staff для диагностики.
 
+## Мониторинг источников
+
+- Celery Beat проверяет enabled provider sources каждые 10 минут;
+- URL обязан быть HTTPS, входить в provider allowlist и резолвиться только в public global IP;
+- private/reserved адреса и redirects отклоняются до изменения состояния;
+- сохраняются HTTP status, latency, ошибка и история проверок;
+- после трёх последовательных сбоев выставляется `provider_error` и playback немедленно закрывается;
+- успешная проверка восстанавливает только автоматически выставленный `provider_error`;
+- ручные `unavailable`, `geo_blocked` и `expired` мониторинг не перезаписывает;
+- диагностика и история доступны в `/staff/`.
+
+## Импорт контента
+
+- management command `import_catalog <file.json>` валидирует genres, franchises, providers, titles, episodes и sources;
+- режим по умолчанию — dry-run с полной транзакцией и rollback;
+- запись требует явного `--apply`;
+- неизвестные связи, дубли эпизодов, неверные даты/choices и HTTP source URL отклоняются;
+- импортированные providers остаются disabled и не получают rights grants автоматически;
+- apply выполняется атомарно и безопасен для повторного запуска через update-or-create.
+
+## CI
+
+- GitHub Actions проверяет backend tests, Ruff, mypy, migration drift и Django checks;
+- frontend проходит clean `npm ci`, lint, typecheck и production build;
+- infrastructure job валидирует оба Compose-файла, Docker images и Caddyfile;
+- workflow запускается на push и pull request с read-only repository permissions.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `40 passed`;
+- backend: `45 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -170,6 +197,7 @@ Production smoke-check подтверждает:
 - production owner flow подтверждает цепочку `/staff/` → Telegram challenge → staff session → `/staff/` HTTP 200 → logout.
 - multi-slice smoke подтверждает fail-closed legacy sources, approved playback gate без URL в catalog payload, franchise list/detail и приватный CRUD заметок.
 - notification smoke подтверждает отдельный webhook secret, challenge link, active channel, подписку, `/stop`, Celery task registration и каскадную очистку.
+- monitoring/import smoke подтверждает private DNS rejection, автоматический `provider_error` после трёх сбоев, dry-run rollback, atomic apply и disabled provider без grants.
 
 ## Следующие задачи
 

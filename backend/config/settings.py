@@ -78,6 +78,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "push.tasks.dispatch_episode_notifications",
         "schedule": 900.0,
     },
+    "check-provider-sources": {
+        "task": "catalog.tasks.check_provider_sources",
+        "schedule": 600.0,
+    },
 }
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

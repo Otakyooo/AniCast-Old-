@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from catalog.models import Episode, Franchise, Genre, Source, Title
+from catalog.models import Episode, Franchise, Genre, Provider, Source, Title
 
 
 GENRES = [
@@ -38,10 +38,14 @@ class Command(BaseCommand):
         episode, _ = Episode.objects.update_or_create(
             title=title, number=1, defaults={"name": "First Episode", "synopsis": "The story begins."}
         )
+        provider, _ = Provider.objects.update_or_create(
+            slug="demo-provider",
+            defaults={"name": "Demo Provider", "allowed_hosts": ["example.invalid"], "is_enabled": False},
+        )
         Source.objects.update_or_create(
             episode=episode,
             name="Demo Provider",
             kind="sub",
-            defaults={"url": "https://example.invalid/demo-title/1", "availability": "available", "availability_reason": "Demo source only."},
+            defaults={"provider": provider, "url": "https://example.invalid/demo-title/1", "availability": "available", "availability_reason": "Demo source only."},
         )
         self.stdout.write(self.style.SUCCESS("Catalog seed completed."))
