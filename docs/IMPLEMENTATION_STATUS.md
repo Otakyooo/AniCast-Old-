@@ -189,11 +189,37 @@
 - push-бот формирует RU/EN сообщение и использует переведённые название тайтла и эпизода;
 - пользовательские client-side ошибки имеют английский fallback вместо русских backend messages.
 
+## Персонажи
+
+- multilingual Character и CharacterTranslation;
+- связь персонажа с тайтлом хранит роль и редакторский порядок;
+- публичные list/detail API и страницы `/characters`, `/characters/<slug>`;
+- поиск работает по базовым и переведённым именам;
+- detail показывает связанные тайтлы и локализованную роль;
+- staff поддерживает переводы, связи с тайтлами и media inlines.
+
+## Медиа
+
+- изображения, трейлеры и промо связаны ровно с одним тайтлом или персонажем;
+- опубликованный asset обязан иметь credit и `rights_reference`;
+- drafts не возвращаются публичным API;
+- captions поддерживают переводы;
+- страница `/media` фильтрует опубликованные материалы по типу;
+- staff управляет публикацией, атрибуцией, правами и переводами.
+
+## Рекомендации
+
+- приватный endpoint `/api/v1/recommendations/`;
+- уже добавленные в библиотеку тайтлы исключаются;
+- кандидаты ранжируются по пересечению жанров библиотеки;
+- пустая библиотека получает безопасный fallback каталога;
+- страница `/recommendations` показывает локализованные карточки и score причины.
+
 ## Проверки
 
 Последний полный локальный прогон:
 
-- backend: `49 passed`;
+- backend: `52 passed`;
 - Ruff: без ошибок;
 - mypy: без ошибок в 50 source files;
 - Django system check: без ошибок;
@@ -225,6 +251,7 @@ Production smoke-check подтверждает:
 - monitoring/import smoke подтверждает private DNS rejection, автоматический `provider_error` после трёх сбоев, dry-run rollback, atomic apply и disabled provider без grants.
 - content i18n smoke подтверждает default RU, explicit EN, cookie-based SSR, поиск по русскому названию и русские translation inlines в staff.
 - full UI i18n smoke подтверждает RU/EN navigation, pages, metadata, account preference API и английский Telegram push template с переведённым контентом.
+- discovery smoke подтверждает RU/EN character detail, role links, draft media filtering, rights-attributed published media и genre-ranked recommendations с исключением библиотеки.
 
 ## Следующие задачи
 

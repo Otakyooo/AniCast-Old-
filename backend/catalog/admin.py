@@ -2,18 +2,23 @@ from django.contrib import admin
 from django.utils import timezone
 
 from .models import (
+    Character,
+    CharacterTranslation,
     Episode,
     EpisodeTranslation,
     Franchise,
     FranchiseTranslation,
     Genre,
     GenreTranslation,
+    MediaAsset,
+    MediaAssetTranslation,
     Provider,
     RightsGrant,
     Source,
     SourceHealthCheck,
     SourceReport,
     Title,
+    TitleCharacter,
     TitleTranslation,
 )
 from .playback import source_url_allowed
@@ -44,6 +49,43 @@ class TitleTranslationInline(admin.StackedInline):
 class EpisodeTranslationInline(admin.StackedInline):
     model = EpisodeTranslation
     extra = 1
+
+
+class CharacterTranslationInline(admin.StackedInline):
+    model = CharacterTranslation
+    extra = 1
+
+
+class TitleCharacterInline(admin.TabularInline):
+    model = TitleCharacter
+    extra = 0
+    autocomplete_fields = ["character"]
+
+
+class CharacterTitleInline(admin.TabularInline):
+    model = TitleCharacter
+    fk_name = "character"
+    extra = 0
+    autocomplete_fields = ["title"]
+
+
+class MediaAssetTranslationInline(admin.TabularInline):
+    model = MediaAssetTranslation
+    extra = 1
+
+
+class TitleMediaInline(admin.TabularInline):
+    model = MediaAsset
+    fk_name = "title"
+    fields = ["kind", "url", "thumbnail_url", "caption", "credit", "rights_reference", "is_published", "sort_order"]
+    extra = 0
+
+
+class CharacterMediaInline(admin.TabularInline):
+    model = MediaAsset
+    fk_name = "character"
+    fields = ["kind", "url", "thumbnail_url", "caption", "credit", "rights_reference", "is_published", "sort_order"]
+    extra = 0
 
 
 class SourceInline(admin.TabularInline):
@@ -77,7 +119,7 @@ class TitleAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     filter_horizontal = ["genres"]
     list_select_related = ["franchise"]
-    inlines = [TitleTranslationInline, EpisodeInline]
+    inlines = [TitleTranslationInline, EpisodeInline, TitleCharacterInline, TitleMediaInline]
 
 
 @admin.register(Episode)
@@ -88,6 +130,23 @@ class EpisodeAdmin(admin.ModelAdmin):
     autocomplete_fields = ["title"]
     date_hierarchy = "air_date"
     inlines = [EpisodeTranslationInline, SourceInline]
+
+
+@admin.register(Character)
+class CharacterAdmin(admin.ModelAdmin):
+    list_display = ["name", "original_name", "slug"]
+    search_fields = ["name", "original_name", "slug", "translations__name"]
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = [CharacterTranslationInline, CharacterTitleInline, CharacterMediaInline]
+
+
+@admin.register(MediaAsset)
+class MediaAssetAdmin(admin.ModelAdmin):
+    list_display = ["caption", "kind", "title", "character", "credit", "is_published", "sort_order"]
+    list_filter = ["kind", "is_published"]
+    search_fields = ["caption", "credit", "rights_reference", "title__name", "character__name"]
+    autocomplete_fields = ["title", "character"]
+    inlines = [MediaAssetTranslationInline]
 
 
 @admin.register(Source)

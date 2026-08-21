@@ -1,8 +1,11 @@
 from django.urls import path
 
 from .views import (
+    CharacterDetailView,
+    CharacterListView,
     FranchiseDetailView,
     FranchiseListView,
+    MediaAssetListView,
     PlaybackView,
     ScheduleView,
     SourceReportView,
@@ -18,4 +21,7 @@ urlpatterns = [
     path("sources/<int:source_id>/playback/", PlaybackView.as_view(), name="source-playback"),
     path("franchises/", FranchiseListView.as_view(), name="franchise-list"),
     path("franchises/<slug:slug>/", FranchiseDetailView.as_view(), name="franchise-detail"),
+    path("characters/", CharacterListView.as_view(), name="character-list"),
+    path("characters/<slug:slug>/", CharacterDetailView.as_view(), name="character-detail"),
+    path("media/", MediaAssetListView.as_view(), name="media-list"),
 ]

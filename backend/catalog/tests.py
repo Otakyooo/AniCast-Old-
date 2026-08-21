@@ -8,6 +8,8 @@ from accounts.models import User
 from catalog.models import (
     Episode,
     EpisodeTranslation,
+    Character,
+    CharacterTranslation,
     Franchise,
     FranchiseTranslation,
     Genre,
@@ -16,8 +18,10 @@ from catalog.models import (
     RightsGrant,
     Source,
     SourceReport,
+    MediaAsset,
     Title,
     TitleTranslation,
+    TitleCharacter,
 )
 
 
@@ -198,3 +202,37 @@ def test_language_cookie_and_unsupported_language_fallback(catalog_data):
     client.cookies["anicast_lang"] = "en"
     assert client.get("/api/v1/titles/sky-test/").json()["name"] == "Sky Test"
     assert client.get("/api/v1/titles/sky-test/?lang=xx").json()["name"] == "Русское имя"
+
+
+@pytest.mark.django_db
+def test_character_list_detail_and_translations(catalog_data):
+    character = Character.objects.create(name="Hero", slug="hero", original_name="ヒーロー")
+    CharacterTranslation.objects.create(character=character, language="ru", name="Герой", description="Главный герой")
+    TitleCharacter.objects.create(title=catalog_data, character=character, role="protagonist")
+    listing = APIClient().get("/api/v1/characters/")
+    assert listing.status_code == 200
+    assert listing.json()["results"][0]["name"] == "Герой"
+    detail = APIClient().get("/api/v1/characters/hero/")
+    assert detail.json()["title_count"] == 1
+    assert detail.json()["title_links"][0]["role"] == "protagonist"
+    english = APIClient().get("/api/v1/characters/hero/?lang=en")
+    assert english.json()["name"] == "Hero"
+    assert APIClient().get("/api/v1/characters/?q=Герой").json()["count"] == 1
+
+
+@pytest.mark.django_db
+def test_media_api_only_exposes_published_rights_attributed_assets(catalog_data):
+    draft = MediaAsset.objects.create(
+        title=catalog_data, kind="image", url="https://example.invalid/draft.jpg",
+        credit="Studio", rights_reference="RIGHTS-1", is_published=False,
+    )
+    published = MediaAsset.objects.create(
+        title=catalog_data, kind="trailer", url="https://example.invalid/trailer",
+        credit="Studio", rights_reference="RIGHTS-2", is_published=True,
+    )
+    response = APIClient().get("/api/v1/media/")
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert response.json()["results"][0]["id"] == published.id
+    assert response.json()["results"][0]["id"] != draft.id
+    assert APIClient().get("/api/v1/media/?kind=unknown").status_code == 400

@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -15,6 +16,7 @@ from .serializers import (
     EpisodeProgressWriteSerializer,
     LibraryEntrySerializer,
     LibraryEntryWriteSerializer,
+    RecommendationSerializer,
     TitleNoteSerializer,
     TitleNoteWriteSerializer,
 )
@@ -189,3 +191,27 @@ class TitleNoteView(APIView):
     def delete(self, request, slug):
         self.get_note(request, slug).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RecommendationListView(ListAPIView):
+    serializer_class = RecommendationSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = LibraryPagination
+
+    def get_queryset(self):
+        library_title_ids = list(
+            LibraryEntry.objects.filter(user=self.request.user).values_list("title_id", flat=True)
+        )
+        genre_ids = list(
+            Title.objects.filter(id__in=library_title_ids).values_list("genres__id", flat=True).distinct()
+        )
+        queryset = Title.objects.exclude(id__in=library_title_ids).select_related("franchise").prefetch_related(
+            "translations", "franchise__translations", "genres", "genres__translations"
+        )
+        if genre_ids:
+            queryset = queryset.annotate(
+                score=Count("genres", filter=Q(genres__id__in=genre_ids), distinct=True)
+            ).order_by("-score", "name", "slug")
+        else:
+            queryset = queryset.annotate(score=Count("genres") * 0).order_by("name", "slug")
+        return queryset

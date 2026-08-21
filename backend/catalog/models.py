@@ -83,6 +83,7 @@ class Title(models.Model):
     poster_url = models.URLField(blank=True)
     genres = models.ManyToManyField(Genre, related_name="titles", blank=True)
     franchise = models.ForeignKey(Franchise, related_name="titles", null=True, blank=True, on_delete=models.SET_NULL)
+    characters = models.ManyToManyField("Character", through="TitleCharacter", related_name="titles", blank=True)  # type: ignore[var-annotated]
 
     class Meta:
         ordering = ["name"]
@@ -146,6 +147,95 @@ class EpisodeTranslation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.episode} / {self.language}"
+
+
+class Character(models.Model):
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220, unique=True)
+    original_name = models.CharField(max_length=200, blank=True)
+    description = models.TextField(blank=True)
+    image_url = models.URLField(blank=True)
+
+    class Meta:
+        ordering = ["name", "slug"]
+        verbose_name = "Персонаж"
+        verbose_name_plural = "Персонажи"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CharacterTranslation(models.Model):
+    character = models.ForeignKey(Character, related_name="translations", on_delete=models.CASCADE)
+    language = models.CharField("Язык", max_length=8, choices=LANGUAGE_CHOICES)
+    name = models.CharField("Имя", max_length=200)
+    description = models.TextField("Описание", blank=True)
+
+    class Meta:
+        ordering = ["language"]
+        verbose_name = "Перевод персонажа"
+        verbose_name_plural = "Переводы персонажа"
+        constraints = [models.UniqueConstraint(fields=["character", "language"], name="unique_character_language")]
+
+
+class TitleCharacter(models.Model):
+    ROLE_CHOICES = [
+        ("protagonist", "Главный герой"), ("supporting", "Второстепенный"),
+        ("antagonist", "Антагонист"), ("cameo", "Камео"),
+    ]
+    title = models.ForeignKey(Title, related_name="character_links", on_delete=models.CASCADE)
+    character = models.ForeignKey(Character, related_name="title_links", on_delete=models.CASCADE)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="supporting")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Персонаж тайтла"
+        verbose_name_plural = "Персонажи тайтла"
+        constraints = [models.UniqueConstraint(fields=["title", "character"], name="unique_title_character")]
+
+
+class MediaAsset(models.Model):
+    KIND_CHOICES = [("image", "Изображение"), ("trailer", "Трейлер"), ("promo", "Промо")]
+    title = models.ForeignKey(Title, related_name="media_assets", null=True, blank=True, on_delete=models.CASCADE)
+    character = models.ForeignKey(Character, related_name="media_assets", null=True, blank=True, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    url = models.URLField()
+    thumbnail_url = models.URLField(blank=True)
+    caption = models.CharField(max_length=240, blank=True)
+    credit = models.CharField(max_length=240)
+    rights_reference = models.CharField(max_length=240)
+    is_published = models.BooleanField(default=False)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Медиа"
+        verbose_name_plural = "Медиа"
+        constraints = [
+            models.CheckConstraint(
+                condition=(Q(title__isnull=False, character__isnull=True) | Q(title__isnull=True, character__isnull=False)),
+                name="media_exactly_one_target",
+            ),
+            models.CheckConstraint(
+                condition=Q(is_published=False) | ~Q(rights_reference=""),
+                name="published_media_requires_rights",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.caption or f"{self.kind} #{self.pk}"
+
+
+class MediaAssetTranslation(models.Model):
+    asset = models.ForeignKey(MediaAsset, related_name="translations", on_delete=models.CASCADE)
+    language = models.CharField("Язык", max_length=8, choices=LANGUAGE_CHOICES)
+    caption = models.CharField("Подпись", max_length=240, blank=True)
+
+    class Meta:
+        ordering = ["language"]
+        constraints = [models.UniqueConstraint(fields=["asset", "language"], name="unique_media_language")]
 
 
 class Provider(models.Model):

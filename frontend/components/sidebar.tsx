@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getI18n } from "../i18n/server";
 
-export async function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | "franchises" | "library" }) {
+export async function Sidebar({ active }: { active: "home" | "catalog" | "schedule" | "franchises" | "characters" | "media" | "library" }) {
   const { t } = await getI18n();
   const linkClass = (section: typeof active) => section === active ? "active" : undefined;
   return <aside className="sidebar">
@@ -11,8 +11,8 @@ export async function Sidebar({ active }: { active: "home" | "catalog" | "schedu
       <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
       <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
       <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
-      <span className="nav-disabled" aria-disabled="true">{t("nav.characters")}</span>
-      <span className="nav-disabled" aria-disabled="true">{t("nav.media")}</span>
+      <Link className={linkClass("characters")} href="/characters">{t("nav.characters")}</Link>
+      <Link className={linkClass("media")} href="/media">{t("nav.media")}</Link>
     </nav>
     <div className="nav-group">
       <small>{t("nav.library")}</small>
@@ -23,6 +23,7 @@ export async function Sidebar({ active }: { active: "home" | "catalog" | "schedu
       <Link href="/library?status=completed">{t("nav.completed")}</Link>
       <Link href="/library?favorite=true">{t("nav.favorites")}</Link>
       <Link href="/notes">{t("nav.notes")}</Link>
+      <Link href="/recommendations">{t("nav.recommendations")}</Link>
     </div>
   </aside>;
 }

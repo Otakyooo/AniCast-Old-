@@ -12,11 +12,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
 
-from .models import Episode, Franchise, SourceReport, Title
+from .models import Character, Episode, Franchise, MediaAsset, SourceReport, Title
 from .playback import authorized_playback_source
 from .serializers import (
     FranchiseDetailSerializer,
     FranchiseSummarySerializer,
+    CharacterDetailSerializer,
+    CharacterSummarySerializer,
+    MediaAssetSerializer,
     ScheduleEpisodeSerializer,
     SourceReportSerializer,
     TitleDetailSerializer,
@@ -147,3 +150,45 @@ class FranchiseDetailView(RetrieveAPIView):
             queryset=Title.objects.prefetch_related("translations", "genres", "genres__translations").order_by("name", "slug"),
         ),
     )
+
+
+class CharacterListView(ListAPIView):
+    serializer_class = CharacterSummarySerializer
+    pagination_class = CatalogPagination
+
+    def get_queryset(self):
+        queryset = Character.objects.annotate(title_count=Count("titles", distinct=True)).prefetch_related("translations")
+        query = self.request.query_params.get("q", "").strip()
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query) | Q(original_name__icontains=query) | Q(translations__name__icontains=query)
+            ).distinct()
+        return queryset.order_by("name", "slug")
+
+
+class CharacterDetailView(RetrieveAPIView):
+    serializer_class = CharacterDetailSerializer
+    lookup_field = "slug"
+    queryset = Character.objects.annotate(title_count=Count("titles", distinct=True)).prefetch_related(
+        "translations", "title_links__title__translations", "title_links__title__genres", "title_links__title__genres__translations"
+    )
+
+
+class MediaAssetListView(ListAPIView):
+    serializer_class = MediaAssetSerializer
+    pagination_class = SchedulePagination
+
+    def get_queryset(self):
+        queryset = MediaAsset.objects.filter(is_published=True).select_related("title", "character").prefetch_related(
+            "translations", "title__translations", "character__translations"
+        )
+        if title_slug := self.request.query_params.get("title", "").strip():
+            queryset = queryset.filter(title__slug=title_slug)
+        if character_slug := self.request.query_params.get("character", "").strip():
+            queryset = queryset.filter(character__slug=character_slug)
+        if media_kind := self.request.query_params.get("kind", "").strip():
+            valid_kinds = {choice for choice, _ in MediaAsset.KIND_CHOICES}
+            if media_kind not in valid_kinds:
+                raise ValidationError({"kind": "Неизвестный тип медиа."})
+            queryset = queryset.filter(kind=media_kind)
+        return queryset

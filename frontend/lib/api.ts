@@ -74,6 +74,12 @@ export interface FranchiseSummary { name: string; slug: string; description: str
 export interface FranchiseDetail extends FranchiseSummary { titles: CatalogItem[] }
 export interface FranchiseResponse { count: number; next: string | null; previous: string | null; results: FranchiseSummary[] }
 
+export interface CharacterSummary { name: string; slug: string; original_name: string; description: string; image_url: string; title_count: number }
+export interface CharacterDetail extends CharacterSummary { title_links: Array<{ title: CatalogItem; role: string; sort_order: number }> }
+export interface CharacterResponse { count: number; next: string | null; previous: string | null; results: CharacterSummary[] }
+export interface MediaAsset { id: number; kind: string; url: string; thumbnail_url: string; caption: string; credit: string; title: Pick<CatalogItem, "name" | "slug" | "status" | "title_type"> | null; character: CharacterSummary | null }
+export interface MediaResponse { count: number; next: string | null; previous: string | null; results: MediaAsset[] }
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 async function contentLanguage() {
@@ -140,4 +146,18 @@ export async function getFranchises(page = 1): Promise<FranchiseResponse> {
 
 export async function getFranchise(slug: string): Promise<FranchiseDetail> {
   return request<FranchiseDetail>(`/franchises/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+}
+
+export async function getCharacters(search = ""): Promise<CharacterResponse> {
+  const query = search ? `?q=${encodeURIComponent(search)}` : "";
+  return request<CharacterResponse>(`/characters/${query}`, { cache: "no-store" });
+}
+
+export async function getCharacter(slug: string): Promise<CharacterDetail> {
+  return request<CharacterDetail>(`/characters/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+}
+
+export async function getMedia(kind = ""): Promise<MediaResponse> {
+  const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  return request<MediaResponse>(`/media/${query}`, { cache: "no-store" });
 }

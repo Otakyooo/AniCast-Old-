@@ -2,7 +2,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Episode, Title
+from catalog.models import Episode, Genre, Title
 from library.models import EpisodeProgress, LibraryEntry, TitleNote
 
 
@@ -153,3 +153,22 @@ def test_title_note_rejects_empty_body_and_requires_csrf(users, titles):
     checked = APIClient(enforce_csrf_checks=True)
     checked.force_login(users[0])
     assert checked.put("/api/v1/notes/first/", {"body": "Blocked"}, format="json").status_code == 403
+
+
+@pytest.mark.django_db
+def test_recommendations_exclude_library_and_rank_shared_genres(users, titles):
+    genre = Genre.objects.create(name="Drama", slug="drama")
+    titles[0].genres.add(genre)
+    titles[1].genres.add(genre)
+    third = Title.objects.create(name="Third", slug="third")
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status="watching")
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/recommendations/")
+    assert response.status_code == 200
+    slugs = [item["title"]["slug"] for item in response.json()["results"]]
+    assert titles[0].slug not in slugs
+    assert slugs[0] == titles[1].slug
+    assert response.json()["results"][0]["score"] == 1
+    assert third.slug in slugs
+    assert APIClient().get("/api/v1/recommendations/").status_code in {401, 403}

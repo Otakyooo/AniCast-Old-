@@ -47,3 +47,8 @@ class TitleNoteWriteSerializer(serializers.Serializer):
         if not value.strip():
             raise serializers.ValidationError("Заметка не может быть пустой.")
         return value
+
+
+class RecommendationSerializer(serializers.Serializer):
+    title = TitleSerializer(source="*", read_only=True)
+    score = serializers.IntegerField(read_only=True)

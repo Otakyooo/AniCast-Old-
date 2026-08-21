@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .i18n import translated_value
-from .models import Episode, Franchise, Genre, Source, SourceReport, Title
+from .models import Character, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -178,3 +178,47 @@ class FranchiseDetailSerializer(FranchiseSummarySerializer):
 
     class Meta(FranchiseSummarySerializer.Meta):
         fields = FranchiseSummarySerializer.Meta.fields + ["titles"]
+
+
+class CharacterSummarySerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    title_count = serializers.IntegerField(read_only=True)
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_description(self, obj):
+        return translated_value(obj, "description", self.context)
+
+    class Meta:
+        model = Character
+        fields = ["name", "slug", "original_name", "description", "image_url", "title_count"]
+
+
+class CharacterTitleLinkSerializer(serializers.ModelSerializer):
+    title = FranchiseTitleSerializer(read_only=True)
+
+    class Meta:
+        model = TitleCharacter
+        fields = ["title", "role", "sort_order"]
+
+
+class CharacterDetailSerializer(CharacterSummarySerializer):
+    title_links = CharacterTitleLinkSerializer(many=True, read_only=True)
+
+    class Meta(CharacterSummarySerializer.Meta):
+        fields = CharacterSummarySerializer.Meta.fields + ["title_links"]
+
+
+class MediaAssetSerializer(serializers.ModelSerializer):
+    caption = serializers.SerializerMethodField()
+    title = ScheduleTitleSerializer(read_only=True)
+    character = CharacterSummarySerializer(read_only=True)
+
+    def get_caption(self, obj):
+        return translated_value(obj, "caption", self.context)
+
+    class Meta:
+        model = MediaAsset
+        fields = ["id", "kind", "url", "thumbnail_url", "caption", "credit", "title", "character"]
