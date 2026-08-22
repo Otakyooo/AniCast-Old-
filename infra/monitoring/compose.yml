@@ -51,6 +51,16 @@ services:
     mem_limit: 48m
     logging: *container-logging
     networks: [monitoring, backend]
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    restart: unless-stopped
+    volumes:
+      - ./blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    mem_limit: 48m
+    logging: *container-logging
+    networks: [monitoring]
   node-exporter:
     image: prom/node-exporter:v1.12.1
     restart: unless-stopped

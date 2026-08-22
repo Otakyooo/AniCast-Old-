@@ -4,10 +4,11 @@ import { LibraryControl } from "../../../components/library-control";
 import { Sidebar } from "../../../components/sidebar";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
+import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
-import { getCatalogItem, getSimilarTitles, type Episode, type Source } from "../../../lib/api";
+import { apiErrorStatus, getCatalogItem, getSimilarTitles, type Episode, type Source } from "../../../lib/api";
 import { getI18n } from "../../../i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -59,8 +60,8 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
   try {
     item = await getCatalogItem(slug);
   } catch (error) {
-    if (error instanceof Error && Object.hasOwn(error, "status") && (error as Error & { status?: number }).status === 404) return <NotFoundState />;
-    throw error;
+    if (apiErrorStatus(error) === 404) return <NotFoundState />;
+    return <ApiUnavailableState />;
   }
 
   const episodes = item.episodes ?? [];

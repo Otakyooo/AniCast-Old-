@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AccountLink } from "../../components/account-link";
 import { Sidebar } from "../../components/sidebar";
-import { getSchedule, type ScheduleItem } from "../../lib/api";
+import { emptyPage, getSchedule, type ScheduleItem, type ScheduleResponse } from "../../lib/api";
 import { getI18n } from "../../i18n/server";
 import styles from "./schedule.module.css";
 
@@ -24,7 +24,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   start.setUTCHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + (range === "today" ? 0 : 6));
-  const schedule = await getSchedule(dateString(start), dateString(end));
+  const schedule = await getSchedule(dateString(start), dateString(end)).catch((): ScheduleResponse => emptyPage());
   const { t, locale } = await getI18n();
   const grouped = new Map<string, ScheduleItem[]>();
   for (const episode of schedule.results) grouped.set(episode.air_date, [...(grouped.get(episode.air_date) ?? []), episode]);

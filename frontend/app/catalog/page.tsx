@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AccountLink } from "../../components/account-link";
 import { CatalogCard } from "../../components/catalog-card";
 import { Sidebar } from "../../components/sidebar";
-import { getCatalog, type CatalogFilters } from "../../lib/api";
+import { emptyPage, getCatalog, type CatalogFilters, type CatalogResponse } from "../../lib/api";
 import { getI18n } from "../../i18n/server";
 import styles from "./catalog.module.css";
 
@@ -33,7 +33,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     status: firstValue(params.status),
     page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   };
-  const catalog = await getCatalog(filters);
+  const catalog: CatalogResponse = await getCatalog(filters).catch(() => emptyPage());
   const currentPage = filters.page ?? 1;
   const pageCount = Math.max(1, Math.ceil(catalog.count / 20));
   const hasFilters = Boolean(filters.q || filters.type || filters.status);

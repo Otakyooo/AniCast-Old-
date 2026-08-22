@@ -66,6 +66,27 @@ groups:
           severity: warning
         annotations:
           summary: "node-exporter недоступен: метрики хоста не собираются"
+      - alert: SiteDown
+        expr: probe_success{job="site-availability"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Сайт недоступен снаружи: {{ $labels.instance }}"
+      - alert: SiteSlowWarning
+        expr: avg_over_time(probe_duration_seconds{job="site-availability"}[10m]) > 3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Сайт отвечает медленно: {{ $labels.instance }} ~{{ $value | humanize }}s"
+      - alert: VpsNodeExporterDown
+        expr: up{job="node-vps"} == 0 or absent(up{job="node-vps"})
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "node-exporter на VPS недоступен: метрики хоста не собираются"
       - alert: AlertmanagerDown
         expr: up{job="alertmanager"} == 0 or absent(up{job="alertmanager"})
         for: 5m

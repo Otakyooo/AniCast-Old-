@@ -88,6 +88,16 @@ export interface MediaResponse { count: number; next: string | null; previous: s
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
+export function emptyPage<T>(): { count: number; next: string | null; previous: string | null; results: T[] } {
+  return { count: 0, next: null, previous: null, results: [] };
+}
+
+export function apiErrorStatus(error: unknown): number | undefined {
+  return error instanceof Error && Object.hasOwn(error, "status")
+    ? (error as Error & { status?: number }).status
+    : undefined;
+}
+
 async function contentLanguage() {
   if (typeof window !== "undefined") {
     return document.cookie.match(/(?:^|; )anicast_lang=([^;]+)/)?.[1] ?? "ru";

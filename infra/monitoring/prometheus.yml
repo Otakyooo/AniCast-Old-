@@ -26,6 +26,30 @@ scrape_configs:
     static_configs:
       - targets: [node-exporter:9100]
 
+  # Host metrics of the public VPS (frontend + Caddy), scraped over the
+  # AmneziaWG tunnel; the exporter listens only on the AWG interface.
+  - job_name: node-vps
+    static_configs:
+      - targets: ["10.78.0.1:9100"]
+
+  # Real external availability of the public site: DNS, Caddy, frontend
+  # and the backend API chain from the internet's point of view.
+  - job_name: site-availability
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://anicast.online/
+          - https://anicast.online/api/v1/titles/?page_size=1
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
   - job_name: alertmanager
     static_configs:
       - targets: [alertmanager:9093]
