@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   images: {
+    // Shikimori originals are small web-sized files: the optimizer would
+    // upscale and recompress them (q75), visibly degrading line art.
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "shikimori.one", pathname: "/system/**" },
       { protocol: "https", hostname: "shikimori.io", pathname: "/system/**" },
