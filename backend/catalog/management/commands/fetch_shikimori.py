@@ -6,7 +6,7 @@ import urllib.request
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.text import slugify
 
-API_BASE = "https://shikimori.one/api"
+API_BASE = "https://shikimori.io/api"
 USER_AGENT = "AniCast/1.0 (catalog metadata import)"
 REQUEST_PAUSE_SECONDS = 0.7
 
@@ -40,6 +40,63 @@ def api_get(path: str) -> object:
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def graphql_post(query: str) -> dict:
+    payload = json.dumps({"query": query}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{API_BASE}/graphql",
+        data=payload,
+        headers={"User-Agent": USER_AGENT, "Content-Type": "application/json", "Accept": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=25) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def character_slug(character: dict) -> str:
+    return f"{character['id']}-{slugify(character.get('name') or 'character')}"[:110]
+
+
+def map_role(roles: list) -> str:
+    return "protagonist" if any(role.strip().lower() == "main" for role in roles) else "supporting"
+
+
+def build_character(role_entry: dict, detail: dict) -> dict:
+    character = role_entry.get("character") or {}
+    image = (detail.get("image") or {}).get("original") or ""
+    japanese = detail.get("japanese") or ""
+    return {
+        "slug": character_slug(character),
+        "name": character.get("russian") or character.get("name") or "",
+        "original_name": japanese if isinstance(japanese, str) else "",
+        "description": clean_description(detail.get("description") or ""),
+        "image_url": f"https://shikimori.io{image}" if image else "",
+        "translations": {
+            "en": {"name": character.get("name") or character.get("russian") or ""},
+            "ru": {"name": character.get("russian") or character.get("name") or ""},
+        },
+    }
+
+
+def build_franchises(titles: list, details: dict) -> list:
+    groups: dict = {}
+    for title in titles:
+        franchise_slug = details.get(title["slug"])
+        if franchise_slug:
+            groups.setdefault(franchise_slug, []).append(title)
+    franchises = []
+    for franchise_slug, members in groups.items():
+        head = min(members, key=lambda title: (title.get("year") or 9999, title["slug"]))
+        franchises.append({
+            "slug": franchise_slug,
+            "name": head["name"],
+            "description": "",
+            "translations": {
+                "en": {"name": head["translations"]["en"]["name"]},
+                "ru": {"name": head["name"]},
+            },
+        })
+    return franchises
 
 
 def clean_description(text: str) -> str:
@@ -96,7 +153,7 @@ def build_title(entry: dict, detail: dict) -> dict:
         "title_type": map_kind(entry.get("kind") or "tv"),
         "status": map_status(entry.get("status") or "anons"),
         "year": int(aired_on[:4]) if len(aired_on) >= 4 and aired_on[:4].isdigit() else None,
-        "poster_url": f"https://shikimori.one{poster}" if poster else "",
+        "poster_url": f"https://shikimori.io{poster}" if poster else "",
         "genres": [
             slugify(genre["name"]) or f"genre-{genre['id']}"
             for genre in (detail.get("genres") or [])
@@ -119,6 +176,7 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=100)
         parser.add_argument("--page-size", type=int, default=50)
         parser.add_argument("--order", default="popularity")
+        parser.add_argument("--characters", type=int, default=8, help="characters per title, 0 disables")
         parser.add_argument("--output", default="")
 
     def handle(self, *args, **options):
@@ -137,20 +195,58 @@ class Command(BaseCommand):
             time.sleep(REQUEST_PAUSE_SECONDS)
         genres: dict = {}
         titles: list = []
+        franchise_by_title: dict = {}
+        characters: dict = {}
+        per_title_limit = max(0, options["characters"])
         for entry in entries:
             time.sleep(REQUEST_PAUSE_SECONDS)
             detail = api_get(f"/animes/{entry['id']}")
             for genre in detail.get("genres") or []:
                 built = build_genre(genre)
                 genres[built["slug"]] = built
-            titles.append(build_title(entry, detail))
+            title = build_title(entry, detail)
+            if detail.get("franchise"):
+                franchise_by_title[title["slug"]] = str(detail["franchise"])
+            if per_title_limit:
+                time.sleep(REQUEST_PAUSE_SECONDS)
+                roles_response = graphql_post(
+                    '{animes(ids:"' + str(entry["id"]) + '"){characterRoles{rolesEn character{id name russian}}}}'
+                )
+                role_entries = (((roles_response.get("data") or {}).get("animes") or [{}])[0].get("characterRoles")) or []
+                links = []
+                for sort_order, role_entry in enumerate(role_entries[:per_title_limit]):
+                    time.sleep(REQUEST_PAUSE_SECONDS)
+                    built = build_character(role_entry, api_get(f"/characters/{role_entry['character']['id']}"))
+                    characters[built["slug"]] = built
+                    links.append({
+                        "character": built["slug"],
+                        "role": map_role(role_entry.get("rolesEn") or []),
+                        "sort_order": sort_order,
+                    })
+                title["characters"] = links
+            titles.append(title)
             self.stdout.write(f"fetched {entry.get('russian') or entry.get('name')}")
-        payload = {"genres": list(genres.values()), "titles": titles}
+        for title in titles:
+            franchise_slug = franchise_by_title.get(title["slug"])
+            if franchise_slug:
+                title["franchise"] = franchise_slug
+        franchises = build_franchises(titles, franchise_by_title)
+        payload = {
+            "genres": list(genres.values()),
+            "franchises": franchises,
+            "characters": list(characters.values()),
+            "titles": titles,
+        }
         serialized = json.dumps(payload, ensure_ascii=False, indent=2)
         if options["output"]:
             with open(options["output"], "w", encoding="utf-8") as target:
                 target.write(serialized + "\n")
-            self.stdout.write(self.style.SUCCESS(f"wrote {len(titles)} titles to {options['output']}"))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"wrote {len(titles)} titles, {len(franchises)} franchises, "
+                    f"{len(characters)} characters to {options['output']}"
+                )
+            )
         else:
             self.stdout.write(serialized)
         if not titles:

@@ -449,7 +449,7 @@ def test_fetch_shikimori_mapping_helpers():
     assert title["title_type"] == "anime"
     assert title["status"] == "finished"
     assert title["year"] == 2013
-    assert title["poster_url"].startswith("https://shikimori.one/system/")
+    assert title["poster_url"].startswith("https://shikimori.io/system/")
     assert title["genres"] == ["action", "shounen"]
     assert title["translations"]["en"]["name"] == "Attack on Titan"
     assert title["translations"]["ru"]["name"] == "Атака титанов"
@@ -463,3 +463,85 @@ def test_fetch_shikimori_mapping_helpers():
     assert map_status("ongoing") == "ongoing"
     assert clean_description("[b]x[/b] [url=y]z[/url]") == "x z"
     assert build_genre({"id": 5, "name": "Drama", "russian": "Драма"})["translations"]["ru"]["name"] == "Драма"
+
+
+@pytest.mark.django_db
+def test_fetch_shikimori_character_and_franchise_helpers():
+    from catalog.management.commands.fetch_shikimori import (
+        build_character,
+        build_franchises,
+        character_slug,
+        map_role,
+    )
+
+    role_entry = {"rolesEn": ["Main"], "character": {"id": 40882, "name": "Eren Yeager", "russian": "Эрен Йегер"}}
+    detail = {
+        "japanese": "エレン・イェーガー",
+        "description": "[b]Главный герой[/b].",
+        "image": {"original": "/system/characters/original/40882.jpg?1"},
+    }
+    character = build_character(role_entry, detail)
+    assert character["slug"] == "40882-eren-yeager"
+    assert character["name"] == "Эрен Йегер"
+    assert character["original_name"] == "エレン・イェーガー"
+    assert character["description"] == "Главный герой."
+    assert character["image_url"].startswith("https://shikimori.io/system/")
+    assert character["translations"]["en"]["name"] == "Eren Yeager"
+
+    assert map_role(["Main"]) == "protagonist"
+    assert map_role(["Supporting"]) == "supporting"
+    assert map_role([]) == "supporting"
+    assert character_slug({"id": 7, "name": "Levi"}) == "7-levi"
+
+    titles = [
+        {"slug": "b-2", "name": "Берсерк 2", "year": 2016, "translations": {"en": {"name": "Berserk 2"}}},
+        {"slug": "b-1", "name": "Берсерк", "year": 1997, "translations": {"en": {"name": "Berserk"}}},
+    ]
+    franchises = build_franchises(titles, {"b-1": "berserk", "b-2": "berserk"})
+    assert len(franchises) == 1
+    assert franchises[0]["slug"] == "berserk"
+    assert franchises[0]["name"] == "Берсерк"
+    assert franchises[0]["translations"]["en"]["name"] == "Berserk"
+
+
+@pytest.mark.django_db
+def test_import_catalog_applies_characters_and_links():
+    from catalog.management.commands.import_catalog import apply_payload, validate_payload
+
+    payload = {
+        "characters": [
+            {
+                "slug": "40882-eren-yeager",
+                "name": "Эрен Йегер",
+                "original_name": "エレン・イェーガー",
+                "description": "Главный герой.",
+                "image_url": "https://shikimori.one/system/characters/original/40882.jpg",
+                "translations": {"en": {"name": "Eren Yeager"}},
+            }
+        ],
+        "titles": [
+            {
+                "slug": "16498-shingeki-no-kyojin",
+                "name": "Атака титанов",
+                "characters": [
+                    {"character": "40882-eren-yeager", "role": "protagonist", "sort_order": 0},
+                    {"character": "40882-eren-yeager", "role": "supporting", "sort_order": 1},
+                ],
+            }
+        ],
+    }
+    with pytest.raises(Exception, match="повторяющийся персонаж"):
+        validate_payload(payload)
+    payload["titles"][0]["characters"] = payload["titles"][0]["characters"][:1]
+    validate_payload(payload)
+    stats = apply_payload(payload)
+    assert stats["characters"] == 1
+    assert stats["title_characters"] == 1
+    link = TitleCharacter.objects.select_related("title", "character").get()
+    assert link.title.slug == "16498-shingeki-no-kyojin"
+    assert link.character.slug == "40882-eren-yeager"
+    assert link.role == "protagonist"
+
+    payload["titles"][0]["characters"] = [{"character": "missing", "role": "supporting"}]
+    with pytest.raises(Exception, match="не найден"):
+        apply_payload(payload)

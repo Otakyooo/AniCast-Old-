@@ -5,3 +5,5 @@
   justify-content: center;
   margin-top: 24px;
 }
+.avatarWrap{position:relative;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#28205d,#161a24);display:grid;place-items:center;font-size:46px;font-weight:800}
+.portraitWrap{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#28205d,#161a24);display:grid;place-items:center;font-size:72px;font-weight:800}

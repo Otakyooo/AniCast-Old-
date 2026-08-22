@@ -7,6 +7,8 @@ from django.utils.dateparse import parse_date
 
 from catalog.models import (
     LANGUAGE_CHOICES,
+    Character,
+    CharacterTranslation,
     Episode,
     EpisodeTranslation,
     Franchise,
@@ -16,6 +18,7 @@ from catalog.models import (
     Provider,
     Source,
     Title,
+    TitleCharacter,
     TitleTranslation,
 )
 from catalog.playback import source_url_allowed, validate_provider_configuration
@@ -32,7 +35,7 @@ def require_string(value, path):
 def validate_payload(payload):
     if not isinstance(payload, dict):
         raise CommandError("Корень JSON должен быть объектом")
-    for section in ["genres", "franchises", "providers", "titles"]:
+    for section in ["genres", "franchises", "characters", "providers", "titles"]:
         if not isinstance(payload.get(section, []), list):
             raise CommandError(f"{section}: ожидается массив")
         for index, item in enumerate(payload.get(section, [])):
@@ -61,6 +64,21 @@ def validate_payload(payload):
         if slug in title_slugs:
             raise CommandError(f"titles[{index}].slug: дубликат {slug}")
         title_slugs.add(slug)
+        character_links = item.get("characters", [])
+        if not isinstance(character_links, list):
+            raise CommandError(f"titles[{index}].characters: ожидается массив")
+        linked_characters = set()
+        for link_index, link in enumerate(character_links):
+            prefix = f"titles[{index}].characters[{link_index}]"
+            if not isinstance(link, dict):
+                raise CommandError(f"{prefix}: ожидается объект")
+            character_slug = require_string(link.get("character"), f"{prefix}.character")
+            role = link.get("role", "supporting")
+            if role not in {choice for choice, _ in TitleCharacter.ROLE_CHOICES}:
+                raise CommandError(f"{prefix}.role: неизвестное значение")
+            if character_slug in linked_characters:
+                raise CommandError(f"{prefix}.character: повторяющийся персонаж {character_slug}")
+            linked_characters.add(character_slug)
         episodes = item.get("episodes", [])
         if not isinstance(episodes, list):
             raise CommandError(f"titles[{index}].episodes: ожидается массив")
@@ -107,7 +125,7 @@ def validate_translations(translations, path, *, require_name=True):
 
 
 def apply_payload(payload):
-    stats = {key: 0 for key in ["genres", "franchises", "providers", "titles", "episodes", "sources", "translations"]}
+    stats = {key: 0 for key in ["genres", "franchises", "characters", "providers", "titles", "episodes", "sources", "title_characters", "translations"]}
     for item in payload.get("genres", []):
         genre = Genre.objects.update_or_create(slug=require_string(item.get("slug"), "genres.slug"), defaults={"name": require_string(item.get("name"), "genres.name")})[0]
         values = {"en": {"name": item["name"]}, **item.get("translations", {})}
@@ -125,6 +143,24 @@ def apply_payload(payload):
             FranchiseTranslation.objects.update_or_create(franchise=franchise, language=language, defaults={"name": value["name"], "description": str(value.get("description", ""))})
             stats["translations"] += 1
         stats["franchises"] += 1
+    for item in payload.get("characters", []):
+        character = Character.objects.update_or_create(
+            slug=require_string(item.get("slug"), "characters.slug"),
+            defaults={
+                "name": require_string(item.get("name"), "characters.name"),
+                "original_name": str(item.get("original_name", "")),
+                "description": str(item.get("description", "")),
+                "image_url": str(item.get("image_url", "")),
+            },
+        )[0]
+        values = {"en": {"name": item["name"]}, **item.get("translations", {})}
+        for language, value in values.items():
+            CharacterTranslation.objects.update_or_create(
+                character=character, language=language,
+                defaults={"name": value["name"], "description": str(value.get("description", ""))},
+            )
+            stats["translations"] += 1
+        stats["characters"] += 1
     for item in payload.get("providers", []):
         provider, created = Provider.objects.get_or_create(
             slug=require_string(item.get("slug"), "providers.slug"),
@@ -163,6 +199,15 @@ def apply_payload(payload):
             TitleTranslation.objects.update_or_create(title=title, language=language, defaults={"name": value["name"], "synopsis": str(value.get("synopsis", ""))})
             stats["translations"] += 1
         title.genres.set(genres)
+        for link in item.get("characters", []):
+            character = Character.objects.filter(slug=link["character"]).first()
+            if character is None:
+                raise CommandError(f"Тайтл {item['slug']}: character {link['character']} не найден")
+            TitleCharacter.objects.update_or_create(
+                title=title, character=character,
+                defaults={"role": link.get("role", "supporting"), "sort_order": int(link.get("sort_order", 0))},
+            )
+            stats["title_characters"] += 1
         stats["titles"] += 1
         for episode_item in item.get("episodes", []):
             air_date = parse_date(episode_item["air_date"]) if episode_item.get("air_date") else None
