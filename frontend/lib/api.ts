@@ -141,6 +141,14 @@ export async function getCatalogItem(slug: string): Promise<CatalogItem> {
   return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, { cache: "no-store" });
 }
 
+export async function getSimilarTitles(slug: string): Promise<CatalogItem[]> {
+  try {
+    return await request<CatalogItem[]>(`/titles/${encodeURIComponent(slug)}/similar/`);
+  } catch {
+    return [];
+  }
+}
+
 export async function getSchedule(from: string, to: string): Promise<ScheduleResponse> {
   const query = new URLSearchParams({ from, to, page_size: "200" });
   return request<ScheduleResponse>(`/schedule/?${query}`, { cache: "no-store" });

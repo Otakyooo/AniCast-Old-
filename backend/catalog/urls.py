@@ -9,6 +9,7 @@ from .views import (
     PlaybackView,
     PlaybackResolveView,
     ScheduleView,
+    SimilarTitleListView,
     SourceReportView,
     TitleDetailView,
     TitleListView,
@@ -16,6 +17,7 @@ from .views import (
 
 urlpatterns = [
     path("titles/", TitleListView.as_view(), name="title-list"),
+    path("titles/<slug:slug>/similar/", SimilarTitleListView.as_view(), name="title-similar"),
     path("titles/<slug:slug>/", TitleDetailView.as_view(), name="title-detail"),
     path("schedule/", ScheduleView.as_view(), name="schedule"),
     path("source-reports/", SourceReportView.as_view(), name="source-report-list"),

@@ -2,7 +2,9 @@ import pytest
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Episode, Genre, Title, TitleTranslation
+from catalog.models import Episode, Franchise, Genre, Title, TitleTranslation
+from django.utils import timezone
+
 from library.models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
 
 
@@ -169,9 +171,77 @@ def test_recommendations_exclude_library_and_rank_shared_genres(users, titles):
     slugs = [item["title"]["slug"] for item in response.json()["results"]]
     assert titles[0].slug not in slugs
     assert slugs[0] == titles[1].slug
-    assert response.json()["results"][0]["score"] == 1
-    assert third.slug in slugs
+    assert response.json()["results"][0]["score"] == 1.0
+    assert third.slug not in slugs
     assert APIClient().get("/api/v1/recommendations/").status_code in {401, 403}
+
+
+@pytest.mark.django_db
+def test_recommendations_ignore_dropped_genres_and_weight_signals(users, titles):
+    dropped_genre = Genre.objects.create(name="Horror", slug="horror")
+    loved_genre = Genre.objects.create(name="Comedy", slug="comedy")
+    related = Title.objects.create(name="Related", slug="related")
+    related.genres.add(loved_genre)
+    horror_only = Title.objects.create(name="Scary", slug="scary")
+    horror_only.genres.add(dropped_genre)
+    source = Title.objects.create(name="Source", slug="source")
+    source.genres.add(loved_genre)
+    titles[0].genres.add(dropped_genre)
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status="dropped")
+    LibraryEntry.objects.create(user=users[0], title=source, status="planned")
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/recommendations/")
+    assert response.status_code == 200
+    slugs = [item["title"]["slug"] for item in response.json()["results"]]
+    assert related.slug in slugs
+    assert "scary" not in slugs
+    assert titles[1].slug not in slugs
+    scores = {item["title"]["slug"]: item["score"] for item in response.json()["results"]}
+    assert scores[related.slug] == 0.5
+
+
+@pytest.mark.django_db
+def test_recommendations_use_ratings_history_and_franchise_boost(users, titles):
+    from community.models import TitleRating
+
+    franchise = Franchise.objects.create(name="Saga", slug="saga")
+    genre = Genre.objects.create(name="Drama", slug="drama")
+    titles[0].franchise = franchise
+    titles[0].save()
+    titles[0].genres.add(genre)
+    titles[1].genres.add(genre)
+    sequel = Title.objects.create(name="Sequel", slug="sequel", year=2026)
+    sequel.franchise = franchise
+    sequel.save()
+    sequel.genres.add(genre)
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status="completed")
+    TitleRating.objects.create(user=users[0], title=titles[1], value=9)
+    episode = Episode.objects.create(title=titles[1], number=1)
+    EpisodeProgress.objects.create(user=users[0], episode=episode, is_watched=True, last_opened_at=timezone.now())
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/recommendations/")
+    assert response.status_code == 200
+    results = response.json()["results"]
+    scores = {item["title"]["slug"]: item["score"] for item in results}
+    # drama weight: completed library entry (1.0) + rating 9 (0.5) + watched history (0.5)
+    assert scores["sequel"] == 2.0 + 3.0
+    assert results[0]["title"]["slug"] == "sequel"
+
+
+@pytest.mark.django_db
+def test_recommendations_cold_start_orders_by_recency(users, titles):
+    old = Title.objects.create(name="Ancient", slug="ancient", year=1999)
+    fresh = Title.objects.create(name="Fresh", slug="fresh", year=2026)
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/recommendations/")
+    assert response.status_code == 200
+    slugs = [item["title"]["slug"] for item in response.json()["results"]]
+    assert slugs.index(fresh.slug) < slugs.index(old.slug)
+    assert all(item["score"] == 0.0 for item in response.json()["results"])
+
 
 
 def create_collection(client, **overrides):

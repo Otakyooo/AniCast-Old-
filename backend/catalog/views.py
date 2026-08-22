@@ -1,14 +1,16 @@
 from datetime import timedelta
 
 from django.db import IntegrityError
+from django.shortcuts import get_object_or_404
 from django.http import HttpResponseRedirect
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Case, Count, FloatField, Prefetch, Q, Value, When
+from django.db.models.functions import Cast
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
@@ -64,6 +66,40 @@ class TitleDetailView(RetrieveAPIView):
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
+
+
+class SimilarTitleListView(ListAPIView):
+    serializer_class = TitleSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+    similar_limit = 12
+    franchise_bonus = 2.0
+
+    def get_queryset(self):
+        title = get_object_or_404(Title, slug=self.kwargs["slug"])
+        genre_ids = list(title.genres.values_list("id", flat=True))
+        queryset = (
+            Title.objects.exclude(pk=title.pk)
+            .select_related("franchise")
+            .prefetch_related("translations", "franchise__translations", "genres", "genres__translations")
+        )
+        if not genre_ids:
+            if title.franchise_id:
+                return queryset.filter(franchise_id=title.franchise_id).order_by("name", "slug")[: self.similar_limit]
+            return queryset.none()
+        score: object = Count("genres", filter=Q(genres__id__in=genre_ids), distinct=True)
+        if title.franchise_id:
+            score = Cast(score, FloatField()) + Case(
+                When(franchise_id=title.franchise_id, then=Value(self.franchise_bonus)),
+                default=Value(0.0),
+                output_field=FloatField(),
+            )
+        return (
+            queryset.filter(genres__id__in=genre_ids)
+            .annotate(similarity=score)
+            .distinct()
+            .order_by("-similarity", "name", "slug")[: self.similar_limit]
+        )
 
 
 class SchedulePagination(PageNumberPagination):

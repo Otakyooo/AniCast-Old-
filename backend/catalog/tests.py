@@ -371,3 +371,40 @@ def test_media_api_only_exposes_published_rights_attributed_assets(catalog_data)
     assert response.json()["results"][0]["id"] == published.id
     assert response.json()["results"][0]["id"] != draft.id
     assert APIClient().get("/api/v1/media/?kind=unknown").status_code == 400
+
+
+@pytest.mark.django_db
+def test_similar_titles_rank_shared_genres_and_franchise(catalog_data):
+    action = Genre.objects.get(slug="action")
+    sibling = Title.objects.create(name="Saga Next", slug="saga-next", franchise=catalog_data.franchise)
+    sibling.genres.add(action)
+    partial = Title.objects.create(name="Partial", slug="partial")
+    partial.genres.add(action)
+    unrelated = Title.objects.create(name="Unrelated", slug="unrelated")
+    response = APIClient().get(f"/api/v1/titles/{catalog_data.slug}/similar/")
+    assert response.status_code == 200
+    slugs = [item["slug"] for item in response.json()]
+    assert catalog_data.slug not in slugs
+    assert unrelated.slug not in slugs
+    assert slugs.index("saga-next") < slugs.index("partial")
+    assert len(slugs) <= 12
+
+
+@pytest.mark.django_db
+def test_similar_titles_franchise_fallback_without_genres(catalog_data):
+    catalog_data.genres.clear()
+    Title.objects.create(name="Franchise Mate", slug="franchise-mate", franchise=catalog_data.franchise)
+    response = APIClient().get(f"/api/v1/titles/{catalog_data.slug}/similar/")
+    assert response.status_code == 200
+    slugs = [item["slug"] for item in response.json()]
+    assert slugs == ["franchise-mate"]
+
+
+@pytest.mark.django_db
+def test_similar_titles_empty_without_genres_and_franchise(db):
+    Title.objects.create(name="Lonely", slug="lonely")
+    Title.objects.create(name="Other", slug="other")
+    response = APIClient().get("/api/v1/titles/lonely/similar/")
+    assert response.status_code == 200
+    assert response.json() == []
+    assert APIClient().get("/api/v1/titles/missing/similar/").status_code == 404

@@ -6,7 +6,8 @@ import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
-import { getCatalogItem, type Episode, type Source } from "../../../lib/api";
+import { CatalogCard } from "../../../components/catalog-card";
+import { getCatalogItem, getSimilarTitles, type Episode, type Source } from "../../../lib/api";
 import { getI18n } from "../../../i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
 
   const episodes = item.episodes ?? [];
   const genres = item.genres ?? [];
+  const similar = await getSimilarTitles(slug);
   const { t } = await getI18n();
 
   return (
@@ -101,6 +103,12 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
           <div className="section-heading"><p className="eyebrow">{t("title.watch")}</p><h2 id="episodes-heading">{t("title.episodes")}</h2></div>
           {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}</ol> : <div className="empty-state"><strong>{t("title.noEpisodes")}</strong><span>{t("title.noEpisodesText")}</span></div>}
         </section>
+        {similar.length > 0 && (
+          <section className="episodes-section" aria-labelledby="similar-heading">
+            <div className="section-heading"><p className="eyebrow">{t("similar.eyebrow")}</p><h2 id="similar-heading">{t("similar.title")}</h2></div>
+            <div className="catalog-grid">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
+          </section>
+        )}
       </section>
     </main>
   );

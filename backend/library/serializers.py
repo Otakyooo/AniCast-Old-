@@ -57,7 +57,7 @@ class TitleNoteWriteSerializer(serializers.Serializer):
 
 class RecommendationSerializer(serializers.Serializer):
     title = TitleSerializer(source="*", read_only=True)
-    score = serializers.IntegerField(read_only=True)
+    score = serializers.FloatField(read_only=True)
 
 
 class CollectionItemSerializer(serializers.ModelSerializer):

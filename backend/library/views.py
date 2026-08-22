@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, Q
+from django.db.models import Case, F, FloatField, Sum, Value, When
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -14,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from catalog.models import Episode, Title
+from community.models import TitleRating
 
 from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
 from .serializers import (
@@ -226,23 +228,83 @@ class RecommendationListView(ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = LibraryPagination
 
-    def get_queryset(self):
-        library_title_ids = list(
-            LibraryEntry.objects.filter(user=self.request.user).values_list("title_id", flat=True)
+    library_status_weights: dict[str, float] = {
+        LibraryEntry.Status.WATCHING: 1.0,
+        LibraryEntry.Status.COMPLETED: 1.0,
+        LibraryEntry.Status.ON_HOLD: 0.5,
+        LibraryEntry.Status.PLANNED: 0.5,
+        LibraryEntry.Status.DROPPED: 0.0,
+    }
+    rating_genre_weight = 0.5
+    watched_genre_weight = 0.5
+    franchise_boost = 3.0
+
+    def genre_weights(self):
+        weights: dict[int, float] = {}
+        entries = (
+            LibraryEntry.objects.filter(user=self.request.user)
+            .exclude(status=LibraryEntry.Status.DROPPED)
+            .prefetch_related("title__genres")
         )
-        genre_ids = list(
-            Title.objects.filter(id__in=library_title_ids).values_list("genres__id", flat=True).distinct()
+        for entry in entries:
+            weight = self.library_status_weights.get(entry.status, 0.0)
+            for genre in entry.title.genres.all():
+                weights[genre.id] = weights.get(genre.id, 0.0) + weight
+        high_ratings = TitleRating.objects.filter(user=self.request.user, value__gte=8).prefetch_related(
+            "title__genres"
+        )
+        for rating in high_ratings:
+            for genre in rating.title.genres.all():
+                weights[genre.id] = weights.get(genre.id, 0.0) + self.rating_genre_weight
+        watched_title_ids = list(
+            EpisodeProgress.objects.filter(user=self.request.user, is_watched=True).values_list(
+                "episode__title_id", flat=True
+            )
+        )
+        watched_titles = Title.objects.filter(id__in=watched_title_ids).prefetch_related("genres")
+        for title in watched_titles:
+            for genre in title.genres.all():
+                weights[genre.id] = weights.get(genre.id, 0.0) + self.watched_genre_weight
+        return weights
+
+    def get_queryset(self):
+        user = self.request.user
+        library_title_ids = list(
+            LibraryEntry.objects.filter(user=user).values_list("title_id", flat=True)
         )
         queryset = Title.objects.exclude(id__in=library_title_ids).select_related("franchise").prefetch_related(
             "translations", "franchise__translations", "genres", "genres__translations"
         )
-        if genre_ids:
-            queryset = queryset.annotate(
-                score=Count("genres", filter=Q(genres__id__in=genre_ids), distinct=True)
-            ).order_by("-score", "name", "slug")
-        else:
-            queryset = queryset.annotate(score=Count("genres") * 0).order_by("name", "slug")
-        return queryset
+        weights = self.genre_weights()
+        if not weights:
+            return queryset.annotate(score=Value(0.0, output_field=FloatField())).order_by(
+                F("year").desc(nulls_last=True), "name", "slug"
+            )
+        franchise_ids = {
+            franchise_id
+            for franchise_id in LibraryEntry.objects.filter(user=user)
+            .exclude(status=LibraryEntry.Status.DROPPED)
+            .values_list("title__franchise_id", flat=True)
+            if franchise_id is not None
+        }
+        genre_whens = [When(genres__id=genre_id, then=Value(weight)) for genre_id, weight in weights.items()]
+        score: object = Coalesce(
+            Sum(Case(*genre_whens, default=Value(0.0), output_field=FloatField()), output_field=FloatField()),
+            Value(0.0),
+            output_field=FloatField(),
+        )
+        if franchise_ids:
+            score = score + Case(
+                When(franchise_id__in=franchise_ids, then=Value(self.franchise_boost)),
+                default=Value(0.0),
+                output_field=FloatField(),
+            )
+        return (
+            queryset.filter(genres__id__in=weights.keys())
+            .annotate(score=score)
+            .distinct()
+            .order_by("-score", F("year").desc(nulls_last=True), "name", "slug")
+        )
 
 
 class CollectionListView(APIView):
