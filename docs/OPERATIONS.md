@@ -95,6 +95,25 @@ cd /opt/anicast/infra/vps && docker compose pull frontend && docker compose up -
 
 Rollback: point the image variable back to the previous digest (or to the local fallback tags `anicast-backend:local` / `vps-frontend:latest`) and `up -d` again. The formal `deploy.sh` pipeline (project names `anicast-*`, state dirs, automatic rollback) remains available for a future stack migration.
 
+## Catalog import from Shikimori
+
+`fetch_shikimori` pulls popular anime metadata (Russian and English names, japanese originals, genres with translations, posters, episode counts) and emits an `import_catalog` JSON payload:
+
+```bash
+# run from the backend directory (host networking avoids container DNS quirks)
+docker run --rm --network host -v $PWD:/app -e DJANGO_DATABASE_URL=sqlite:///db.sqlite3   -w /app --entrypoint python anicast-backend:local   manage.py fetch_shikimori --limit 100 --output /app/batch.json
+# validate (dry-run) then apply on the production stack
+docker cp batch.json mainserver-backend-1:/tmp/batch.json
+docker exec mainserver-backend-1 python manage.py import_catalog /tmp/batch.json
+docker exec mainserver-backend-1 python manage.py import_catalog /tmp/batch.json --apply
+```
+
+The import is idempotent (`update_or_create` by slug, titles are prefixed with the Shikimori id), rate-limit friendly (0.7s pause per request) and never creates playback sources — rights and providers stay untouched. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively. Posters are hotlinked from `shikimori.one/system/**` and optimized through `next/image`.
+
+## VPS firewall
+
+ufw is enabled with `deny (incoming)`, `deny (routed)` by default. Allowed: TCP 22/80/443, **UDP 443 (AmneziaWG listen port — never remove, the tunnel and the site depend on it)**, everything on `awg0` (incoming and forwarded — MainServer reaches the internet through this tunnel NAT). Before changing rules, keep a public-SSH session open as a recovery path.
+
 ## Release manifests
 
 Build and publish backend/frontend images outside the hosts, then resolve them to immutable digests. A MainServer release file contains no secrets:
