@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from django.test import override_settings
 from django.utils import timezone
@@ -117,3 +119,40 @@ def test_delivery_uses_user_language_and_content_translation(notification_data, 
     assert "New AniCast episode" in sent[0]
     assert "English title" in sent[0]
     assert "English episode" in sent[0]
+
+
+@override_settings(TELEGRAM_NOTIFY_BOT_TOKEN="notify-token")
+@pytest.mark.django_db
+def test_delivery_catches_up_recent_episodes_but_not_future(notification_data, monkeypatch):
+    user, title, episode = notification_data
+    Episode.objects.create(title=title, number=2, air_date=timezone.localdate() - timedelta(days=1))
+    Episode.objects.create(title=title, number=3, air_date=timezone.localdate() + timedelta(days=1))
+    TelegramNotificationChannel.objects.create(user=user, telegram_user_id=123, chat_id=123)
+    TitleNotificationSubscription.objects.create(user=user, title=title)
+    sent = []
+    monkeypatch.setattr("push.tasks.send_notification", lambda chat_id, text: sent.append(text))
+    result = dispatch_episode_notifications()
+    assert result["sent"] == 2
+    assert len(sent) == 2
+
+
+@pytest.mark.django_db
+def test_delivery_list_is_private_and_shaped(notification_data):
+    user, title, episode = notification_data
+    other = User.objects.create_user(email="other@example.com", password="A-strong-passphrase-2042")
+    other_title = Title.objects.create(name="Other Title", slug="other-title", status="ongoing")
+    other_episode = Episode.objects.create(title=other_title, number=1, air_date=timezone.localdate())
+    subscription = TitleNotificationSubscription.objects.create(user=user, title=title)
+    other_subscription = TitleNotificationSubscription.objects.create(user=other, title=other_title)
+    NotificationDelivery.objects.create(subscription=subscription, episode=episode, status="sent", sent_at=timezone.now())
+    NotificationDelivery.objects.create(subscription=other_subscription, episode=other_episode, status="sent")
+    client = APIClient()
+    client.force_login(user)
+    response = client.get("/api/v1/notifications/deliveries/")
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert response.json()["count"] == 1
+    assert results[0]["title"]["slug"] == title.slug
+    assert results[0]["episode_number"] == 1
+    assert results[0]["status"] == "sent"
+    assert APIClient().get("/api/v1/notifications/deliveries/").status_code in {401, 403}

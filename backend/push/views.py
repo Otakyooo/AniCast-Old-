@@ -15,8 +15,13 @@ from accounts.telegram_bot import create_challenge_token, hash_secret, valid_cha
 from catalog.models import Title
 from library.views import LibraryPagination
 
-from .models import TelegramNotificationChallenge, TelegramNotificationChannel, TitleNotificationSubscription
-from .serializers import ChannelSerializer, SubscriptionSerializer
+from .models import (
+    NotificationDelivery,
+    TelegramNotificationChallenge,
+    TelegramNotificationChannel,
+    TitleNotificationSubscription,
+)
+from .serializers import ChannelSerializer, DeliverySerializer, SubscriptionSerializer
 
 
 class NotificationChallengeView(APIView):
@@ -53,6 +58,17 @@ class NotificationChannelView(APIView):
         channel.disabled_at = timezone.now()
         channel.save(update_fields=["is_active", "disabled_at", "updated_at"])
         return Response(status=204)
+
+
+class DeliveryListView(ListAPIView):
+    serializer_class = DeliverySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = LibraryPagination
+
+    def get_queryset(self):
+        return NotificationDelivery.objects.filter(subscription__user=self.request.user).select_related(
+            "episode__title"
+        )
 
 
 class SubscriptionListView(ListAPIView):

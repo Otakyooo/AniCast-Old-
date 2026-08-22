@@ -1,3 +1,4 @@
+from datetime import timedelta
 from urllib.error import HTTPError
 import logging
 
@@ -19,9 +20,10 @@ logger = logging.getLogger("anicast.notifications")
 def dispatch_episode_notifications():
     if not settings.TELEGRAM_NOTIFY_BOT_TOKEN:
         return {"sent": 0, "failed": 0}
-    episodes = Episode.objects.filter(air_date=timezone.localdate()).select_related("title").prefetch_related(
-        "translations", "title__translations"
-    )
+    today = timezone.localdate()
+    episodes = Episode.objects.filter(
+        air_date__gte=today - timedelta(days=2), air_date__lte=today
+    ).select_related("title").prefetch_related("translations", "title__translations")
     sent = failed = 0
     for episode in episodes:
         subscriptions = TitleNotificationSubscription.objects.filter(
