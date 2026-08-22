@@ -108,7 +108,11 @@ docker exec mainserver-backend-1 python manage.py import_catalog /tmp/batch.json
 docker exec mainserver-backend-1 python manage.py import_catalog /tmp/batch.json --apply
 ```
 
-The import is idempotent (`update_or_create` by slug, titles are prefixed with the Shikimori id), rate-limit friendly (0.7s pause per request) and never creates playback sources — rights and providers stay untouched. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively. Posters are hotlinked from `shikimori.one/system/**` and optimized through `next/image`.
+The import is idempotent (`update_or_create` by slug, titles are prefixed with the Shikimori id), rate-limit friendly (0.7s pause per request) and never creates playback sources — rights and providers stay untouched.
+
+Importer v2 also fills franchises and characters: franchise records are grouped by the Shikimori franchise slug from the anime detail (the head title is the earliest by year); characters come from the GraphQL `characterRoles` query (Main maps to `protagonist`, everything else to `supporting`) with biographies, japanese names and portraits from `/api/characters/<id>` (`--characters N` per title, default 8, `0` disables). A full 100-title run with characters takes roughly 15 minutes.
+
+Shikimori endpoint notes: `/api/animes/:id/episodes` and `/api/animes/:id/franchises` are gone (404) and episode air dates are not available through the API — the schedule and episode notifications wait for another data source. AniList remains globally disabled. The fetcher needs `--network host` and the `shikimori.io` API base (the `.one` domain answers 308 redirects that urllib does not follow). AniList is not usable (API globally disabled); Shikimori provides the Russian names natively. Posters are hotlinked from `shikimori.one/system/**` and optimized through `next/image`.
 
 ## VPS firewall
 
