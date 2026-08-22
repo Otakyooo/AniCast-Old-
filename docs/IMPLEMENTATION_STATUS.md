@@ -27,7 +27,9 @@ Backend с observability-кодом развёрнут в production (2026-08-22
 
 - Prometheus v3.14 (retention 15d) скрейпит backend через nginx-sidecar с заголовком `X-Forwarded-Proto` внутри docker-сети `mainserver_internal`;
 - Alertmanager v0.34 с нативным Telegram-ресивером, node-exporter, все сервисы memory-limited (~110 MiB на весь стек);
-- 10 alert-правил: недоступность backend, рост 5xx, сбои Celery-задач, provider check failures, сбои доставки уведомлений, disk <15%/<7%, RAM <10%, self-checks мониторинга;
+- 13 alert-правил: недоступность backend, рост 5xx, сбои Celery-задач, provider check failures, сбои доставки уведомлений, disk <15%/<7%, RAM <10%, self-checks мониторинга, недоступность публичного сайта снаружи (blackbox) и метрики хоста VPS;
+- blackbox-пробы сайта и API идут из интернета; node-exporter на VPS привязан к AWG-интерфейсу;
+- все публичные SSR-страницы деградируют корректно при недоступном API (проверено контролируемой остановкой backend: 9 страниц → 200 с заглушками, API → 502, алерты не шумят);
 - UI Prometheus/Alertmanager доступны только на `127.0.0.1` MainServer через SSH port forwarding;
 - `scripts/validate.sh` проверяет compose/promtool/amtool конфигурацию мониторинга.
 

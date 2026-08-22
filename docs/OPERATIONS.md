@@ -67,7 +67,9 @@ ssh -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 anicast-main
 # Prometheus: http://localhost:9090  Alertmanager: http://localhost:9093
 ```
 
-Alert rules live in `infra/monitoring/rules/anicast-alerts.yml`: backend down, HTTP 5xx rate, Celery task failures, provider check failures, notification failures, disk below 15%/7%, memory below 10% and monitoring self-checks. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
+Alert rules live in `infra/monitoring/rules/anicast-alerts.yml`: backend down, HTTP 5xx rate, Celery task failures, provider check failures, notification failures, disk below 15%/7%, memory below 10% and monitoring self-checks.
+
+The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s), and a node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the VPS firewall is disabled) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 
