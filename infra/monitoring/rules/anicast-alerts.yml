@@ -1,0 +1,75 @@
+groups:
+  - name: anicast-backend
+    rules:
+      - alert: BackendDown
+        expr: up{job="anicast-backend"} == 0 or absent(up{job="anicast-backend"})
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AniCast backend недоступен или scrape не работает более 3 минут"
+      - alert: High5xxRate
+        expr: sum(increase(anicast_http_requests_total{status_family="5xx"}[15m])) > 3
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Растёт число 5xx-ответов backend: {{ $value | humanize }} за 15 минут"
+      - alert: CeleryTaskFailures
+        expr: sum(increase(anicast_celery_tasks_total{result="failure"}[30m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Сбои Celery-задач: {{ $value | humanize }} за 30 минут"
+      - alert: ProviderCheckFailures
+        expr: sum(increase(anicast_source_checks_total{result="failed"}[1h])) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Много неудачных проверок источников: {{ $value | humanize }} за час"
+      - alert: NotificationFailures
+        expr: sum(increase(anicast_notification_deliveries_total{result="failed"}[1h])) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Сбои доставки уведомлений: {{ $value | humanize }} за час"
+  - name: host
+    rules:
+      - alert: DiskSpaceWarning
+        expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Свободно меньше 15% на / ({{ $value | humanizePercentage }})"
+      - alert: DiskSpaceCritical
+        expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} < 0.07
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Свободно меньше 7% на / ({{ $value | humanizePercentage }})"
+      - alert: MemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Доступно меньше 10% RAM ({{ $value | humanizePercentage }})"
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0 or absent(up{job="node"})
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "node-exporter недоступен: метрики хоста не собираются"
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0 or absent(up{job="alertmanager"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager недоступен: доставка алертов может не работать"

@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  # Backend metrics go through the nginx sidecar: Prometheus cannot attach
+  # the X-Forwarded-Proto header that Django's SSL redirect requires, and
+  # the host firewall only allows the VPS peer to reach 10.78.0.2:8000.
+  - job_name: anicast-backend
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/metrics-token
+    static_configs:
+      - targets: [metrics-proxy:8080]
+
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: [alertmanager:9093]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

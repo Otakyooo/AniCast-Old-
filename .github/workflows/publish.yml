@@ -1,0 +1,74 @@
+name: publish
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  BACKEND_IMAGE: ghcr.io/otakyooo/anicast-backend
+  FRONTEND_IMAGE: ghcr.io/otakyooo/anicast-frontend
+  # Public by design: embedded into the client bundle on every build.
+  NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: anicast_auth_bot
+  NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME: anicast_push_bot
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.ref_name == 'main' && 'main' || github.ref_name }}
+            ${{ env.BACKEND_IMAGE }}:sha-${{ github.sha }}
+      - name: release manifest hint
+        run: |
+          {
+            echo '### Backend image (mainserver release)'
+            echo '```dotenv'
+            echo "BACKEND_IMAGE=${BACKEND_IMAGE}@sha256:${{ steps.build.outputs.digest }}"
+            echo "RELEASE_SHA=${{ github.sha }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: frontend
+          push: true
+          build-args: |
+            NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME }}
+            NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME }}
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.ref_name == 'main' && 'main' || github.ref_name }}
+            ${{ env.FRONTEND_IMAGE }}:sha-${{ github.sha }}
+      - name: release manifest hint
+        run: |
+          {
+            echo '### Frontend image (vps release)'
+            echo '```dotenv'
+            echo "FRONTEND_IMAGE=${FRONTEND_IMAGE}@sha256:${{ steps.build.outputs.digest }}"
+            echo "RELEASE_SHA=${{ github.sha }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
