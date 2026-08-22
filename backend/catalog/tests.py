@@ -408,3 +408,58 @@ def test_similar_titles_empty_without_genres_and_franchise(db):
     assert response.status_code == 200
     assert response.json() == []
     assert APIClient().get("/api/v1/titles/missing/similar/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_fetch_shikimori_mapping_helpers():
+    from catalog.management.commands.fetch_shikimori import (
+        build_genre,
+        build_title,
+        clean_description,
+        episode_count,
+        map_kind,
+        map_status,
+    )
+
+    entry = {
+        "id": 16498,
+        "name": "Shingeki no Kyojin",
+        "russian": "Атака титанов",
+        "kind": "tv_24",
+        "status": "released",
+        "episodes": 25,
+        "episodes_aired": 25,
+        "aired_on": "2013-04-07",
+        "image": {"original": "/system/animes/original/16498.jpg?1711973439"},
+    }
+    detail = {
+        "description": "[b]Люди[/b] против [i]титанов[/i].",
+        "english": ["Attack on Titan"],
+        "japanese": ["進撃の巨人"],
+        "genres": [
+            {"id": 1, "name": "Action", "russian": "Экшен"},
+            {"id": 27, "name": "Shounen", "russian": "Сёнэн"},
+        ],
+    }
+    title = build_title(entry, detail)
+    assert title["slug"] == "16498-shingeki-no-kyojin"
+    assert title["name"] == "Атака титанов"
+    assert title["original_name"] == "進撃の巨人"
+    assert title["synopsis"] == "Люди против титанов."
+    assert title["title_type"] == "anime"
+    assert title["status"] == "finished"
+    assert title["year"] == 2013
+    assert title["poster_url"].startswith("https://shikimori.one/system/")
+    assert title["genres"] == ["action", "shounen"]
+    assert title["translations"]["en"]["name"] == "Attack on Titan"
+    assert title["translations"]["ru"]["name"] == "Атака титанов"
+    assert len(title["episodes"]) == 25
+    assert title["episodes"][0] == {"number": 1}
+
+    assert episode_count({"status": "anons", "episodes": 12}) == 0
+    assert episode_count({"status": "ongoing", "episodes": 24, "episodes_aired": 12}) == 12
+    assert map_kind("ona") == "ova"
+    assert map_kind("music") == "special"
+    assert map_status("ongoing") == "ongoing"
+    assert clean_description("[b]x[/b] [url=y]z[/url]") == "x z"
+    assert build_genre({"id": 5, "name": "Drama", "russian": "Драма"})["translations"]["ru"]["name"] == "Драма"

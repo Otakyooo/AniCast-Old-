@@ -34,6 +34,7 @@ export interface CatalogItem {
   id?: number | string;
   slug: string;
   name: string;
+  poster_url?: string | null;
   original_name?: string | null;
   synopsis?: string | null;
   status?: CatalogStatus | null;

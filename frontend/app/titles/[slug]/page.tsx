@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountLink } from "../../../components/account-link";
 import { LibraryControl } from "../../../components/library-control";
 import { Sidebar } from "../../../components/sidebar";
+import Image from "next/image";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
@@ -78,8 +79,21 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
           <AccountLink />
         </header>
         <article className="detail">
-          <div className="detail-poster poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-label={t("title.cover", { name: item.name })}>
-            <span>{item.name.slice(0, 1).toUpperCase()}</span>
+          <div className="detail-poster poster-wrap" aria-label={t("title.cover", { name: item.name })}>
+            {item.poster_url ? (
+              <Image
+                className="poster-image"
+                src={item.poster_url}
+                alt={t("title.cover", { name: item.name })}
+                fill
+                sizes="(max-width: 721px) 100vw, 330px"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-hidden="true">
+                <span>{item.name.slice(0, 1).toUpperCase()}</span>
+              </div>
+            )}
           </div>
           <div className="detail-copy">
             <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
