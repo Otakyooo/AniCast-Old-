@@ -184,7 +184,7 @@ def build_title(entry: dict, detail: dict) -> dict:
         "title_type": map_kind(entry.get("kind") or "tv"),
         "status": map_status(entry.get("status") or "anons"),
         "year": int(aired_on[:4]) if len(aired_on) >= 4 and aired_on[:4].isdigit() else None,
-        "poster_url": f"https://shikimori.io{poster}" if poster else "",
+        "poster_url": poster if poster.startswith("http") else (f"https://shikimori.io{poster}" if poster else ""),
         "genres": [
             slugify(genre["name"]) or f"genre-{genre['id']}"
             for genre in (detail.get("genres") or [])
