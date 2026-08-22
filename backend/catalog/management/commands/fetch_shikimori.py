@@ -1,5 +1,6 @@
 import json
 import re
+import subprocess
 import time
 import urllib.request
 
@@ -44,23 +45,29 @@ def api_get(path: str) -> object:
 
 
 def jikan_get(path: str) -> dict:
-    request = urllib.request.Request(
-        f"{JIKAN_BASE}{path}",
-        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+    # Jikan's edge answers 504 to the python TLS fingerprint while curl
+    # works reliably, so shell out for these requests.
+    result = subprocess.run(
+        ["curl", "-sSL", "--fail", "--max-time", "20", f"{JIKAN_BASE}{path}"],
+        capture_output=True,
+        text=True,
+        check=True,
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return json.loads(result.stdout)
 
 
 def mal_poster(entry: dict) -> str:
-    """Shikimori ids double as MyAnimeList ids; MAL artwork is larger."""
-    try:
-        time.sleep(REQUEST_PAUSE_SECONDS + 0.4)
-        payload = jikan_get(f"/anime/{entry['id']}")
-        url = (((payload.get("data") or {}).get("images") or {}).get("jpg") or {}).get("large_image_url")
-        return url or ""
-    except Exception:
-        return ""
+    """Shikimori ids double as MyAnimeList ids; MAL artwork is larger.
+    Jikan intermittently answers 504 while its MAL backend struggles."""
+    for attempt in range(3):
+        try:
+            time.sleep(REQUEST_PAUSE_SECONDS + 0.4)
+            payload = jikan_get(f"/anime/{entry['id']}")
+            url = (((payload.get("data") or {}).get("images") or {}).get("jpg") or {}).get("large_image_url")
+            return url or ""
+        except Exception:
+            time.sleep(3)
+    return ""
 
 
 def graphql_post(query: str) -> dict:
@@ -161,7 +168,10 @@ def build_title(entry: dict, detail: dict) -> dict:
     english_names = [name for name in (detail.get("english") or []) if name]
     japanese_names = [name for name in (detail.get("japanese") or []) if name]
     aired_on = entry.get("aired_on") or ""
-    poster = mal_poster(entry) or (entry.get("image") or {}).get("original") or ""
+    fallback_poster = (entry.get("image") or {}).get("original") or ""
+    if "missing_original" in fallback_poster:
+        fallback_poster = ""
+    poster = mal_poster(entry) or fallback_poster
     episodes = [
         {"number": number}
         for number in range(1, episode_count(entry) + 1)

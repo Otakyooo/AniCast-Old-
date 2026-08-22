@@ -518,6 +518,15 @@ def test_fetch_shikimori_poster_prefers_mal(monkeypatch):
     monkeypatch.setattr(fetch_shikimori, "jikan_get", broken)
     assert fetch_shikimori.mal_poster(entry) == ""
 
+    entry_missing = {"id": 1, "name": "No Art", "image": {"original": "/assets/globals/missing_original.jpg"}}
+    monkeypatch.setattr(fetch_shikimori, "jikan_get", lambda path: {"data": {}})
+    assert fetch_shikimori.mal_poster(entry_missing) == ""
+    title = fetch_shikimori.build_title(
+        entry_missing,
+        {"description": "", "english": [], "japanese": [], "genres": []},
+    )
+    assert title["poster_url"] == ""
+
 
 @pytest.mark.django_db
 def test_import_catalog_applies_characters_and_links():

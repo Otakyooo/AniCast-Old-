@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "shikimori.one", pathname: "/system/**" },
       { protocol: "https", hostname: "shikimori.io", pathname: "/system/**" },
+      { protocol: "https", hostname: "cdn.myanimelist.net", pathname: "/images/**" },
     ],
   },
   async rewrites() {
