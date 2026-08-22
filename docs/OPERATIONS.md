@@ -17,7 +17,7 @@ curl --fail --silent --show-error \
   http://10.78.0.2:8000/internal/metrics
 ```
 
-Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.1`. A self-hosted Prometheus may scrape this endpoint from the VPS over `awg0`; keep its UI bound to `127.0.0.1` and access it through SSH port forwarding. Never add `/internal/metrics` or a Prometheus port to the public Caddyfile.
+Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.1`. The self-hosted Prometheus runs on MainServer (see Monitoring stack) and scrapes through an nginx sidecar attached to the `mainserver_internal` Docker network; keep its UI bound to `127.0.0.1` and access it through SSH port forwarding. Never add `/internal/metrics` or a Prometheus port to the public Caddyfile.
 
 Counters use the shared Redis cache and reset after Redis data loss. Gauges for providers and sources are read from PostgreSQL at scrape time. Labels are fixed to endpoint groups, method/status families, known Celery tasks and bounded result enums.
 
@@ -30,6 +30,56 @@ Key signals:
 - `anicast_providers` and `anicast_sources`.
 
 Alert at minimum on repeated backend readiness failures, HTTP 5xx increase, provider check failures, Celery task failures, notification failures, unhealthy Compose services, stale AWG handshake, disk pressure and missing backups.
+
+## Backups
+
+`scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (14 daily dumps plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
+
+Cron on MainServer runs the backup daily at 03:15 UTC-local and a scratch-database restore verification on Sundays at 04:30. Logs live in `~/anicast/backups/{backup,restore-verify}.log`; the newest successful dump is recorded in `backups/db/last_backup`.
+
+Restore runbook:
+
+```bash
+# Safe: restore the newest dump into a scratch database, sanity-check it, drop it.
+scripts/restore-db.sh --verify [dump]
+
+# Destructive: replace the production database (stops backend and Celery first).
+scripts/restore-db.sh --force [dump]
+```
+
+`--force` requires typing the production database name, drops and recreates it, restores with `pg_restore`, brings the stack back and waits for backend health. Dumps contain user PII; the Google Drive copy is encrypted with keys that exist only in `~/.config/rclone/rclone.conf` on MainServer.
+
+`rclone` uses the shared Google Drive client_id today; when that client is retired, create a project-owned OAuth client_id and re-authorize, otherwise offsite uploads stop refreshing.
+
+## Monitoring stack
+
+`infra/monitoring/compose.yml` runs on MainServer as a separate Compose project joined to the external `mainserver_internal` network:
+
+- Prometheus (retention 15d, `127.0.0.1:9090`) scrapes the backend through the nginx sidecar, which adds the `X-Forwarded-Proto: https` header Django requires and keeps the bearer token flow intact;
+- Alertmanager (`127.0.0.1:9093`) delivers alerts with the native Telegram receiver;
+- node-exporter provides host disk, memory and CPU metrics;
+- every service is memory-limited; the whole stack uses roughly 110 MiB.
+
+Access the UIs from a workstation:
+
+```bash
+ssh -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 anicast-main
+# Prometheus: http://localhost:9090  Alertmanager: http://localhost:9093
+```
+
+Alert rules live in `infra/monitoring/rules/anicast-alerts.yml`: backend down, HTTP 5xx rate, Celery task failures, provider check failures, notification failures, disk below 15%/7%, memory below 10% and monitoring self-checks. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
+
+Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
+
+## Image publication
+
+GitHub Actions publishes both images to GHCR on every push to `main` and on `v*` tags (`.github/workflows/publish.yml`) using the built-in `GITHUB_TOKEN`; the job summary prints ready-to-use digest lines. Resolve a tag into a deploy release manifest with:
+
+```bash
+scripts/release-manifest.sh <git-sha>      # or --tag main
+```
+
+The repository is private, so packages are private: hosts that pull need `docker login ghcr.io` with a PAT that has `read:packages`. Publish-then-deploy keeps `deploy.sh` on immutable digests; until the formal pipeline is adopted, MainServer runs locally built images with the same compose files.
 
 ## Release manifests
 
@@ -102,4 +152,4 @@ npm run typecheck
 npm run build
 ```
 
-`scripts/validate.sh` runs shell syntax checks, both Compose config validations and rejects public metrics routes in Caddy. CI additionally builds both images and validates Caddy with the official image.
+`scripts/validate.sh` runs shell syntax checks, Compose config validations for all three stacks, promtool/amtool checks of the monitoring configuration with placeholder secrets, the hermetic deploy/rollback test and rejects public metrics routes in Caddy. CI additionally builds both images and validates Caddy with the official image.

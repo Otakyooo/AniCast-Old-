@@ -1,6 +1,6 @@
 # AniCast — статус реализации
 
-Дата: 21 августа 2026
+Дата: 22 августа 2026
 
 ## Production
 
@@ -12,14 +12,41 @@
 - Caddy маршрутизирует `/api/*` на MainServer, остальные запросы — на Next.js;
 - readiness проверяет PostgreSQL и Redis.
 
-## Observability и rollback в репозитории
+## Observability и rollback
 
-Production deployment этой темы не выполнялся:
+Backend с observability-кодом развёрнут в production (2026-08-22): миграции применены, `/internal/metrics` отвечает за bearer token:
 
 - backend пишет безопасные JSON-логи с request ID и bounded operational fields;
 - приватный `/internal/metrics` требует bearer token, доступен только через MainServer listener и не маршрутизируется публичным Caddy;
 - Compose healthchecks покрывают PostgreSQL, Redis, readiness backend, Celery worker/Beat, frontend и Caddy;
 - deploy/rollback scripts используют immutable image digest, `current/previous` manifests, smoke/readiness gates и image-only automatic rollback.
+
+## Мониторинг и алерты
+
+Стек `infra/monitoring` запущен на MainServer (2026-08-22):
+
+- Prometheus v3.14 (retention 15d) скрейпит backend через nginx-sidecar с заголовком `X-Forwarded-Proto` внутри docker-сети `mainserver_internal`;
+- Alertmanager v0.34 с нативным Telegram-ресивером, node-exporter, все сервисы memory-limited (~110 MiB на весь стек);
+- 10 alert-правил: недоступность backend, рост 5xx, сбои Celery-задач, provider check failures, сбои доставки уведомлений, disk <15%/<7%, RAM <10%, self-checks мониторинга;
+- UI Prometheus/Alertmanager доступны только на `127.0.0.1` MainServer через SSH port forwarding;
+- `scripts/validate.sh` проверяет compose/promtool/amtool конфигурацию мониторинга.
+
+## Бэкапы PostgreSQL
+
+Автоматизация включена (2026-08-22):
+
+- `scripts/backup-db.sh`: verified `pg_dump -Fc` дамп, retention 14 дневных + 8 недельных, шифрованная офсайт-копия на Google Drive (rclone crypt, OAuth-токен пользователя);
+- `scripts/restore-db.sh`: безопасная проверочная реставрация в scratch-БД (`--verify`) и полный restore (`--force`) с подтверждением и стопом приложения;
+- cron: ежедневный бэкап 03:15, воскресная проверочная реставрация 04:30;
+- при сбое бэкапа скрипт отправляет Telegram-уведомление через ops-бота из `infra/monitoring/.env`;
+- тесты выполнены: полный roundtrip локально + шифрованная выгрузка в Google Drive + scratch-реставрация (43 таблицы).
+
+## Публикация образов
+
+- `.github/workflows/publish.yml` пушит `anicast-backend` и `anicast-frontend` в GHCR на каждый push в `main` и теги `v*`, в summary печатает digest-строки для release-манифестов;
+- `scripts/release-manifest.sh` резолвит теги в immutable digest и печатает manifest'ы для `deploy.sh`;
+- пакеты приватные: хостам для pull нужен `docker login ghcr.io` с PAT `read:packages`;
+- production MainServer пока работает на локально собранном `anicast-backend:local` через те же compose-файлы.
 
 ## Discovery
 
@@ -331,5 +358,6 @@ Production smoke-check подтверждает:
 - для первого входа в `/staff/` требуется отдельно создать superuser с сильным уникальным паролем;
 - test suite использует SQLite, а критический Telegram polling flow дополнительно проверяется production smoke-тестом на PostgreSQL.
 - metrics counters хранятся в Redis и могут сброситься при потере Redis; endpoint не заменяет внешний alert evaluator;
-- автоматический rollback откатывает только application images и требует backward-compatible expand/contract migrations; restore PostgreSQL остаётся ручной DR-операцией;
-- image publication, production backup/restore automation, Prometheus server/alerts и production deployment этой темы не выполнялись.
+- автоматический rollback откатывает только application images и требует backward-compatible expand/contract migrations; restore PostgreSQL — осознанная ручная операция по runbook из OPERATIONS.md (автоматизируемая проверка scratch-реставрацией включена в cron);
+- rclone на MainServer использует shared client_id Google Drive — при его отключении нужно создать project-owned OAuth client и переавторизоваться;
+- формальный пайплайн `deploy.sh` в production ещё не выполнялся: стек MainServer обновляется локальной сборкой тех же compose-файлов, registry-образы публикуются, но не потребляются хостами.
