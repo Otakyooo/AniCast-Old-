@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils.text import slugify
 
 API_BASE = "https://shikimori.io/api"
+JIKAN_BASE = "https://api.jikan.moe/v4"
 USER_AGENT = "AniCast/1.0 (catalog metadata import)"
 REQUEST_PAUSE_SECONDS = 0.7
 
@@ -40,6 +41,26 @@ def api_get(path: str) -> object:
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def jikan_get(path: str) -> dict:
+    request = urllib.request.Request(
+        f"{JIKAN_BASE}{path}",
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def mal_poster(entry: dict) -> str:
+    """Shikimori ids double as MyAnimeList ids; MAL artwork is larger."""
+    try:
+        time.sleep(REQUEST_PAUSE_SECONDS + 0.4)
+        payload = jikan_get(f"/anime/{entry['id']}")
+        url = (((payload.get("data") or {}).get("images") or {}).get("jpg") or {}).get("large_image_url")
+        return url or ""
+    except Exception:
+        return ""
 
 
 def graphql_post(query: str) -> dict:
@@ -140,7 +161,7 @@ def build_title(entry: dict, detail: dict) -> dict:
     english_names = [name for name in (detail.get("english") or []) if name]
     japanese_names = [name for name in (detail.get("japanese") or []) if name]
     aired_on = entry.get("aired_on") or ""
-    poster = (entry.get("image") or {}).get("original") or ""
+    poster = mal_poster(entry) or (entry.get("image") or {}).get("original") or ""
     episodes = [
         {"number": number}
         for number in range(1, episode_count(entry) + 1)

@@ -505,6 +505,21 @@ def test_fetch_shikimori_character_and_franchise_helpers():
 
 
 @pytest.mark.django_db
+def test_fetch_shikimori_poster_prefers_mal(monkeypatch):
+    from catalog.management.commands import fetch_shikimori
+
+    monkeypatch.setattr(fetch_shikimori, "jikan_get", lambda path: {"data": {"images": {"jpg": {"large_image_url": "https://cdn.myanimelist.net/images/anime/10/47347l.jpg"}}}})
+    entry = {"id": 16498, "name": "Shingeki no Kyojin", "image": {"original": "/system/animes/original/16498.jpg"}}
+    assert fetch_shikimori.mal_poster(entry) == "https://cdn.myanimelist.net/images/anime/10/47347l.jpg"
+
+    def broken(path):
+        raise OSError("jikan down")
+
+    monkeypatch.setattr(fetch_shikimori, "jikan_get", broken)
+    assert fetch_shikimori.mal_poster(entry) == ""
+
+
+@pytest.mark.django_db
 def test_import_catalog_applies_characters_and_links():
     from catalog.management.commands.import_catalog import apply_payload, validate_payload
 
