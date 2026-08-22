@@ -29,13 +29,15 @@ digest_of() {
 
 backend_digest=$(digest_of "$registry/$owner/anicast-backend:$suffix")
 frontend_digest=$(digest_of "$registry/$owner/anicast-frontend:$suffix")
+mainserver_env=${MAINSERVER_ENV_FILE:-/etc/anicast/mainserver.env}
+vps_env=${VPS_ENV_FILE:-/etc/anicast/vps.env}
 
 echo "# mainserver release: scripts/deploy.sh mainserver this.env"
 echo "BACKEND_IMAGE=$registry/$owner/anicast-backend@$backend_digest"
 echo "RELEASE_SHA=$ref"
-echo "ANICAST_ENV_FILE=/etc/anicast/mainserver.env"
+echo "ANICAST_ENV_FILE=$mainserver_env"
 echo
 echo "# vps release: scripts/deploy.sh vps this.env"
 echo "FRONTEND_IMAGE=$registry/$owner/anicast-frontend@$frontend_digest"
 echo "RELEASE_SHA=$ref"
-echo "ANICAST_ENV_FILE=/etc/anicast/vps.env"
+echo "ANICAST_ENV_FILE=$vps_env"
