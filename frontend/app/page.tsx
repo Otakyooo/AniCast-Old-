@@ -3,13 +3,18 @@ import { AccountLink } from "../components/account-link";
 import { CatalogCard } from "../components/catalog-card";
 import { HistoryView } from "../components/history-view";
 import { Sidebar } from "../components/sidebar";
-import { getCatalog } from "../lib/api";
+import { getCatalog, type CatalogResponse } from "../lib/api";
 import { getI18n } from "../i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const catalog = await getCatalog({ pageSize: 4 });
+  // Render a degraded page instead of a 500 when the API is briefly
+  // unreachable: this also keeps the container healthcheck independent
+  // from the Caddy -> API chain during cold starts.
+  const catalog: CatalogResponse = await getCatalog({ pageSize: 4 }).catch(() => ({
+    count: 0, next: null, previous: null, results: [],
+  }));
   const { t } = await getI18n();
 
   return <main className="shell">

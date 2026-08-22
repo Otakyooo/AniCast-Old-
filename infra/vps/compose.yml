@@ -8,6 +8,10 @@ services:
         NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME:-}
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
+    # Next.js standalone treats HOSTNAME as its bind address; Docker injects
+    # the container id, which leaves loopback unusable for the healthcheck.
+    environment:
+      - HOSTNAME=0.0.0.0
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
