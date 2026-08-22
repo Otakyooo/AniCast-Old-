@@ -21,6 +21,9 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
+      - run: python manage.py collectstatic --noinput
+        env:
+          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
       - run: python -m pytest
         env:
           DJANGO_DATABASE_URL: sqlite:///db.sqlite3
