@@ -79,7 +79,19 @@ GitHub Actions publishes both images to GHCR on every push to `main` and on `v*`
 scripts/release-manifest.sh <git-sha>      # or --tag main
 ```
 
-The repository is private, so packages are private: hosts that pull need `docker login ghcr.io` with a PAT that has `read:packages`. Publish-then-deploy keeps `deploy.sh` on immutable digests; until the formal pipeline is adopted, MainServer runs locally built images with the same compose files.
+The repository is private, so packages are private: hosts that pull need `docker login ghcr.io` with a token that has `read:packages` (both hosts are logged in as of 2026-08-22).
+
+Both production stacks run digest-pinned GHCR images (`BACKEND_IMAGE`/`FRONTEND_IMAGE` in the stack `.env`). Release switch:
+
+```bash
+scripts/release-manifest.sh <git-sha>          # prints digests for the commit
+# mainserver: put BACKEND_IMAGE=ghcr.io/...@sha256:... into infra/mainserver/.env
+cd infra/mainserver && docker compose pull backend && docker compose up -d
+# vps: put FRONTEND_IMAGE=...@sha256:... into /opt/anicast/infra/vps/.env
+cd /opt/anicast/infra/vps && docker compose pull frontend && docker compose up -d
+```
+
+Rollback: point the image variable back to the previous digest (or to the local fallback tags `anicast-backend:local` / `vps-frontend:latest`) and `up -d` again. The formal `deploy.sh` pipeline (project names `anicast-*`, state dirs, automatic rollback) remains available for a future stack migration.
 
 ## Release manifests
 

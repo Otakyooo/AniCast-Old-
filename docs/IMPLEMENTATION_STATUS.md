@@ -46,7 +46,7 @@ Backend с observability-кодом развёрнут в production (2026-08-22
 - `.github/workflows/publish.yml` пушит `anicast-backend` и `anicast-frontend` в GHCR на каждый push в `main` и теги `v*`, в summary печатает digest-строки для release-манифестов;
 - `scripts/release-manifest.sh` резолвит теги в immutable digest и печатает manifest'ы для `deploy.sh`;
 - пакеты приватные: хостам для pull нужен `docker login ghcr.io` с PAT `read:packages`;
-- production MainServer пока работает на локально собранном `anicast-backend:local` через те же compose-файлы.
+- production MainServer и VPS работают на digest-pinned образах из GHCR (с 2026-08-22); релиз-переключение и откат описаны в OPERATIONS.md.
 
 ## Discovery
 
@@ -360,4 +360,4 @@ Production smoke-check подтверждает:
 - metrics counters хранятся в Redis и могут сброситься при потере Redis; endpoint не заменяет внешний alert evaluator;
 - автоматический rollback откатывает только application images и требует backward-compatible expand/contract migrations; restore PostgreSQL — осознанная ручная операция по runbook из OPERATIONS.md (автоматизируемая проверка scratch-реставрацией включена в cron);
 - rclone на MainServer использует shared client_id Google Drive — при его отключении нужно создать project-owned OAuth client и переавторизоваться;
-- формальный пайплайн `deploy.sh` в production ещё не выполнялся: стек MainServer обновляется локальной сборкой тех же compose-файлов, registry-образы публикуются, но не потребляются хостами.
+- формальный пайплайн `deploy.sh` в production ещё не выполнялся: хосты используют digest-switch через compose (runbook в OPERATIONS.md), автоматический image-only rollback не подключён.
