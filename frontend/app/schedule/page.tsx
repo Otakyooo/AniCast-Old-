@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { AccountLink } from "../../components/account-link";
-import { Sidebar } from "../../components/sidebar";
+import { PageShell } from "../../components/page-shell";
 import { emptyPage, getSchedule, type ScheduleItem, type ScheduleResponse } from "../../lib/api";
 import { getI18n } from "../../i18n/server";
 import styles from "./schedule.module.css";
@@ -29,5 +28,38 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const grouped = new Map<string, ScheduleItem[]>();
   for (const episode of schedule.results) grouped.set(episode.air_date, [...(grouped.get(episode.air_date) ?? []), episode]);
 
-  return <main className="shell"><Sidebar active="schedule" /><section className="content"><header className="topbar"><span className="eyebrow">{t("schedule.eyebrow")}</span><AccountLink /></header><div className="page-heading"><h1>{t("schedule.title")}</h1><p className="muted">{t("schedule.subtitle")}</p></div><nav className={styles.range}><Link href="/schedule?range=today">{t("schedule.today")}</Link><Link href="/schedule?range=week">{t("schedule.week")}</Link></nav>{grouped.size ? <div className={styles.days}>{[...grouped.entries()].map(([date, episodes]) => <section className={styles.day} key={date}><header className={styles.dayHeading}><h2>{formatDay(date, locale)}</h2><p>{date}</p></header><div className={styles.episodes}>{episodes.map((episode) => <Link className={styles.episode} href={`/titles/${episode.title.slug}/episodes/${episode.number}`} key={episode.id}><strong>{episode.title.name}</strong><span className={styles.number}>{t("episode.number", { number: episode.number })}</span><span>{episode.name || t("episode.untitled")}</span>{episode.synopsis && <small>{episode.synopsis}</small>}</Link>)}</div></section>)}</div> : <div className="empty-state"><strong>{t("schedule.empty")}</strong><span>{t("schedule.emptyText")}</span><Link href="/catalog">{t("home.openCatalog")}</Link></div>}</section></main>;
+  return <PageShell active="schedule" heading={{ eyebrow: t("schedule.eyebrow"), title: t("schedule.title"), subtitle: t("schedule.subtitle") }}>
+    <nav className={styles.range} aria-label={t("schedule.title")}>
+      <Link className={range === "today" ? styles.rangeActive : undefined} href="/schedule?range=today">{t("schedule.today")}</Link>
+      <Link className={range === "week" ? styles.rangeActive : undefined} href="/schedule?range=week">{t("schedule.week")}</Link>
+    </nav>
+    {grouped.size ? (
+      <div className={styles.days}>
+        {[...grouped.entries()].map(([date, episodes]) => (
+          <section className={styles.day} key={date}>
+            <header className={styles.dayHeading}>
+              <h2>{formatDay(date, locale)}</h2>
+              <p>{date}</p>
+            </header>
+            <div className={styles.episodes}>
+              {episodes.map((episode) => (
+                <Link className={styles.episode} href={`/titles/${episode.title.slug}/episodes/${episode.number}`} key={episode.id}>
+                  <strong>{episode.title.name}</strong>
+                  <span className={styles.number}>{t("episode.number", { number: episode.number })}</span>
+                  <span>{episode.name || t("episode.untitled")}</span>
+                  {episode.synopsis && <small>{episode.synopsis}</small>}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    ) : (
+      <div className="empty-state">
+        <strong>{t("schedule.empty")}</strong>
+        <span>{t("schedule.emptyText")}</span>
+        <Link href="/catalog">{t("home.openCatalog")}</Link>
+      </div>
+    )}
+  </PageShell>;
 }

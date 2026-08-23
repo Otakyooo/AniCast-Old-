@@ -7,3 +7,27 @@
 }
 .avatarWrap{position:relative;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#28205d,#161a24);display:grid;place-items:center;font-size:46px;font-weight:800}
 .portraitWrap{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#28205d,#161a24);display:grid;place-items:center;font-size:72px;font-weight:800}
+
+.searchRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.searchRow input {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.searchRow button {
+  padding: 11px 16px;
+  border: 1px solid var(--primary);
+  border-radius: 9px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}

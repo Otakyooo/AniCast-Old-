@@ -1,6 +1,0 @@
-.more-nav{display:flex}.more-nav.active>summary{color:var(--text)}.more-nav.active>summary:after{position:absolute;right:0;bottom:0;left:0;height:2px;border-radius:2px;background:var(--primary);content:""}.compact-only{display:none}
-@media(max-width:1199px){.compact-only{display:block!important}}
-@media(max-width:767px){.global-actions .language-switcher{display:none}}
-.profile-shell{max-width:960px;margin:32px auto;padding:32px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(135deg,rgba(124,92,255,.11),transparent 45%),var(--surface-1)}
-.content>.topbar>.account-actions{display:none}
-@media(max-width:767px){.profile-shell{margin:16px 0;padding:20px}}

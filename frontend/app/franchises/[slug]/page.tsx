@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AccountLink } from "../../../components/account-link";
-import { CatalogCard } from "../../../components/catalog-card";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
-import { Sidebar } from "../../../components/sidebar";
+import { CatalogCard } from "../../../components/catalog-card";
+import { PageShell } from "../../../components/page-shell";
 import { apiErrorStatus, getFranchise } from "../../../lib/api";
 import { getI18n } from "../../../i18n/server";
 import styles from "../franchises.module.css";
@@ -16,5 +14,18 @@ export default async function FranchisePage({ params }: { params: Promise<{ slug
   let franchise;
   try { franchise = await getFranchise(slug); }
   catch (error) { if (apiErrorStatus(error) === 404) notFound(); return <ApiUnavailableState />; }
-  return <main className="shell"><Sidebar active="franchises" /><section className="content"><header className="topbar"><Link className="back-link" href="/franchises">{t("franchise.all")}</Link><AccountLink /></header><div className={styles.hero}><p className="eyebrow">{t("franchise.label")}</p><h1>{franchise.name}</h1><p className="muted">{franchise.description || t("franchise.descriptionMissing")}</p><span className={styles.count}>{t("franchise.count", { count: franchise.title_count })}</span></div>{franchise.titles.length ? <div className="catalog-grid">{franchise.titles.map(title => <CatalogCard item={title} key={title.slug} />)}</div> : <div className="empty-state"><strong>{t("franchise.unlinked")}</strong></div>}</section></main>;
+
+  return <PageShell active="franchises" back={{ href: "/franchises", label: t("franchise.title") }}>
+    <div className={styles.hero}>
+      <p className="eyebrow">{t("franchise.label")}</p>
+      <h1>{franchise.name}</h1>
+      <p className="muted">{franchise.description || t("franchise.descriptionMissing")}</p>
+      <span className={styles.count}>{t("franchise.count", { count: franchise.title_count })}</span>
+    </div>
+    {franchise.titles.length ? (
+      <div className="catalog-grid">{franchise.titles.map(title => <CatalogCard item={title} key={title.slug} />)}</div>
+    ) : (
+      <div className="empty-state"><strong>{t("franchise.unlinked")}</strong></div>
+    )}
+  </PageShell>;
 }

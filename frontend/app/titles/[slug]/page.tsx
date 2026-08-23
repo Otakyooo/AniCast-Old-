@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { AccountLink } from "../../../components/account-link";
 import { LibraryControl } from "../../../components/library-control";
-import { Sidebar } from "../../../components/sidebar";
+import { PageShell } from "../../../components/page-shell";
 import Image from "next/image";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
@@ -78,68 +77,61 @@ export default async function CatalogDetailPage({
   const { t } = await getI18n();
 
   return (
-    <main className="shell">
-      <Sidebar active="catalog" />
-      <section className="content">
-        <header className="topbar">
-          <Link className="back-link" href="/catalog">← {t("catalog.title")}</Link>
-          <AccountLink />
-        </header>
-        <article className="detail">
-          <div className="detail-poster poster-wrap" aria-label={t("title.cover", { name: item.name })}>
-            {item.poster_url ? (
-              <Image
-                className="poster-image"
-                src={item.poster_url}
-                alt={t("title.cover", { name: item.name })}
-                fill
-                sizes="(max-width: 721px) 100vw, 330px"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-hidden="true">
-                <span>{item.name.slice(0, 1).toUpperCase()}</span>
-              </div>
-            )}
-          </div>
-          <div className="detail-copy">
-            <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
-            <h1>{item.name}</h1>
-            {item.original_name && <p className="original-title">{item.original_name}</p>}
-            <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
-            <div className="detail-meta">
-              <span>{item.year ?? t("title.yearUnknown")}</span>
-              <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
-              <span>{item.status ? t(`status.${item.status}`) : t("status.unknown")}</span>
+    <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
+      <article className="detail">
+        <div className="detail-poster poster-wrap" aria-label={t("title.cover", { name: item.name })}>
+          {item.poster_url ? (
+            <Image
+              className="poster-image"
+              src={item.poster_url}
+              alt={t("title.cover", { name: item.name })}
+              fill
+              sizes="(max-width: 721px) 100vw, 330px"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-hidden="true">
+              <span>{item.name.slice(0, 1).toUpperCase()}</span>
             </div>
-            {genres.length > 0 && <div className="tag-list">{genres.map((genre) => <span key={genre.slug}>{genre.name}</span>)}</div>}
-            <LibraryControl slug={item.slug} />
-            <NotificationSubscription slug={item.slug} />
-            <TitleNoteControl slug={item.slug} />
-            <TitleCollectionControl titleSlug={item.slug} />
-            <CommunityPanel slug={item.slug} />
-            {item.franchise && <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}><p className="eyebrow">{t("franchise.label")}</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</Link>}
-          </div>
-        </article>
-        <section className="episodes-section" aria-labelledby="episodes-heading">
-          <div className="section-heading"><p className="eyebrow">{t("title.watch")}</p><h2 id="episodes-heading">{t("title.episodes")}</h2></div>
-          {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}</ol> : <div className="empty-state"><strong>{t("title.noEpisodes")}</strong><span>{t("title.noEpisodesText")}</span></div>}
-          {pageCount > 1 && (
-            <nav className="episode-pagination" aria-label={t("title.episodes")}>
-              {episodesPage > 1 && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage - 1}`}>{t("common.back")}</Link>}
-              <span>{t("catalog.page", { current: episodesPage, total: pageCount })}</span>
-              {episodesPage < pageCount && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage + 1}`}>{t("common.next")}</Link>}
-            </nav>
           )}
-        </section>
-        {similar.length > 0 && (
-          <section className="episodes-section" aria-labelledby="similar-heading">
-            <div className="section-heading"><p className="eyebrow">{t("similar.eyebrow")}</p><h2 id="similar-heading">{t("similar.title")}</h2></div>
-            <div className="catalog-grid">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
-          </section>
+        </div>
+        <div className="detail-copy">
+          <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
+          <h1>{item.name}</h1>
+          {item.original_name && <p className="original-title">{item.original_name}</p>}
+          <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
+          <div className="detail-meta">
+            <span>{item.year ?? t("title.yearUnknown")}</span>
+            <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
+            <span>{item.status ? t(`status.${item.status}`) : t("status.unknown")}</span>
+          </div>
+          {genres.length > 0 && <div className="tag-list">{genres.map((genre) => <span key={genre.slug}>{genre.name}</span>)}</div>}
+          <LibraryControl slug={item.slug} />
+          <NotificationSubscription slug={item.slug} />
+          <TitleNoteControl slug={item.slug} />
+          <TitleCollectionControl titleSlug={item.slug} />
+          <CommunityPanel slug={item.slug} />
+          {item.franchise && <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}><p className="eyebrow">{t("franchise.label")}</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</Link>}
+        </div>
+      </article>
+      <section className="episodes-section" aria-labelledby="episodes-heading">
+        <div className="section-heading"><p className="eyebrow">{t("title.watch")}</p><h2 id="episodes-heading">{t("title.episodes")}</h2></div>
+        {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}</ol> : <div className="empty-state"><strong>{t("title.noEpisodes")}</strong><span>{t("title.noEpisodesText")}</span></div>}
+        {pageCount > 1 && (
+          <nav className="episode-pagination" aria-label={t("title.episodes")}>
+            {episodesPage > 1 && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage - 1}`}>{t("common.back")}</Link>}
+            <span>{t("catalog.page", { current: episodesPage, total: pageCount })}</span>
+            {episodesPage < pageCount && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage + 1}`}>{t("common.next")}</Link>}
+          </nav>
         )}
       </section>
-    </main>
+      {similar.length > 0 && (
+        <section className="episodes-section" aria-labelledby="similar-heading">
+          <div className="section-heading"><p className="eyebrow">{t("similar.eyebrow")}</p><h2 id="similar-heading">{t("similar.title")}</h2></div>
+          <div className="catalog-grid">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
+        </section>
+      )}
+    </PageShell>
   );
 }
 

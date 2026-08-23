@@ -2,11 +2,15 @@ import Link from "next/link";
 import { getI18n } from "../i18n/server";
 import { AccountLink } from "./account-link";
 
-type Section = "home" | "catalog" | "schedule" | "franchises" | "characters" | "media" | "community" | "library" | "collections";
+export type NavSection =
+  | "home" | "catalog" | "schedule" | "franchises" | "characters"
+  | "media" | "community" | "library" | "collections";
 
-export async function Sidebar({ active }: { active: Section }) {
+const OVERFLOW_SECTIONS: NavSection[] = ["media", "community", "library", "collections"];
+
+export async function SiteHeader({ active }: { active: NavSection }) {
   const { t } = await getI18n();
-  const linkClass = (section: Section) => section === active ? "active" : undefined;
+  const linkClass = (section: NavSection) => section === active ? "active" : undefined;
 
   return <>
     <header className="global-nav">
@@ -20,7 +24,7 @@ export async function Sidebar({ active }: { active: Section }) {
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
           <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
           <Link className={linkClass("characters")} href="/characters">{t("nav.characters")}</Link>
-          <details className={`more-nav ${["media", "community", "library", "collections"].includes(active) ? "active" : ""}`}>
+          <details className={`more-nav ${OVERFLOW_SECTIONS.includes(active) ? "active" : ""}`}>
             <summary>{t("nav.more")}</summary>
             <div className="more-menu">
               <Link className={`compact-only ${linkClass("characters") ?? ""}`} href="/characters">{t("nav.characters")}</Link>

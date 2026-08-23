@@ -16,19 +16,32 @@
   min-width: 180px;
 }
 
+.field:first-child {
+  flex: 1;
+  min-width: 240px;
+}
+
 .field span {
   color: var(--muted);
   font-size: 12px;
 }
 
+.field input,
 .field select {
   min-height: 40px;
-  padding: 0 34px 0 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-2);
   color: var(--text);
   font: inherit;
+}
+
+.field input {
+  padding: 0 11px;
+}
+
+.field select {
+  padding: 0 34px 0 11px;
 }
 
 .submit,

@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { I18nProvider } from "../components/i18n-provider";
 import { getI18n } from "../i18n/server";
 import "./globals.css";
-import "./shell.css";
-import "./shell-overrides.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
