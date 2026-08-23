@@ -68,19 +68,23 @@ class EpisodePagination(PageNumberPagination):
 
 
 class TitleDetailView(RetrieveAPIView):
+    # Episodes are fetched by the serializer as a paginated queryset, so the
+    # detail view never loads the full episode list of a long-running series.
     queryset = Title.objects.annotate(episodes_count=Count("episodes")).select_related(
         "franchise"
     ).prefetch_related(
         "translations", "franchise__translations", "genres", "genres__translations",
-        "episodes__translations",
-        playback_sources_prefetch("episodes__sources"),
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
+    episode_page_params = ("episodes_page", "episodes_page_size")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["episodes_paginator"] = EpisodePagination()
+        # Pagination stays opt-in so a previous frontend release, which reads the
+        # full embedded list, keeps working during an expand/contract rollout.
+        if any(param in self.request.query_params for param in self.episode_page_params):
+            context["episodes_paginator"] = EpisodePagination()
         return context
 
 

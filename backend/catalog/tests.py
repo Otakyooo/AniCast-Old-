@@ -23,8 +23,6 @@ from catalog.models import (
     TitleTranslation,
     TitleCharacter,
 )
-from catalog.serializers import TitleDetailSerializer
-from catalog.views import TitleDetailView
 from django.core.management import call_command
 
 
@@ -70,6 +68,8 @@ def test_title_detail_paginates_episodes(catalog_data):
     Episode.objects.create(title=catalog_data, number=2, name="Second")
     Episode.objects.create(title=catalog_data, number=3, name="Third")
     client = APIClient()
+    unpaginated = client.get("/api/v1/titles/sky-test/").json()
+    assert [episode["number"] for episode in unpaginated["episodes"]] == [1, 2, 3]
     first = client.get("/api/v1/titles/sky-test/?episodes_page_size=2").json()
     assert first["episodes_count"] == 3
     assert [episode["number"] for episode in first["episodes"]] == [1, 2]
@@ -107,7 +107,7 @@ def test_title_detail_batches_playback_availability_queries(django_assert_max_nu
     )
     approver = User.objects.create_user(email="batch-rights@example.com", password="A-strong-passphrase-2042")
     now = timezone.now()
-    for number in range(1, 13):
+    for number in range(1, 61):
         episode = Episode.objects.create(title=title, number=number)
         source = Source.objects.create(
             episode=episode,
@@ -125,13 +125,23 @@ def test_title_detail_batches_playback_availability_queries(django_assert_max_nu
             approved_at=now,
         )
 
-    with django_assert_max_num_queries(10):
-        instance = TitleDetailView.queryset.get(slug=title.slug)
-        payload = TitleDetailSerializer(instance).data
+    with django_assert_max_num_queries(12):
+        response = APIClient().get("/api/v1/titles/long-series/?episodes_page_size=20")
 
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["episodes_count"] == 60
+    assert len(payload["episodes"]) == 20
     sources = [source for episode in payload["episodes"] for source in episode["sources"]]
-    assert len(sources) == 12
+    assert len(sources) == 20
     assert all(source["playback_available"] for source in sources)
+
+    # Without pagination parameters the payload stays backward compatible for the
+    # previous frontend release, and still avoids a query per source.
+    with django_assert_max_num_queries(12):
+        legacy = APIClient().get("/api/v1/titles/long-series/")
+
+    assert len(legacy.json()["episodes"]) == 60
 
 
 @pytest.mark.django_db

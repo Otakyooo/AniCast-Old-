@@ -3,7 +3,6 @@ from rest_framework import serializers
 from .i18n import translated_value
 from .models import Character, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
 
-
 class GenreSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
 
@@ -88,8 +87,14 @@ class TitleDetailSerializer(TitleSerializer):
         fields = TitleSerializer.Meta.fields + ["episodes", "episodes_count"]
 
     def get_episodes(self, obj):
+        from .playback import playback_sources_prefetch
+
+        episodes = (
+            Episode.objects.filter(title=obj)
+            .prefetch_related("translations", playback_sources_prefetch())
+            .order_by("number")
+        )
         paginator = self.context.get("episodes_paginator")
-        episodes = obj.episodes.all()
         if paginator is None:
             return EpisodeSerializer(episodes, many=True, context=self.context).data
         page = paginator.paginate_queryset(episodes, self.context["request"])
