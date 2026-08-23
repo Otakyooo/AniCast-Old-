@@ -343,6 +343,28 @@ Backend с observability-кодом развёрнут в production (2026-08-22
 - у расписания появилось активное состояние переключателя «Сегодня»/«7 дней»;
 - skeleton-состояния каталога и тайтла переведены на ту же оболочку, поэтому при загрузке навигация больше не исчезает.
 
+## Релиз 2026-08-23: оболочка, пагинация эпизодов, постеры
+
+Развёрнуто в production обоими стеками (backend `anicast-backend:local-20260823T213604Z`, frontend `anicast-frontend:local-20260823T213604Z`):
+
+- предрелизный проверенный дамп: `backups/predeploy-design-shell-v2-20260823T213530Z.sql.gz` (427 записей архива);
+- миграций в релизе нет (`migrate --plan` — пусто), откат выполняется только переключением образов;
+- точка отката зафиксирована: backend `sha256:978d42fc…`, frontend `sha256:056dc6a2…`;
+- production smoke: 19 публичных маршрутов отвечают 200, неизвестный путь — 404, `/internal/metrics` и `/health/*` публично недоступны (404 через Caddy), приватный metrics с bearer token отвечает 200;
+- `episodes_count` для `21-one-piece` = 1174, страница отдаёт 20 эпизодов и «Страница 1 из 59», `?episodes_page=2` — эпизоды 21–40;
+- запрос без параметров пагинации сохраняет полный список (expand/contract совместимость подтверждена на проде);
+- в HTML продовой страницы тайтла ровно один `global-nav`, один `account-actions`, один `mobile-bottom-nav`, мёртвый `topbar` отсутствует;
+- восстановленные стили присутствуют в продовом CSS-бандле (`episode-list`, `episode-card`, `source-status-available`, `franchise-panel`);
+- RU/EN подтверждены end-to-end на API и в навигации; Prometheus: 0 firing alerts после деплоя;
+- `backend/.dockerignore` расширен: из образа ушли `.mypy_cache`, `.ruff_cache`, `batch*.json` и локальные sqlite — контекст `/app` уменьшился с 55 MiB до 12 MiB;
+- образы собраны и развёрнуты локально, потому что GHCR-токен на хосте имеет только `read:packages` (push отвечает 403), а CI без push в origin не запускался.
+
+### Известное ограничение: backfill_posters
+
+Команда работает, но Jikan сейчас отдаёт `504 Jikan failed to connect to MyAnimeList` почти на все нужные MAL id (проверено с MainServer, VPS и напрямую: `anime/1`, `anime/20`, `anime/21` отвечают 200, а `anime/1735`, `anime/22319`, `anime/4224` стабильно 504 при пяти повторах). Кроме того, у отвечающих id Jikan сейчас не возвращает `maximum_image_url` вовсе — только `image_url`/`large_image_url`.
+
+Dry-run на 12 тайтлах: 11 `keep`, 0 замен, `demo-title` пропущен (в slug нет MAL id). `--apply` не выполнялся: заменять нечем. В production остаются 66 тайтлов с постерами Shikimori 225x318 против 400x600–420x600 у MAL — команду нужно перезапустить, когда Jikan восстановится.
+
 ## Проверки
 
 Последний полный локальный прогон:

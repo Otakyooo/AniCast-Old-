@@ -95,6 +95,27 @@ cd /opt/anicast/infra/vps && docker compose pull frontend && docker compose up -
 
 Rollback: point the image variable back to the previous digest (or to the local fallback tags `anicast-backend:local` / `vps-frontend:latest`) and `up -d` again. The formal `deploy.sh` pipeline (project names `anicast-*`, state dirs, automatic rollback) remains available for a future stack migration.
 
+Local-image releases: the GHCR credentials stored on MainServer only carry `read:packages` (a push probe returns 403), so a release cut without CI is built on MainServer and shipped to the VPS by hand:
+
+```bash
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+docker build -t anicast-backend:local-$stamp backend
+sed -i "s|^BACKEND_IMAGE=.*|BACKEND_IMAGE=anicast-backend:local-$stamp|" infra/mainserver/.env
+docker compose -f infra/mainserver/compose.yml run --rm --no-deps --entrypoint python backend manage.py migrate --plan
+docker compose -f infra/mainserver/compose.yml up -d backend celery-worker celery-beat
+
+docker build --build-arg NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=anicast_auth_bot \
+  --build-arg NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME=anicast_push_bot \
+  -t anicast-frontend:local-$stamp frontend
+docker save anicast-frontend:local-$stamp | gzip -1 > /tmp/frontend-$stamp.tar.gz
+scp /tmp/frontend-$stamp.tar.gz root@10.78.0.1:/tmp/
+ssh root@10.78.0.1 "gunzip -c /tmp/frontend-$stamp.tar.gz | docker load"
+ssh root@10.78.0.1 "sed -i 's|^FRONTEND_IMAGE=.*|FRONTEND_IMAGE=anicast-frontend:local-$stamp|' /opt/anicast/infra/vps/.env"
+ssh root@10.78.0.1 "cd /opt/anicast/infra/vps && docker compose up -d frontend"
+```
+
+The frontend build args must be passed explicitly: `NEXT_PUBLIC_*` values are inlined at build time, and omitting them silently disables the Telegram login and notification prompts. Take a verified `pg_dump` first, keep the previous digests written down (image-only rollback is the only automatic path), and delete the transferred tarball from both hosts afterwards. Restore GHCR digest pins as soon as a token with `write:packages` is available, since local tags carry no provenance.
+
 ## Catalog import from Shikimori
 
 `fetch_shikimori` pulls popular anime metadata (Russian and English names, japanese originals, genres with translations, posters, episode counts) and emits an `import_catalog` JSON payload:
@@ -124,6 +145,8 @@ docker exec mainserver-backend-1 python manage.py backfill_posters --apply
 ```
 
 The command only touches `poster_url`, keeps rows whose MAL artwork is unavailable, is safe to rerun, and accepts `--limit N` to process a slice.
+
+Jikan outage note (2026-08-23): the upstream answers `504 Jikan failed to connect to MyAnimeList` for most catalog ids, and the ids that do answer no longer expose `maximum_image_url`. Verified from MainServer, the VPS and directly: `anime/1`, `anime/20`, `anime/21` return 200 while `anime/1735`, `anime/22319`, `anime/4224` return 504 across repeated attempts. `backfill_posters` therefore keeps every row untouched and must be rerun once Jikan recovers; a dry-run is the correct way to check.
 
 ## Title detail and episode pages
 

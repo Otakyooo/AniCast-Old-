@@ -1,6 +1,11 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 db.sqlite3
+*.sqlite3
 .env
+batch*.json
+staticfiles/
