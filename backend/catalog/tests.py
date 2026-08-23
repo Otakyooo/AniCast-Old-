@@ -23,6 +23,9 @@ from catalog.models import (
     TitleTranslation,
     TitleCharacter,
 )
+from catalog.serializers import TitleDetailSerializer
+from catalog.views import TitleDetailView
+from django.core.management import call_command
 
 
 @pytest.fixture
@@ -55,10 +58,80 @@ def test_title_detail_includes_nested_relations(catalog_data):
     assert response.status_code == 200
     assert body["franchise"]["slug"] == "test-franchise"
     assert body["genres"][0]["slug"] == "action"
+    assert body["episodes_count"] == 1
     assert body["episodes"][0]["sources"][0]["availability"] == "available"
     assert body["episodes"][0]["sources"][0]["is_available"] is True
     assert "url" not in body["episodes"][0]["sources"][0]
     assert body["episodes"][0]["sources"][0]["playback_available"] is False
+
+
+@pytest.mark.django_db
+def test_title_detail_paginates_episodes(catalog_data):
+    Episode.objects.create(title=catalog_data, number=2, name="Second")
+    Episode.objects.create(title=catalog_data, number=3, name="Third")
+    client = APIClient()
+    first = client.get("/api/v1/titles/sky-test/?episodes_page_size=2").json()
+    assert first["episodes_count"] == 3
+    assert [episode["number"] for episode in first["episodes"]] == [1, 2]
+    second = client.get("/api/v1/titles/sky-test/?episodes_page_size=2&episodes_page=2").json()
+    assert [episode["number"] for episode in second["episodes"]] == [3]
+    beyond = client.get("/api/v1/titles/sky-test/?episodes_page=999")
+    assert beyond.status_code == 404
+    oversized = client.get("/api/v1/titles/sky-test/?episodes_page_size=500").json()
+    assert len(oversized["episodes"]) == 3
+
+
+@pytest.mark.django_db
+def test_title_episode_detail_returns_single_episode(catalog_data):
+    client = APIClient()
+    response = client.get("/api/v1/titles/sky-test/episodes/1/")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["number"] == 1
+    assert body["title"]["slug"] == "sky-test"
+    assert body["sources"][0]["playback_available"] is False
+    assert "url" not in body["sources"][0]
+    assert client.get("/api/v1/titles/sky-test/episodes/999/").status_code == 404
+    assert client.get("/api/v1/titles/missing/episodes/1/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_title_detail_batches_playback_availability_queries(django_assert_max_num_queries):
+    title = Title.objects.create(name="Long Series", slug="long-series")
+    provider = Provider.objects.create(
+        name="Batch Provider",
+        slug="batch-provider",
+        is_enabled=True,
+        allowed_hosts=["watch.example.com"],
+        playback_adapter="external_link",
+    )
+    approver = User.objects.create_user(email="batch-rights@example.com", password="A-strong-passphrase-2042")
+    now = timezone.now()
+    for number in range(1, 13):
+        episode = Episode.objects.create(title=title, number=number)
+        source = Source.objects.create(
+            episode=episode,
+            provider=provider,
+            name="Batch Source",
+            url=f"https://watch.example.com/episodes/{number}",
+        )
+        RightsGrant.objects.create(
+            source=source,
+            status=RightsGrant.Status.ACTIVE,
+            valid_from=now - timedelta(hours=1),
+            valid_until=now + timedelta(hours=1),
+            contract_reference=f"BATCH-{number}",
+            approved_by=approver,
+            approved_at=now,
+        )
+
+    with django_assert_max_num_queries(10):
+        instance = TitleDetailView.queryset.get(slug=title.slug)
+        payload = TitleDetailSerializer(instance).data
+
+    sources = [source for episode in payload["episodes"] for source in episode["sources"]]
+    assert len(sources) == 12
+    assert all(source["playback_available"] for source in sources)
 
 
 @pytest.mark.django_db
@@ -411,7 +484,8 @@ def test_similar_titles_empty_without_genres_and_franchise(db):
 
 
 @pytest.mark.django_db
-def test_fetch_shikimori_mapping_helpers():
+def test_fetch_shikimori_mapping_helpers(monkeypatch):
+    from catalog.management.commands import fetch_shikimori
     from catalog.management.commands.fetch_shikimori import (
         build_genre,
         build_title,
@@ -420,6 +494,8 @@ def test_fetch_shikimori_mapping_helpers():
         map_kind,
         map_status,
     )
+
+    monkeypatch.setattr(fetch_shikimori, "mal_poster", lambda entry: "")
 
     entry = {
         "id": 16498,
@@ -508,8 +584,23 @@ def test_fetch_shikimori_character_and_franchise_helpers():
 def test_fetch_shikimori_poster_prefers_mal(monkeypatch):
     from catalog.management.commands import fetch_shikimori
 
-    monkeypatch.setattr(fetch_shikimori, "jikan_get", lambda path: {"data": {"images": {"jpg": {"large_image_url": "https://cdn.myanimelist.net/images/anime/10/47347l.jpg"}}}})
+    monkeypatch.setattr(fetch_shikimori.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(
+        fetch_shikimori,
+        "jikan_get",
+        lambda path: {"data": {"images": {"jpg": {
+            "large_image_url": "https://cdn.myanimelist.net/images/anime/10/47347l.jpg",
+            "maximum_image_url": "https://cdn.myanimelist.net/images/anime/10/47347f.jpg",
+        }}}},
+    )
     entry = {"id": 16498, "name": "Shingeki no Kyojin", "image": {"original": "/system/animes/original/16498.jpg"}}
+    assert fetch_shikimori.mal_poster(entry) == "https://cdn.myanimelist.net/images/anime/10/47347f.jpg"
+
+    monkeypatch.setattr(
+        fetch_shikimori,
+        "jikan_get",
+        lambda path: {"data": {"images": {"jpg": {"large_image_url": "https://cdn.myanimelist.net/images/anime/10/47347l.jpg"}}}},
+    )
     assert fetch_shikimori.mal_poster(entry) == "https://cdn.myanimelist.net/images/anime/10/47347l.jpg"
 
     def broken(path):
@@ -526,6 +617,34 @@ def test_fetch_shikimori_poster_prefers_mal(monkeypatch):
         {"description": "", "english": [], "japanese": [], "genres": []},
     )
     assert title["poster_url"] == ""
+
+
+@pytest.mark.django_db
+def test_backfill_posters_replaces_low_resolution_artwork(monkeypatch, capsys):
+    from catalog.management.commands import fetch_shikimori
+
+    def fake_poster(entry):
+        return "" if entry["id"] == 23 else f"https://cdn.myanimelist.net/images/anime/{entry['id']}l.jpg"
+
+    monkeypatch.setattr(fetch_shikimori, "mal_poster", fake_poster)
+    low = Title.objects.create(name="Low", slug="21-low", poster_url="https://shikimori.io/system/animes/original/21.jpg")
+    empty = Title.objects.create(name="Empty", slug="22-empty", poster_url="")
+    unavailable = Title.objects.create(name="Unavailable", slug="23-unavailable", poster_url="")
+    sharp = Title.objects.create(name="Sharp", slug="24-sharp", poster_url="https://cdn.myanimelist.net/images/anime/24l.jpg")
+
+    call_command("backfill_posters")
+    low.refresh_from_db()
+    assert "shikimori" in low.poster_url
+
+    call_command("backfill_posters", "--apply")
+    low.refresh_from_db()
+    empty.refresh_from_db()
+    unavailable.refresh_from_db()
+    sharp.refresh_from_db()
+    assert low.poster_url == "https://cdn.myanimelist.net/images/anime/21l.jpg"
+    assert empty.poster_url == "https://cdn.myanimelist.net/images/anime/22l.jpg"
+    assert unavailable.poster_url == ""
+    assert sharp.poster_url == "https://cdn.myanimelist.net/images/anime/24l.jpg"
 
 
 @pytest.mark.django_db

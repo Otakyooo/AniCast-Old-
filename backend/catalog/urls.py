@@ -10,6 +10,7 @@ from .views import (
     PlaybackResolveView,
     ScheduleView,
     SimilarTitleListView,
+    EpisodeDetailView,
     SourceReportView,
     TitleDetailView,
     TitleListView,
@@ -18,6 +19,7 @@ from .views import (
 urlpatterns = [
     path("titles/", TitleListView.as_view(), name="title-list"),
     path("titles/<slug:slug>/similar/", SimilarTitleListView.as_view(), name="title-similar"),
+    path("titles/<slug:slug>/episodes/<int:number>/", EpisodeDetailView.as_view(), name="episode-detail"),
     path("titles/<slug:slug>/", TitleDetailView.as_view(), name="title-detail"),
     path("schedule/", ScheduleView.as_view(), name="schedule"),
     path("source-reports/", SourceReportView.as_view(), name="source-report-list"),

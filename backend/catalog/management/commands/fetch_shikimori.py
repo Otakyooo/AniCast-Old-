@@ -63,8 +63,8 @@ def mal_poster(entry: dict) -> str:
         try:
             time.sleep(REQUEST_PAUSE_SECONDS + 0.4)
             payload = jikan_get(f"/anime/{entry['id']}")
-            url = (((payload.get("data") or {}).get("images") or {}).get("jpg") or {}).get("large_image_url")
-            return url or ""
+            images = (((payload.get("data") or {}).get("images") or {}).get("jpg") or {})
+            return images.get("maximum_image_url") or images.get("large_image_url") or ""
         except Exception:
             time.sleep(3)
     return ""

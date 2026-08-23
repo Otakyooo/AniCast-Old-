@@ -24,9 +24,9 @@ class SourceSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "kind", "availability", "availability_reason", "is_available", "playback_available"]
 
     def get_playback_available(self, obj):
-        from .playback import authorized_playback_source
+        from .playback import playback_available
 
-        return authorized_playback_source(obj.id) is not None
+        return playback_available(obj)
 
 
 class EpisodeSerializer(serializers.ModelSerializer):
@@ -81,10 +81,23 @@ class TitleSerializer(serializers.ModelSerializer):
 
 
 class TitleDetailSerializer(TitleSerializer):
-    episodes = EpisodeSerializer(many=True, read_only=True)
+    episodes = serializers.SerializerMethodField()
+    episodes_count = serializers.SerializerMethodField()
 
     class Meta(TitleSerializer.Meta):
-        fields = TitleSerializer.Meta.fields + ["episodes"]
+        fields = TitleSerializer.Meta.fields + ["episodes", "episodes_count"]
+
+    def get_episodes(self, obj):
+        paginator = self.context.get("episodes_paginator")
+        episodes = obj.episodes.all()
+        if paginator is None:
+            return EpisodeSerializer(episodes, many=True, context=self.context).data
+        page = paginator.paginate_queryset(episodes, self.context["request"])
+        return EpisodeSerializer(page, many=True, context=self.context).data
+
+    def get_episodes_count(self, obj):
+        count = getattr(obj, "episodes_count", None)
+        return count if count is not None else obj.episodes.count()
 
 
 class ScheduleTitleSerializer(serializers.ModelSerializer):
@@ -222,3 +235,10 @@ class MediaAssetSerializer(serializers.ModelSerializer):
     class Meta:
         model = MediaAsset
         fields = ["id", "kind", "url", "thumbnail_url", "caption", "credit", "title", "character"]
+
+
+class EpisodeDetailSerializer(EpisodeSerializer):
+    title = ScheduleTitleSerializer(read_only=True)
+
+    class Meta(EpisodeSerializer.Meta):
+        fields = EpisodeSerializer.Meta.fields + ["title"]

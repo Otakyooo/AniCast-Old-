@@ -6,7 +6,7 @@ import { ApiUnavailableState } from "../../../../../components/api-unavailable";
 import { Sidebar } from "../../../../../components/sidebar";
 import { SourceReportControl } from "../../../../../components/source-report-control";
 import { PlaybackLink } from "../../../../../components/playback-link";
-import { apiErrorStatus, getCatalogItem } from "../../../../../lib/api";
+import { apiErrorStatus, getEpisode } from "../../../../../lib/api";
 import { getI18n } from "../../../../../i18n/server";
 import styles from "../../../../history.module.css";
 
@@ -17,13 +17,11 @@ export default async function EpisodePage({ params }: { params: Promise<{ slug: 
   const number = Number(rawNumber);
   if (!Number.isInteger(number) || number < 1) notFound();
   const { t } = await getI18n();
-  let title;
-  try { title = await getCatalogItem(slug); }
+  let episode;
+  try { episode = await getEpisode(slug, number); }
   catch (error) { if (apiErrorStatus(error) === 404) notFound(); return <ApiUnavailableState />; }
-  const episode = title.episodes?.find((candidate) => candidate.number === number);
-  if (!episode) notFound();
   const sources = episode.sources ?? [];
   const sourceLabel = (value: string) => t(`source.${value === "geo_blocked" ? "geo" : value === "provider_error" ? "error" : value}`);
 
-  return <main className="shell"><Sidebar active="catalog" /><section className="content"><header className="topbar"><Link className="back-link" href={`/titles/${title.slug}`}>← {title.name}</Link><AccountLink /></header><article className={styles.episodePage}><p className="eyebrow">{t("episode.number", { number: episode.number })}</p><h1>{episode.name || title.name}</h1><p className="muted">{episode.synopsis || t("episode.noDescription")}</p><EpisodeProgressControl slug={title.slug} number={episode.number} /><section><div className="section-heading"><h2>{t("episode.sources")}</h2></div>{sources.length ? <ul className={styles.sources}>{sources.map((source) => <li className={styles.source} key={source.id}><strong>{source.name}</strong><span>{source.kind.toUpperCase()} · {sourceLabel(source.availability)}</span>{source.availability_reason && <small>{source.availability_reason}</small>}{source.playback_available && <PlaybackLink sourceId={source.id} />}<SourceReportControl sourceId={source.id} /></li>)}</ul> : <div className="empty-state"><strong>{t("episode.noSources")}</strong></div>}</section></article></section></main>;
+  return <main className="shell"><Sidebar active="catalog" /><section className="content"><header className="topbar"><Link className="back-link" href={`/titles/${episode.title.slug}`}>← {episode.title.name}</Link><AccountLink /></header><article className={styles.episodePage}><p className="eyebrow">{t("episode.number", { number: episode.number })}</p><h1>{episode.name || episode.title.name}</h1><p className="muted">{episode.synopsis || t("episode.noDescription")}</p><EpisodeProgressControl slug={episode.title.slug} number={episode.number} /><section><div className="section-heading"><h2>{t("episode.sources")}</h2></div>{sources.length ? <ul className={styles.sources}>{sources.map((source) => <li className={styles.source} key={source.id}><strong>{source.name}</strong><span>{source.kind.toUpperCase()} · {sourceLabel(source.availability)}</span>{source.availability_reason && <small>{source.availability_reason}</small>}{source.playback_available && <PlaybackLink sourceId={source.id} />}<SourceReportControl sourceId={source.id} /></li>)}</ul> : <div className="empty-state"><strong>{t("episode.noSources")}</strong></div>}</section></article></section></main>;
 }

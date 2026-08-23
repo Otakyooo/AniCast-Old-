@@ -9,7 +9,7 @@ import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
-import { apiErrorStatus, getCatalogItem, getSimilarTitles, type Episode, type Source } from "../../../lib/api";
+import { apiErrorStatus, getCatalogItemEpisodes, getSimilarTitles, type Episode, type Source } from "../../../lib/api";
 import { getI18n } from "../../../i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -55,17 +55,24 @@ function EpisodeCard({ episode, slug, t }: { episode: Episode; slug: string; t: 
   );
 }
 
-export default async function CatalogDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CatalogDetailPage({
+  params,
+  searchParams,
+}: { params: Promise<{ slug: string }>; searchParams: Promise<{ episodes_page?: string }> }) {
   const { slug } = await params;
+  const rawPage = Number((await searchParams).episodes_page);
+  const episodesPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   let item;
   try {
-    item = await getCatalogItem(slug);
+    item = await getCatalogItemEpisodes(slug, episodesPage);
   } catch (error) {
     if (apiErrorStatus(error) === 404) return <NotFoundState />;
     return <ApiUnavailableState />;
   }
 
   const episodes = item.episodes ?? [];
+  const episodesCount = item.episodes_count ?? episodes.length;
+  const pageCount = Math.max(1, Math.ceil(episodesCount / 20));
   const genres = item.genres ?? [];
   const similar = await getSimilarTitles(slug);
   const { t } = await getI18n();
@@ -102,7 +109,7 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
             <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
             <div className="detail-meta">
               <span>{item.year ?? t("title.yearUnknown")}</span>
-              <span>{episodes.length ? t("title.episodesCount", { count: episodes.length }) : t("title.episodesUnknown")}</span>
+              <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
               <span>{item.status ? t(`status.${item.status}`) : t("status.unknown")}</span>
             </div>
             {genres.length > 0 && <div className="tag-list">{genres.map((genre) => <span key={genre.slug}>{genre.name}</span>)}</div>}
@@ -117,6 +124,13 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
         <section className="episodes-section" aria-labelledby="episodes-heading">
           <div className="section-heading"><p className="eyebrow">{t("title.watch")}</p><h2 id="episodes-heading">{t("title.episodes")}</h2></div>
           {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}</ol> : <div className="empty-state"><strong>{t("title.noEpisodes")}</strong><span>{t("title.noEpisodesText")}</span></div>}
+          {pageCount > 1 && (
+            <nav className="episode-pagination" aria-label={t("title.episodes")}>
+              {episodesPage > 1 && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage - 1}`}>{t("common.back")}</Link>}
+              <span>{t("catalog.page", { current: episodesPage, total: pageCount })}</span>
+              {episodesPage < pageCount && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage + 1}`}>{t("common.next")}</Link>}
+            </nav>
+          )}
         </section>
         {similar.length > 0 && (
           <section className="episodes-section" aria-labelledby="similar-heading">

@@ -114,7 +114,20 @@ Importer v2 also fills franchises and characters: franchise records are grouped 
 
 Shikimori endpoint notes: `/api/animes/:id/episodes` and `/api/animes/:id/franchises` are gone (404) and episode air dates are not available through the API — the schedule and episode notifications wait for another data source. AniList remains globally disabled. The fetcher needs `--network host` and the `shikimori.io` API base (the `.one` domain answers 308 redirects that urllib does not follow).
 
-Artwork: posters prefer the larger MyAnimeList CDN images via the Jikan API (Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively. Posters are hotlinked from `shikimori.one/system/**` and optimized through `next/image`.
+Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`maximum_image_url`, falling back to `large_image_url`; Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively. Posters are hotlinked from `shikimori.one/system/**` and `cdn.myanimelist.net/images/**`.
+
+Blurry posters: existing rows that still point at a small Shikimori original (or have no poster at all) are upgraded in place by `backfill_posters`, which resolves the MAL id from the title slug prefix and replaces the URL with the maximum-resolution MAL artwork. Dry-run first, then apply:
+
+```bash
+docker exec mainserver-backend-1 python manage.py backfill_posters
+docker exec mainserver-backend-1 python manage.py backfill_posters --apply
+```
+
+The command only touches `poster_url`, keeps rows whose MAL artwork is unavailable, is safe to rerun, and accepts `--limit N` to process a slice.
+
+## Title detail and episode pages
+
+`/api/v1/titles/<slug>/` paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`, so long-running series no longer serialize thousands of episodes in one response. A single episode is fetched directly from `/api/v1/titles/<slug>/episodes/<number>/`, which returns the episode with its title summary and playback-gated sources. `playback_available` is resolved from a batched prefetch of enabled providers and active approved rights grants instead of a per-source query.
 
 ## VPS firewall
 

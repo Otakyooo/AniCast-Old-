@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core import signing
+from django.db.models import Prefetch
+from django.db.models.functions import Now
 from django.urls import reverse
 from django.utils import timezone
 
@@ -131,6 +133,38 @@ def source_url_allowed(source: Source) -> bool:
         and port in {None, 443}
         and not parsed.fragment
         and hostname in allowed_hosts
+    )
+
+
+def playback_available(source: Source) -> bool:
+    prefetched_grants = getattr(source, "active_rights_grants", None)
+    if prefetched_grants is None:
+        return authorized_playback_source(source.id) is not None
+    return (
+        source.availability == "available"
+        and source.provider is not None
+        and source.provider.is_enabled
+        and bool(prefetched_grants)
+        and source_url_allowed(source)
+    )
+
+
+def playback_sources_prefetch(lookup: str = "sources") -> Prefetch:
+    return Prefetch(
+        lookup,
+        queryset=Source.objects.select_related("provider").prefetch_related(
+            Prefetch(
+                "rights_grants",
+                queryset=RightsGrant.objects.filter(
+                    status=RightsGrant.Status.ACTIVE,
+                    valid_from__lte=Now(),
+                    valid_until__gt=Now(),
+                    approved_by__isnull=False,
+                    approved_at__isnull=False,
+                ),
+                to_attr="active_rights_grants",
+            )
+        ),
     )
 
 

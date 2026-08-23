@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from catalog.models import Episode, Title
+from catalog.playback import playback_sources_prefetch
 from community.models import TitleRating
 
 from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
@@ -125,7 +126,10 @@ class HistoryListView(ListAPIView):
     def get_queryset(self):
         return EpisodeProgress.objects.filter(user=self.request.user).select_related(
             "episode", "episode__title", "episode__title__franchise"
-        ).prefetch_related("episode__sources", "episode__title__genres")
+        ).prefetch_related(
+            playback_sources_prefetch("episode__sources"),
+            "episode__title__genres",
+        )
 
 
 class EpisodeProgressView(APIView):
@@ -133,7 +137,7 @@ class EpisodeProgressView(APIView):
 
     def get_episode(self, slug, number):
         return get_object_or_404(
-            Episode.objects.select_related("title").prefetch_related("sources"),
+            Episode.objects.select_related("title").prefetch_related(playback_sources_prefetch()),
             title__slug=slug,
             number=number,
         )
@@ -142,7 +146,10 @@ class EpisodeProgressView(APIView):
         return get_object_or_404(
             EpisodeProgress.objects.select_related(
                 "episode", "episode__title", "episode__title__franchise"
-            ).prefetch_related("episode__sources", "episode__title__genres"),
+            ).prefetch_related(
+                playback_sources_prefetch("episode__sources"),
+                "episode__title__genres",
+            ),
             user=request.user,
             episode__title__slug=slug,
             episode__number=number,

@@ -50,6 +50,15 @@ Backend с observability-кодом развёрнут в production (2026-08-22
 - пакеты приватные: хостам для pull нужен `docker login ghcr.io` с PAT `read:packages`;
 - production MainServer и VPS работают на digest-pinned образах из GHCR (с 2026-08-22); релиз-переключение и откат описаны в OPERATIONS.md.
 
+## Каталог: производительность и постеры
+
+- `playback_available` считается пакетным prefetch источников, провайдеров и активных approved grants: детальная выдача тайтла больше не делает по два SQL-запроса на каждый источник (регрессионный тест ограничивает 12 эпизодов с источниками 10 запросами);
+- `/api/v1/titles/<slug>/` пагинирует эпизоды (`episodes_page`, `episodes_page_size`, по умолчанию 20, максимум 50) и отдаёт полное число в `episodes_count`;
+- страница эпизода использует отдельный `/api/v1/titles/<slug>/episodes/<number>/` вместо загрузки всех эпизодов тайтла;
+- фронтенд показывает пагинацию списка эпизодов и считает количество по `episodes_count`;
+- `fetch_shikimori` берёт максимальное разрешение постера MAL (`maximum_image_url` с fallback на `large_image_url`);
+- `backfill_posters` заменяет мыльные Shikimori-постеры и пустые значения на максимальный MAL-арт: dry-run по умолчанию, запись через `--apply`, безопасен для повторного запуска.
+
 ## Discovery
 
 - каталог `/catalog` с поиском, фильтрами и пагинацией;
@@ -325,9 +334,9 @@ Backend с observability-кодом развёрнут в production (2026-08-22
 
 Последний полный локальный прогон:
 
-- backend: `93 passed`;
+- backend: `109 passed`;
 - Ruff: без ошибок;
-- mypy: без ошибок в 98 source files;
+- mypy: без ошибок в 100 source files;
 - Django system check и `check --deploy`: без ошибок;
 - `makemigrations --check --dry-run`: изменений нет;
 - frontend lint: без ESLint errors; Next.js сообщил только deprecation/workspace-root warnings;

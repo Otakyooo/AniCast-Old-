@@ -30,6 +30,10 @@ export interface Episode {
   sources?: Source[];
 }
 
+export interface EpisodeDetail extends Episode {
+  title: Pick<CatalogItem, "name" | "slug" | "title_type" | "status"> & { poster_url?: string };
+}
+
 export interface CatalogItem {
   id?: number | string;
   slug: string;
@@ -43,6 +47,7 @@ export interface CatalogItem {
   genres?: Genre[];
   franchise?: { name: string; slug: string; description?: string } | null;
   episodes?: Episode[];
+  episodes_count?: number;
 }
 
 export interface CatalogResponse {
@@ -150,6 +155,19 @@ export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogR
 
 export async function getCatalogItem(slug: string): Promise<CatalogItem> {
   return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+}
+
+export async function getCatalogItemEpisodes(
+  slug: string,
+  page = 1,
+  pageSize = 20
+): Promise<CatalogItem> {
+  const query = new URLSearchParams({ episodes_page: String(page), episodes_page_size: String(pageSize) });
+  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, { cache: "no-store" });
+}
+
+export async function getEpisode(slug: string, number: number): Promise<EpisodeDetail> {
+  return request<EpisodeDetail>(`/titles/${encodeURIComponent(slug)}/episodes/${number}/`, { cache: "no-store" });
 }
 
 export async function getSimilarTitles(slug: string): Promise<CatalogItem[]> {

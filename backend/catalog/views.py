@@ -16,8 +16,9 @@ from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
 
 from .models import Character, Episode, Franchise, MediaAsset, SourceReport, Title
-from .playback import issue_playback, resolve_playback
+from .playback import issue_playback, playback_sources_prefetch, resolve_playback
 from .serializers import (
+    EpisodeDetailSerializer,
     FranchiseDetailSerializer,
     FranchiseSummarySerializer,
     CharacterDetailSerializer,
@@ -59,13 +60,40 @@ class TitleListView(ListAPIView):
         return queryset.distinct()
 
 
+class EpisodePagination(PageNumberPagination):
+    page_size = 20
+    page_query_param = "episodes_page"
+    page_size_query_param = "episodes_page_size"
+    max_page_size = 50
+
+
 class TitleDetailView(RetrieveAPIView):
-    queryset = Title.objects.select_related("franchise").prefetch_related(
+    queryset = Title.objects.annotate(episodes_count=Count("episodes")).select_related(
+        "franchise"
+    ).prefetch_related(
         "translations", "franchise__translations", "genres", "genres__translations",
-        "episodes__translations", "episodes__sources",
+        "episodes__translations",
+        playback_sources_prefetch("episodes__sources"),
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["episodes_paginator"] = EpisodePagination()
+        return context
+
+
+class EpisodeDetailView(APIView):
+    def get(self, request, slug, number):
+        episode = get_object_or_404(
+            Episode.objects.select_related("title").prefetch_related(
+                "translations", playback_sources_prefetch()
+            ),
+            title__slug=slug,
+            number=number,
+        )
+        return Response(EpisodeDetailSerializer(episode, context={"request": request}).data)
 
 
 class SimilarTitleListView(ListAPIView):
