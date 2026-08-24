@@ -79,6 +79,29 @@ def current_user(request):
     return Response(UserSerializer(request.user).data)
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def account_summary(request):
+    from community.models import TitleRating, TitleReview
+    from django.db.models import Count
+    from library.models import EpisodeProgress, LibraryEntry, TitleCollection, TitleNote
+
+    user = request.user
+    status_counts = {
+        row["status"]: row["total"]
+        for row in LibraryEntry.objects.filter(user=user).values("status").annotate(total=Count("id"))
+    }
+    return Response({
+        "library": {choice: status_counts.get(choice, 0) for choice, _ in LibraryEntry.Status.choices},
+        "favorites": LibraryEntry.objects.filter(user=user, is_favorite=True).count(),
+        "watched_episodes": EpisodeProgress.objects.filter(user=user, is_watched=True).count(),
+        "notes": TitleNote.objects.filter(user=user).count(),
+        "collections": TitleCollection.objects.filter(owner=user).count(),
+        "ratings": TitleRating.objects.filter(user=user).count(),
+        "reviews": TitleReview.objects.filter(user=user).count(),
+    })
+
+
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def user_preferences(request):

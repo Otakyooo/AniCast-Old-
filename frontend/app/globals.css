@@ -295,9 +295,9 @@ summary:focus-visible {
 .state-panel { max-width: 680px; margin-top: clamp(64px, 12vw, 140px) }
 
 .profile-shell {
-  max-width: 960px;
+  max-width: 1080px;
   margin: 32px auto;
-  padding: 32px;
+  padding: clamp(20px, 4vw, 36px);
   border: 1px solid var(--border);
   border-radius: 16px;
   background: linear-gradient(135deg, rgba(124, 92, 255, .11), transparent 45%), var(--surface-1);

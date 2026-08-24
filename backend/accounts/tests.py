@@ -107,3 +107,36 @@ def test_user_public_ids_are_stable_unique_uuids():
     first.refresh_from_db()
     assert first.public_id == public_id
     assert first.public_id != second.public_id
+
+
+@pytest.mark.django_db
+def test_account_summary_counts_personal_data():
+    from catalog.models import Title
+    from community.models import TitleRating
+    from library.models import LibraryEntry, TitleCollection, TitleNote
+
+    user = User.objects.create_user(email="summary@example.com", password="A-strong-passphrase-2042")
+    other = User.objects.create_user(email="summary-other@example.com", password="A-strong-passphrase-2042")
+    first = Title.objects.create(name="Summary One", slug="900-summary-one")
+    second = Title.objects.create(name="Summary Two", slug="901-summary-two")
+    LibraryEntry.objects.create(user=user, title=first, status=LibraryEntry.Status.WATCHING, is_favorite=True)
+    LibraryEntry.objects.create(user=user, title=second, status=LibraryEntry.Status.PLANNED)
+    LibraryEntry.objects.create(user=other, title=first, status=LibraryEntry.Status.COMPLETED)
+    TitleNote.objects.create(user=user, title=first, body="context")
+    TitleCollection.objects.create(owner=user, name="List", slug="list")
+    TitleRating.objects.create(user=user, title=first, value=8)
+
+    client = APIClient()
+    client.force_login(user)
+    response = client.get("/api/v1/account/summary/")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["library"] == {"planned": 1, "watching": 1, "completed": 0, "on_hold": 0, "dropped": 0}
+    assert body["favorites"] == 1
+    assert body["notes"] == 1
+    assert body["collections"] == 1
+    assert body["ratings"] == 1
+    assert body["reviews"] == 0
+
+    anonymous = APIClient()
+    assert anonymous.get("/api/v1/account/summary/").status_code in (401, 403)

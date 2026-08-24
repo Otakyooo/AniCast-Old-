@@ -39,6 +39,8 @@ services:
       redis: {condition: service_healthy}
     ports:
       - "10.78.0.2:8000:8000"
+    volumes:
+      - poster_media:/app/media
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/health/ready', headers={'X-Forwarded-Proto': 'https'}), timeout=4)"]
       interval: 10s
@@ -52,7 +54,9 @@ services:
     build: ../../backend
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
-    command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications,providers,maintenance,analytics"]
+    command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications,providers,posters,maintenance,analytics"]
+    volumes:
+      - poster_media:/app/media
     depends_on: {backend: {condition: service_healthy}}
     healthcheck:
       test: ["CMD-SHELL", "celery -A config inspect ping --destination celery@$${HOSTNAME} --timeout 5 | grep -q pong"]
@@ -82,3 +86,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  poster_media:

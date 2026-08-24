@@ -2,11 +2,12 @@ from datetime import timedelta
 
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponseRedirect
+from django.http import FileResponse, HttpResponseBase, HttpResponseNotFound, HttpRequest, HttpResponseRedirect
 from django.db.models import Case, Count, F, FloatField, Prefetch, Q, Value, When
 from django.db.models.functions import Cast
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.views.decorators.http import require_safe
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -15,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
 
+from . import posters
 from .models import Character, Episode, Franchise, MediaAsset, SourceReport, Title
 from .playback import issue_playback, playback_sources_prefetch, resolve_playback
 from .serializers import (
@@ -357,3 +359,20 @@ class MediaAssetListView(ListAPIView):
                 raise ValidationError({"kind": "Неизвестный тип медиа."})
             queryset = queryset.filter(kind=media_kind)
         return queryset
+
+
+POSTER_CONTENT_TYPES = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
+
+
+@require_safe
+def poster_media_view(request: HttpRequest, filename: str) -> HttpResponseBase:
+    if not posters.POSTER_NAME_RE.match(filename):
+        return HttpResponseNotFound()
+    path = posters.media_path(filename)
+    if not path.is_file():
+        return HttpResponseNotFound()
+    ext = filename.rsplit(".", 1)[-1]
+    response = FileResponse(path.open("rb"), content_type=POSTER_CONTENT_TYPES.get(ext, "application/octet-stream"))
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

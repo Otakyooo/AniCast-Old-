@@ -1,0 +1,204 @@
+.hub {
+  display: grid;
+  gap: 28px;
+}
+
+.hub header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.avatar {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid rgba(124, 92, 255, .45);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(124, 92, 255, .35), rgba(124, 92, 255, .08));
+  color: #fff;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.email {
+  margin: 4px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+.stat {
+  display: grid;
+  gap: 3px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+
+.statValue {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.statLabel {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.sectionCard {
+  display: grid;
+  gap: 6px;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.sectionCard:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.sectionCard:active {
+  transform: none;
+  background: var(--surface-2);
+}
+
+.sectionTitle {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sectionCount {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notifications {
+  padding-top: 4px;
+}
+
+.notesHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.notesHeading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.notesHeading a {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notesHeading a:hover {
+  color: var(--text);
+}
+
+.notesList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.noteCard {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-1);
+  transition: border-color 140ms ease;
+}
+
+.noteCard:hover {
+  border-color: var(--primary);
+}
+
+.noteTitle {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.noteBody {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .hub {
+    gap: 20px;
+  }
+
+  .hub header {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .hub header > button {
+    margin-left: auto;
+  }
+
+  .stats {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+  }
+
+  .stat {
+    padding: 11px;
+  }
+
+  .statValue {
+    font-size: 19px;
+  }
+}

@@ -1,5 +1,6 @@
 from celery import shared_task
 import logging
+import time
 from django.utils import timezone
 
 from .health import check_source
@@ -7,6 +8,23 @@ from .models import Source, SourceHealthCheck
 from common.metrics import increment
 
 logger = logging.getLogger("anicast.providers")
+
+
+@shared_task(soft_time_limit=1500, time_limit=1800)
+def refresh_title_posters(limit: int = 20) -> dict[str, int]:
+    from . import posters
+
+    deadline = time.monotonic() + posters.BATCH_TIME_BUDGET_SECONDS
+    outcomes = posters.refresh_batch(limit=int(limit), apply_changes=True, deadline=deadline)
+    counts: dict[str, int] = {}
+    for result, _ in outcomes:
+        counts[result] = counts.get(result, 0) + 1
+    logger.info("poster refresh batch completed", extra={
+        "event": "poster_refresh_batch_completed",
+        "processed": len(outcomes),
+        **{f"result_{key}": count for key, count in sorted(counts.items())},
+    })
+    return counts
 
 
 @shared_task

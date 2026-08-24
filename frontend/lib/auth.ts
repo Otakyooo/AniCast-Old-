@@ -77,6 +77,23 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return response.json() as Promise<SessionUser>;
 }
 
+export interface AccountSummary {
+  library: { planned: number; watching: number; completed: number; on_hold: number; dropped: number };
+  favorites: number;
+  watched_episodes: number;
+  notes: number;
+  collections: number;
+  ratings: number;
+  reviews: number;
+}
+
+export async function fetchAccountSummary(): Promise<AccountSummary> {
+  const response = await fetch("/api/v1/account/summary/", { credentials: "same-origin", cache: "no-store" });
+  if (response.status === 401 || response.status === 403) throw new Error("unauthorized");
+  if (!response.ok) throw new Error(clientMessage("Не удалось загрузить статистику.", "Could not load statistics."));
+  return response.json() as Promise<AccountSummary>;
+}
+
 export interface TelegramChallenge {
   token: string;
   bot_url: string;

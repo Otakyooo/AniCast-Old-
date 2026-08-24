@@ -73,12 +73,15 @@ TELEGRAM_NOTIFY_BOT_TOKEN = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN", "")
 TELEGRAM_NOTIFY_BOT_USERNAME = os.environ.get("TELEGRAM_NOTIFY_BOT_USERNAME", "")
 TELEGRAM_NOTIFY_WEBHOOK_SECRET = os.environ.get("TELEGRAM_NOTIFY_WEBHOOK_SECRET", "")
 PLAYBACK_URL_TTL_SECONDS = int(os.environ.get("PLAYBACK_URL_TTL_SECONDS", "60"))
+POSTERS_MEDIA_ROOT = Path(os.environ.get("POSTERS_MEDIA_ROOT", str(BASE_DIR / "media" / "posters")))
+POSTERS_PUBLIC_BASE = os.environ.get("POSTERS_PUBLIC_BASE", "https://anicast.online").rstrip("/")
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 CELERY_TASK_ROUTES = {
     "push.tasks.dispatch_episode_notifications": {"queue": "notifications"},
     "catalog.tasks.check_provider_sources": {"queue": "providers"},
+    "catalog.tasks.refresh_title_posters": {"queue": "posters"},
 }
 CELERY_TASK_SOFT_TIME_LIMIT = 540
 CELERY_TASK_TIME_LIMIT = 570
@@ -91,6 +94,11 @@ CELERY_BEAT_SCHEDULE = {
     "check-provider-sources": {
         "task": "catalog.tasks.check_provider_sources",
         "schedule": 600.0,
+    },
+    "refresh-title-posters": {
+        "task": "catalog.tasks.refresh_title_posters",
+        "schedule": 21600.0,
+        "options": {"soft_time_limit": 1500, "time_limit": 1800},
     },
 }
 SECURE_CONTENT_TYPE_NOSNIFF = True

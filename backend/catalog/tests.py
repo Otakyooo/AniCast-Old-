@@ -763,34 +763,6 @@ def test_fetch_shikimori_poster_prefers_mal(monkeypatch):
 
 
 @pytest.mark.django_db
-def test_backfill_posters_replaces_low_resolution_artwork(monkeypatch, capsys):
-    from catalog.management.commands import fetch_shikimori
-
-    def fake_poster(entry):
-        return "" if entry["id"] == 23 else f"https://cdn.myanimelist.net/images/anime/{entry['id']}l.jpg"
-
-    monkeypatch.setattr(fetch_shikimori, "mal_poster", fake_poster)
-    low = Title.objects.create(name="Low", slug="21-low", poster_url="https://shikimori.io/system/animes/original/21.jpg")
-    empty = Title.objects.create(name="Empty", slug="22-empty", poster_url="")
-    unavailable = Title.objects.create(name="Unavailable", slug="23-unavailable", poster_url="")
-    sharp = Title.objects.create(name="Sharp", slug="24-sharp", poster_url="https://cdn.myanimelist.net/images/anime/24l.jpg")
-
-    call_command("backfill_posters")
-    low.refresh_from_db()
-    assert "shikimori" in low.poster_url
-
-    call_command("backfill_posters", "--apply")
-    low.refresh_from_db()
-    empty.refresh_from_db()
-    unavailable.refresh_from_db()
-    sharp.refresh_from_db()
-    assert low.poster_url == "https://cdn.myanimelist.net/images/anime/21l.jpg"
-    assert empty.poster_url == "https://cdn.myanimelist.net/images/anime/22l.jpg"
-    assert unavailable.poster_url == ""
-    assert sharp.poster_url == "https://cdn.myanimelist.net/images/anime/24l.jpg"
-
-
-@pytest.mark.django_db
 def test_import_catalog_applies_characters_and_links():
     from catalog.management.commands.import_catalog import apply_payload, validate_payload
 

@@ -90,4 +90,19 @@ Object.assign(en, {
   "notFound.title":"Page not found","notFound.text":"This page does not exist or may have moved."
 });
 
+Object.assign(ru, {
+  // Личный кабинет: сводка, разделы и подсказки.
+  "account.title":"Личный кабинет","account.subtitle":"Ваш профиль, статистика и быстрые переходы по личным разделам.","account.noEmail":"Email не указан",
+  "account.statsLabel":"Статистика библиотеки","account.statsOnHold":"Отложено","account.statsRatings":"Оценки","account.statsReviews":"Рецензии","account.sections":"Личные разделы",
+  "account.sectionLibraryHint":"{count} в списке","account.sectionHistoryHint":"{count} просмотрено","account.sectionNotesHint":"{count} заметок","account.sectionCollectionsHint":"{count} подборок","account.sectionRecommendationsHint":"На основе вашей библиотеки",
+  "account.recentNotes":"Последние заметки",
+});
+
+Object.assign(en, {
+  "account.title":"Account","account.subtitle":"Your profile, statistics and shortcuts to personal sections.","account.noEmail":"No email provided",
+  "account.statsLabel":"Library statistics","account.statsOnHold":"On hold","account.statsRatings":"Ratings","account.statsReviews":"Reviews","account.sections":"Personal sections",
+  "account.sectionLibraryHint":"{count} in list","account.sectionHistoryHint":"{count} watched","account.sectionNotesHint":"{count} notes","account.sectionCollectionsHint":"{count} lists","account.sectionRecommendationsHint":"Based on your library",
+  "account.recentNotes":"Recent notes",
+});
+
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };

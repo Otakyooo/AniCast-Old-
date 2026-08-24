@@ -56,18 +56,27 @@ def jikan_get(path: str) -> dict:
     return json.loads(result.stdout)
 
 
-def mal_poster(entry: dict) -> str:
-    """Shikimori ids double as MyAnimeList ids; MAL artwork is larger.
-    Jikan intermittently answers 504 while its MAL backend struggles."""
-    for attempt in range(3):
+def jikan_anime_images(anime_id: int) -> dict:
+    """The anime ``images.jpg`` mapping after bounded retries.
+
+    Single owner of the Jikan retry and pause policy: both the import
+    fetcher and the poster refresh pipeline consume this helper so their
+    rate-limit behaviour cannot drift apart.
+    """
+    for _ in range(3):
         try:
             time.sleep(REQUEST_PAUSE_SECONDS + 0.4)
-            payload = jikan_get(f"/anime/{entry['id']}")
-            images = (((payload.get("data") or {}).get("images") or {}).get("jpg") or {})
-            return images.get("maximum_image_url") or images.get("large_image_url") or ""
+            payload = jikan_get(f"/anime/{anime_id}")
+            return (((payload.get("data") or {}).get("images") or {}).get("jpg") or {})
         except Exception:
             time.sleep(3)
-    return ""
+    return {}
+
+
+def mal_poster(entry: dict) -> str:
+    """Shikimori ids double as MyAnimeList ids; MAL artwork is larger."""
+    images = jikan_anime_images(int(entry["id"]))
+    return images.get("maximum_image_url") or images.get("large_image_url") or ""
 
 
 def graphql_post(query: str) -> dict:

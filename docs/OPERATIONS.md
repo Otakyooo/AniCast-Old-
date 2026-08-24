@@ -135,18 +135,25 @@ Importer v2 also fills franchises and characters: franchise records are grouped 
 
 Shikimori endpoint notes: `/api/animes/:id/episodes` and `/api/animes/:id/franchises` are gone (404) and episode air dates are not available through the API — the schedule and episode notifications wait for another data source. AniList remains globally disabled. The fetcher needs `--network host` and the `shikimori.io` API base (the `.one` domain answers 308 redirects that urllib does not follow).
 
-Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`maximum_image_url`, falling back to `large_image_url`; Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively. Posters are hotlinked from `shikimori.one/system/**` and `cdn.myanimelist.net/images/**`.
+Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`maximum_image_url`, falling back to `large_image_url`; Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively.
 
-Blurry posters: existing rows that still point at a small Shikimori original (or have no poster at all) are upgraded in place by `backfill_posters`, which resolves the MAL id from the title slug prefix and replaces the URL with the maximum-resolution MAL artwork. Dry-run first, then apply:
+Poster mirroring (2026-08-24): every title's poster is downloaded once into the `poster_media` Compose volume and served by Django from `/api/v1/media/posters/<name>` with `Cache-Control: public, max-age=31536000, immutable`; browsers no longer hotlink `shikimori.one` or `cdn.myanimelist.net`. Filenames encode the quality tier — `m` (MAL maximum), `l` (MAL large fallback) or `s` (existing Shikimori/MAL art mirrored as-is). Downloads are validated (JPEG/PNG magic bytes, minimum 200x280, allowlisted HTTPS hosts only, 8 MiB cap); a failed download never clears an existing poster.
+
+The Celery Beat task `catalog.tasks.refresh_title_posters` (providers queue, every 6 hours, limit 20 random candidates per run, stops starting new titles at a 1300 s budget to respect its soft time limit) keeps upgrading titles until each sits at the `m` tier, so posters converge to the best artwork automatically once Jikan recovers — no manual reruns. Every mirrored row records its remote source in `titles.poster_origin_url`; a missing local file downgrades the title back to an adoption candidate, so the pipeline self-heals after volume loss. Outcomes are exposed as `anicast_poster_refresh_total{result=maximum|large|mirrored|current|unavailable|invalid|error}`. Manual control stays available:
 
 ```bash
-docker exec mainserver-backend-1 python manage.py backfill_posters
-docker exec mainserver-backend-1 python manage.py backfill_posters --apply
+docker exec mainserver-backend-1 python manage.py backfill_posters          # dry-run
+docker exec mainserver-backend-1 python manage.py backfill_posters --apply  # mirror + upgrade
 ```
 
-The command only touches `poster_url`, keeps rows whose MAL artwork is unavailable, is safe to rerun, and accepts `--limit N` to process a slice.
+Rollback note: production rows point `poster_url` at `/api/v1/media/posters/*`, which only this release and newer serve. Rolling back to an older backend image breaks every catalog poster until one of:
 
-Jikan outage note (2026-08-23): the upstream answers `504 Jikan failed to connect to MyAnimeList` for most catalog ids, and the ids that do answer no longer expose `maximum_image_url`. Verified from MainServer, the VPS and directly: `anime/1`, `anime/20`, `anime/21` return 200 while `anime/1735`, `anime/22319`, `anime/4224` return 504 across repeated attempts. `backfill_posters` therefore keeps every row untouched and must be rerun once Jikan recovers; a dry-run is the correct way to check.
+- recovery forward: redeploy the new image (posters reappear from the volume);
+- data revert: with the new image still running, `docker exec mainserver-backend-1 python manage.py backfill_posters --restore-origins --apply` writes the recorded remote sources back into `poster_url`, after which rolling the image back is safe.
+
+Treat the poster-mirroring release (backend `local-20260824T103400Z` or newer) as a no-automatic-rollback boundary for poster URLs.
+
+Jikan outage note (2026-08-23/24): the upstream answered `504 Jikan failed to connect to MyAnimeList` for most catalog ids and stopped exposing `maximum_image_url` entirely. During the outage the initial mirror run still upgraded 34 titles to MAL `large_image_url` (425x600-class art) and mirrored the remaining 66 locally at Shikimori resolution; the beat task retries the rest without operator action.
 
 ## Title detail and episode pages
 

@@ -82,6 +82,7 @@ class Title(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planned")
     year = models.PositiveSmallIntegerField(null=True, blank=True)
     poster_url = models.URLField(blank=True)
+    poster_origin_url = models.URLField(blank=True)
     genres = models.ManyToManyField(Genre, related_name="titles", blank=True)
     franchise = models.ForeignKey(Franchise, related_name="titles", null=True, blank=True, on_delete=models.SET_NULL)
     characters = models.ManyToManyField("Character", through="TitleCharacter", related_name="titles", blank=True)  # type: ignore[var-annotated]

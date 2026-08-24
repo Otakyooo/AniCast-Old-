@@ -15,6 +15,7 @@ from .views import (
     SourceReportView,
     TitleDetailView,
     TitleListView,
+    poster_media_view,
 )
 
 urlpatterns = [
@@ -32,4 +33,5 @@ urlpatterns = [
     path("characters/", CharacterListView.as_view(), name="character-list"),
     path("characters/<slug:slug>/", CharacterDetailView.as_view(), name="character-detail"),
     path("media/", MediaAssetListView.as_view(), name="media-list"),
+    path("media/posters/<str:filename>", poster_media_view, name="poster-media"),
 ]

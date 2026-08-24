@@ -8,6 +8,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 backend/staticfiles/
+backend/media/
 node_modules/
 .next/
 dist/

@@ -10,8 +10,14 @@ PREFIX = "anicast:metrics:v1"
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER")
 HTTP_ENDPOINTS = ("api", "health", "metrics", "staff", "other")
 STATUS_FAMILIES = ("2xx", "3xx", "4xx", "5xx")
-TASKS = ("catalog.tasks.check_provider_sources", "push.tasks.dispatch_episode_notifications", "other")
+TASKS = (
+    "catalog.tasks.check_provider_sources",
+    "catalog.tasks.refresh_title_posters",
+    "push.tasks.dispatch_episode_notifications",
+    "other",
+)
 TASK_RESULTS = ("success", "failure", "retry")
+POSTER_RESULTS = ("maximum", "large", "mirrored", "current", "unavailable", "invalid", "error")
 
 
 def increment(metric: str, *labels: str, value: int = 1) -> None:
@@ -95,6 +101,9 @@ def render_metrics() -> str:
     ])
     delivery_samples = [_sample("anicast_notification_deliveries_total", {"result": result}, value("notification_deliveries", result)) for result in ("sent", "failed")]
     lines += _family("anicast_notification_deliveries_total", "Notification delivery outcomes.", "counter", delivery_samples)
+
+    poster_samples = [_sample("anicast_poster_refresh_total", {"result": result}, value("poster_refresh", result)) for result in POSTER_RESULTS]
+    lines += _family("anicast_poster_refresh_total", "Poster refresh outcomes.", "counter", poster_samples)
 
     from catalog.models import Provider, Source
 
