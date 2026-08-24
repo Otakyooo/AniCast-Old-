@@ -11,11 +11,29 @@ logger = logging.getLogger("anicast.providers")
 
 
 @shared_task(soft_time_limit=1500, time_limit=1800)
-def refresh_title_posters(limit: int = 20) -> dict[str, int]:
+def refresh_title_posters(limit: int = 0) -> dict[str, int]:
+    """Scheduled poster upgrade pass.
+
+    ``limit=0`` lets the batch run until its time budget is spent; pass a
+    positive number to cap the processed titles explicitly. A cache lock
+    keeps a manual trigger and the scheduled run from doubling the probe
+    rate against Jikan's rate limits.
+    """
+    from django.core.cache import cache
+
     from . import posters
 
-    deadline = time.monotonic() + posters.BATCH_TIME_BUDGET_SECONDS
-    outcomes = posters.refresh_batch(limit=int(limit), apply_changes=True, deadline=deadline)
+    lock_key = "catalog:poster-refresh-lock"
+    if not cache.add(lock_key, "1", timeout=1800):
+        logger.info("poster refresh skipped: another batch holds the lock", extra={
+            "event": "poster_refresh_skipped_locked",
+        })
+        return {}
+    try:
+        deadline = time.monotonic() + posters.BATCH_TIME_BUDGET_SECONDS
+        outcomes = posters.refresh_batch(limit=int(limit), apply_changes=True, deadline=deadline)
+    finally:
+        cache.delete(lock_key)
     counts: dict[str, int] = {}
     for result, _ in outcomes:
         counts[result] = counts.get(result, 0) + 1

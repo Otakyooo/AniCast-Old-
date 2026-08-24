@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { CatalogCard } from "../../components/catalog-card";
 import { PageShell } from "../../components/page-shell";
 import { emptyPage, getCatalog, type CatalogFilters, type CatalogResponse } from "../../lib/api";
@@ -6,6 +7,15 @@ import { getI18n } from "../../i18n/server";
 import styles from "./catalog.module.css";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return {
+    title: t("catalog.title"),
+    description: t("meta.description"),
+    alternates: { canonical: "/catalog" },
+  };
+}
 
 type SearchParams = Record<string, string | string[] | undefined>;
 

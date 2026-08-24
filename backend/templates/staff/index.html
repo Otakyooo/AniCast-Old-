@@ -1,0 +1,37 @@
+{% extends "admin/index.html" %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .staff-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px }
+    .staff-dash-card {
+      display: grid; gap: 4px; padding: 14px 16px;
+      border: 1px solid var(--border-color, #ccc); border-left-width: 4px; border-radius: 8px;
+      background: var(--body-bg, #fff); color: inherit; text-decoration: none;
+    }
+    .staff-dash-card:hover { filter: brightness(.98) }
+    .staff-dash-value { font-size: 26px; font-weight: 700; line-height: 1.1 }
+    .staff-dash-label { font-weight: 600 }
+    .staff-dash-hint { color: var(--body-quiet-color, #666); font-size: 11.5px }
+    .staff-dash-card--ok { border-left-color: #1b7d54 }
+    .staff-dash-card--warn { border-left-color: #b45309 }
+    .staff-dash-card--danger { border-left-color: #b3261e }
+    .staff-dash-card--danger .staff-dash-value { color: #b3261e }
+    .staff-dash-card--warn .staff-dash-value { color: #b45309 }
+  </style>
+{% endblock %}
+
+{% block content %}
+  {% if dashboard %}
+    <div class="staff-dash" role="region" aria-label="Сводка редактора">
+      {% for item in dashboard %}
+        <a class="staff-dash-card staff-dash-card--{{ item.tone }}" href="{{ item.url }}">
+          <span class="staff-dash-value">{{ item.value }}</span>
+          <span class="staff-dash-label">{{ item.label }}</span>
+          <span class="staff-dash-hint">{{ item.hint }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

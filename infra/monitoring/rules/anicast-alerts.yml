@@ -36,6 +36,20 @@ groups:
           severity: warning
         annotations:
           summary: "Сбои доставки уведомлений: {{ $value | humanize }} за час"
+      - alert: PosterRefreshErrors
+        expr: sum(increase(anicast_poster_refresh_total{result="error"}[6h])) > 15
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Много сетевых сбоев обновления постеров: {{ $value | humanize }} за 6 часов"
+      - alert: PosterRefreshInvalid
+        expr: sum(increase(anicast_poster_refresh_total{result="invalid"}[6h])) > 25
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Постеры отклоняются валидацией (битые/мелкие изображения): {{ $value | humanize }} за 6 часов"
   - name: host
     rules:
       - alert: DiskSpaceWarning

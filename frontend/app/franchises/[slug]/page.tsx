@@ -1,12 +1,37 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { CatalogCard } from "../../../components/catalog-card";
 import { PageShell } from "../../../components/page-shell";
 import { apiErrorStatus, getFranchise } from "../../../lib/api";
+import { metaDescription } from "../../../lib/site";
 import { getI18n } from "../../../i18n/server";
 import styles from "../franchises.module.css";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const { t } = await getI18n();
+  try {
+    const franchise = await getFranchise(slug);
+    const description = metaDescription(franchise.description, t("franchise.descriptionMissing"));
+    return {
+      title: franchise.name,
+      description,
+      alternates: { canonical: `/franchises/${franchise.slug}` },
+      openGraph: {
+        type: "website",
+        url: `/franchises/${franchise.slug}`,
+        title: franchise.name,
+        description,
+      },
+    };
+  } catch (error) {
+    if (apiErrorStatus(error) === 404) notFound();
+    return {};
+  }
+}
 
 export default async function FranchisePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

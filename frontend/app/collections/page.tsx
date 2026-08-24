@@ -1,10 +1,7 @@
-import { CollectionsList } from "../../components/collections-list";
-import { PageShell } from "../../components/page-shell";
-import { getI18n } from "../../i18n/server";
+import { redirect } from "next/navigation";
 
-export default async function CollectionsPage() {
-  const { t } = await getI18n();
-  return <PageShell active="collections" heading={{ eyebrow: t("collections.eyebrow"), title: t("collections.title"), subtitle: t("collections.subtitle") }}>
-    <CollectionsList />
-  </PageShell>;
+// Collections are a view inside the profile library (design freeze v0.2,
+// acceptance #5), not a standalone global section.
+export default function CollectionsPage() {
+  redirect("/library?view=collections");
 }

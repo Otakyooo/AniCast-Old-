@@ -258,6 +258,7 @@ class ContinueWatchingView(APIView):
                     else None
                 ),
                 "is_watched": entry.is_watched,
+                "watched_count": watched_numbers.get(entry.episode.title_id, 0),
                 "last_opened_at": entry.last_opened_at,
             }
             for entry in ordered

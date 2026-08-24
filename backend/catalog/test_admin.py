@@ -14,6 +14,70 @@ def staff_client(client, db):
     return client
 
 
+POSTER_FALLBACK_URL = "https://cdn.test/api/v1/media/posters/22-l-0123456789abcdef.png"
+
+
+@pytest.mark.django_db
+def test_staff_index_renders_editor_dashboard(staff_client):
+    reporter = User.objects.create_user(email="dash-reporter@example.com", password="A-strong-passphrase-2042")
+    title = Title.objects.create(
+        name="Dash", slug="21-dash",
+        poster_url="https://cdn.test/api/v1/media/posters/21-s-ab12cd34.png",
+    )
+    episode = Episode.objects.create(title=title, number=1)
+    broken = Source.objects.create(
+        episode=episode, name="Broken Provider", url="https://example.invalid/broken",
+        availability="provider_error",
+    )
+    SourceReport.objects.create(source=broken, reporter=reporter, reason="unavailable")
+
+    response = staff_client.get("/staff/")
+    assert response.status_code == 200
+    dashboard = {item["label"]: item for item in response.context["dashboard"]}
+    assert dashboard["Новые жалобы"]["value"] == 1
+    assert "status__exact=new" in dashboard["Новые жалобы"]["url"]
+    assert dashboard["Источники с ошибкой провайдера"]["value"] == 1
+    assert dashboard["Эпизоды без даты выхода"]["value"] >= 1
+    assert dashboard["Постеры ниже максимума"]["value"] >= 1
+
+    html = response.content.decode()
+    assert 'aria-label="Сводка редактора"' in html
+    # A danger tone marks actionable counters; links lead into prefiltered lists.
+    assert "staff-dash-card--danger" in html
+    assert "/staff/catalog/sourcereport/?status__exact=new" in html
+
+
+@pytest.mark.django_db
+def test_staff_index_requires_staff_like_stock_admin(client):
+    response = client.get("/staff/")
+    assert response.status_code == 302
+    assert response.url.startswith("/staff/login/")
+
+
+@pytest.mark.django_db
+def test_title_changelist_shows_poster_preview_and_tier(staff_client):
+    Title.objects.create(name="Tiered", slug="22-tiered", poster_url=POSTER_FALLBACK_URL)
+    Title.objects.create(name="Bare", slug="23-bare", poster_url="")
+    response = staff_client.get(reverse("admin:catalog_title_changelist"))
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert POSTER_FALLBACK_URL in html
+    assert ">l</span>" in html
+    assert ">нет</span>" in html
+
+
+@pytest.mark.django_db
+def test_source_changelist_marks_availability_with_pill(staff_client):
+    title = Title.objects.create(name="Pill", slug="24-pill")
+    episode = Episode.objects.create(title=title, number=1)
+    Source.objects.create(episode=episode, name="Geo", url="https://example.invalid/geo", availability="geo_blocked")
+    response = staff_client.get(reverse("admin:catalog_source_changelist"))
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "Geo blocked" in html
+    assert "#b45309" in html
+
+
 @pytest.mark.django_db
 def test_admin_requires_staff(client):
     response = client.get("/staff/")

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { PageShell } from "../../../components/page-shell";
 import { TitleActions } from "../../../components/title-actions";
 import { TitleNoteControl } from "../../../components/title-note-control";
@@ -10,13 +12,16 @@ import { TitleCollectionControl } from "../../../components/title-collection-con
 import { CatalogCard } from "../../../components/catalog-card";
 import {
   apiErrorStatus,
+  getCatalogItem,
   getCatalogItemEpisodes,
   getFirstEpisodeNumber,
   getSimilarTitles,
+  type CatalogItem,
   type Episode,
   type Source,
   type TitleCastEntry,
 } from "../../../lib/api";
+import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { getI18n } from "../../../i18n/server";
 import styles from "../title.module.css";
 
@@ -26,6 +31,61 @@ type Translator = (key: string, values?: Record<string, string | number>) => str
 
 const TABS = ["overview", "episodes", "characters", "community", "notes"] as const;
 type Tab = typeof TABS[number];
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const { t } = await getI18n();
+  let item: CatalogItem;
+  try {
+    item = await getCatalogItem(slug);
+  } catch (error) {
+    if (apiErrorStatus(error) === 404) notFound();
+    // Degraded API still needs sane metadata; the page itself shows the
+    // unavailable state.
+    return { title: "AniCast", description: t("meta.description") };
+  }
+
+  const description = metaDescription(item.synopsis, t("meta.description"));
+  return {
+    title: item.name,
+    description,
+    alternates: { canonical: `/titles/${item.slug}` },
+    openGraph: {
+      type: "video.tv_show",
+      url: `/titles/${item.slug}`,
+      siteName: "AniCast",
+      title: item.name,
+      description,
+      ...(item.poster_url ? { images: [{ url: absoluteUrl(item.poster_url), alt: item.name }] } : {}),
+    },
+    twitter: {
+      card: item.poster_url ? "summary_large_image" : "summary",
+      title: item.name,
+      description,
+    },
+  };
+}
+
+/** schema.org TVSeries payload for rich search results. */
+function TitleJsonLd({ item }: { item: CatalogItem }) {
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "TVSeries",
+    name: item.name,
+    url: absoluteUrl(`/titles/${item.slug}`),
+  };
+  if (item.original_name) data.alternateName = item.original_name;
+  if (item.synopsis) data.description = metaDescription(item.synopsis, "", 5000);
+  if (item.poster_url) data.image = absoluteUrl(item.poster_url);
+  if (item.year) data.datePublished = String(item.year);
+  if (item.genres?.length) data.genre = item.genres.map((genre) => genre.name);
+  if (item.episodes_count) data.numberOfEpisodes = item.episodes_count;
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
+}
 
 function isTab(value: string | undefined): value is Tab {
   return TABS.includes((value ?? "") as Tab);
@@ -120,12 +180,12 @@ export default async function CatalogDetailPage({
     // The API answers 404 both for a missing title and for an episode page past
     // the end. Retry the first page so an existing title still renders instead
     // of claiming the title does not exist.
-    if (requestedPage === 1) return <NotFoundState />;
+    if (requestedPage === 1) notFound();
     try {
       item = await getCatalogItemEpisodes(slug, 1);
       episodesPage = 1;
     } catch (retryError) {
-      if (apiErrorStatus(retryError) === 404) return <NotFoundState />;
+      if (apiErrorStatus(retryError) === 404) notFound();
       return <ApiUnavailableState />;
     }
   }
@@ -156,6 +216,7 @@ export default async function CatalogDetailPage({
 
   return (
     <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
+      <TitleJsonLd item={item} />
       <article className={styles.hero}>
         <div className={styles.heroPoster}>
           {item.poster_url ? (
@@ -297,9 +358,4 @@ export default async function CatalogDetailPage({
       {tab === "notes" && <div className={styles.panel}><TitleNoteControl slug={item.slug} /></div>}
     </PageShell>
   );
-}
-
-async function NotFoundState() {
-  const { t } = await getI18n();
-  return <main className="shell"><section className="content"><div className="state-panel" role="status"><p className="eyebrow">404</p><h1>{t("title.notFound")}</h1><p className="muted">{t("title.notFoundText")}</p><Link className="primary inline-button" href="/catalog">{t("title.backCatalog")}</Link></div></section></main>;
 }

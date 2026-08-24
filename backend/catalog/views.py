@@ -14,7 +14,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.throttling import UserRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 
 from . import posters
 from .models import Character, Episode, Franchise, MediaAsset, SourceReport, Title
@@ -51,7 +51,7 @@ class TitleListView(ListAPIView):
             "translations", "franchise__translations", "genres", "genres__translations"
         )
         params = self.request.query_params
-        query = params.get("q", "").strip()
+        query = params.get("q", "").strip()[:120]
         if query:
             queryset = queryset.filter(
                 Q(name__icontains=query) | Q(original_name__icontains=query) | Q(translations__name__icontains=query)
@@ -74,7 +74,9 @@ class TitleListView(ListAPIView):
             ).order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")
         if ordering == "recent":
             return queryset.order_by(F("year").desc(nulls_last=True), "name", "slug")
-        return queryset
+        # Unique tiebreaker keeps LIMIT/OFFSET pagination deterministic on
+        # Postgres when several titles share a name.
+        return queryset.order_by("name", "slug")
 
 
 class EpisodePagination(PageNumberPagination):
@@ -214,6 +216,9 @@ class SourceReportView(ListAPIView):
 
 
 class PlaybackView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "playback"
+
     def get(self, request, source_id):
         playback = issue_playback(source_id)
         if playback is None:
@@ -226,6 +231,9 @@ class PlaybackView(APIView):
 
 
 class PlaybackResolveView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "playback"
+
     def get(self, request, token):
         target = resolve_playback(token)
         if target is None:
@@ -246,7 +254,7 @@ class FranchiseListView(ListAPIView):
         queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related("translations").order_by(
             "sort_order", "name"
         )
-        if query := self.request.query_params.get("q", "").strip():
+        if query := self.request.query_params.get("q", "").strip()[:120]:
             queryset = queryset.filter(
                 Q(name__icontains=query) | Q(translations__name__icontains=query)
             ).distinct()
@@ -325,7 +333,7 @@ class CharacterListView(ListAPIView):
 
     def get_queryset(self):
         queryset = Character.objects.annotate(title_count=Count("titles", distinct=True)).prefetch_related("translations")
-        query = self.request.query_params.get("q", "").strip()
+        query = self.request.query_params.get("q", "").strip()[:120]
         if query:
             queryset = queryset.filter(
                 Q(name__icontains=query) | Q(original_name__icontains=query) | Q(translations__name__icontains=query)

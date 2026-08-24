@@ -19,7 +19,7 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     display_name = serializers.CharField(max_length=80, required=False, allow_blank=True)
-    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
 
     def validate_email(self, value: str) -> str:
         email = User.objects.normalize_email(value).lower()
@@ -38,7 +38,7 @@ class RegisterSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
 
     def validate(self, attrs):
         user = authenticate(

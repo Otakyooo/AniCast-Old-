@@ -1,8 +1,10 @@
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.utils.html import format_html
 from django.utils import timezone
 
+from . import posters
 from .models import (
     Character,
     CharacterTranslation,
@@ -24,6 +26,21 @@ from .models import (
     TitleTranslation,
 )
 from .playback import source_url_allowed, validate_provider_configuration
+
+POSTER_TIER_BADGES = {
+    posters.TIER_MAXIMUM: ("m", "#1b7d54"),
+    posters.TIER_LARGE: ("l", "#1d5fbf"),
+    posters.TIER_KITSU: ("k", "#6b21a8"),
+    posters.TIER_FALLBACK: ("s", "#b45309"),
+}
+
+SOURCE_AVAILABILITY_TONES = {
+    "available": ("#e7f4ec", "#1b7d54"),
+    "geo_blocked": ("#fdf3e3", "#b45309"),
+    "provider_error": ("#fbe9ea", "#b3261e"),
+    "unavailable": ("#efefef", "#5f5f5f"),
+    "expired": ("#efefef", "#5f5f5f"),
+}
 
 
 class ProviderAdminForm(forms.ModelForm):
@@ -130,8 +147,15 @@ class CharacterMediaInline(admin.TabularInline):
 class SourceInline(admin.TabularInline):
     model = Source
     form = SourceAdminForm
-    fields = ["provider", "name", "kind", "url", "availability", "availability_reason"]
+    fields = ["provider", "name", "kind", "url", "availability", "availability_reason", "state"]
+    readonly_fields = ["state"]
     extra = 0
+
+    @admin.display(description="Состояние")
+    def state(self, obj: Source | None):
+        if obj is None or obj.pk is None:
+            return "—"
+        return availability_pill(obj)
 
 
 @admin.register(Genre)
@@ -153,13 +177,56 @@ class FranchiseAdmin(admin.ModelAdmin):
 
 @admin.register(Title)
 class TitleAdmin(admin.ModelAdmin):
-    list_display = ["name", "title_type", "status", "year", "franchise"]
+    list_display = ["poster_thumb", "name", "poster_tier", "title_type", "status", "year", "franchise"]
+    list_display_links = ["name"]
     list_filter = ["title_type", "status", "genres"]
     search_fields = ["name", "original_name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
     filter_horizontal = ["genres"]
     list_select_related = ["franchise"]
+    readonly_fields = ["poster_preview"]
+    fieldsets = [
+        (None, {"fields": ["name", "original_name", "slug", "synopsis"]}),
+        ("Классификация", {"fields": ["title_type", "status", "year", "genres", "franchise"]}),
+        ("Постер", {"fields": ["poster_preview", "poster_url"], "description": "Локальное зеркало пополняется автоматически; ручная правка URL — только для восстановления источников."}),
+    ]
     inlines = [TitleTranslationInline, EpisodeInline, TitleCharacterInline, TitleMediaInline]
+
+    @admin.display(description="Постер")
+    def poster_thumb(self, obj: Title):
+        if not obj.poster_url:
+            return "—"
+        return format_html(
+            '<img src="{}" alt="" referrerpolicy="no-referrer" loading="lazy" '
+            'style="width:42px;height:auto;border-radius:4px;border:1px solid #ccc;display:block" />',
+            obj.poster_url,
+        )
+
+    @admin.display(description="Тир")
+    def poster_tier(self, obj: Title):
+        tier = posters.current_tier(obj.poster_url or "")
+        if tier is None:
+            return format_html('<span style="color:#8a8a8a">нет</span>')
+        label, color = POSTER_TIER_BADGES.get(tier, (tier, "#5f5f5f"))
+        return format_html(
+            '<span title="{}" style="padding:2px 9px;border-radius:10px;background:{};color:#fff;font-size:11px;font-weight:600">{}</span>',
+            f"качество постера: {label}",
+            color,
+            label,
+        )
+
+    @admin.display(description="Текущий постер")
+    def poster_preview(self, obj: Title):
+        if not obj.poster_url:
+            return "Постера нет — очередь автоапгрейда подберёт арт сама."
+        tier = posters.current_tier(obj.poster_url) or ""
+        return format_html(
+            '<img src="{}" alt="" referrerpolicy="no-referrer" '
+            'style="max-width:180px;border-radius:6px;border:1px solid #ccc;display:block;margin-bottom:4px" />'
+            '<div style="font-size:11px;color:#666">тир: {}</div>',
+            obj.poster_url,
+            tier or "внешний источник",
+        )
 
 
 @admin.register(Episode)
@@ -189,14 +256,46 @@ class MediaAssetAdmin(admin.ModelAdmin):
     inlines = [MediaAssetTranslationInline]
 
 
+def availability_pill(source: Source):
+    """Colour-coded availability state; statuses never rely on colour alone."""
+    text = source.get_availability_display()
+    background, color = SOURCE_AVAILABILITY_TONES.get(source.availability, ("#efefef", "#5f5f5f"))
+    return format_html(
+        '<span style="padding:2px 9px;border-radius:10px;background:{};color:{};font-size:11px;font-weight:600">{}</span>',
+        background,
+        color,
+        text,
+    )
+
+
+class SourceHealthCheckInline(admin.TabularInline):
+    model = SourceHealthCheck
+    fk_name = "source"
+    extra = 0
+    can_delete = False
+    fields = ["checked_at", "is_healthy", "http_status", "latency_ms", "error"]
+    readonly_fields = ["checked_at", "is_healthy", "http_status", "latency_ms", "error"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):
     form = SourceAdminForm
-    list_display = ["episode", "provider", "name", "kind", "availability", "last_http_status", "consecutive_failures", "last_checked_at"]
+    list_display = ["episode", "provider", "name", "kind", "availability_badge", "last_http_status", "consecutive_failures", "last_checked_at"]
     list_filter = ["kind", "availability"]
     search_fields = ["name", "episode__title__name"]
     autocomplete_fields = ["episode", "provider"]
     readonly_fields = ["last_checked_at", "last_http_status", "consecutive_failures"]
+    inlines = [SourceHealthCheckInline]
+
+    @admin.display(description="Доступность", ordering="availability")
+    def availability_badge(self, obj: Source):
+        return availability_pill(obj)
 
 
 @admin.register(SourceHealthCheck)

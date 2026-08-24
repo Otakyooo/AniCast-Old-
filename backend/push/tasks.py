@@ -3,6 +3,7 @@ from urllib.error import HTTPError
 import logging
 
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.utils import timezone
 
@@ -25,7 +26,10 @@ def dispatch_episode_notifications():
         air_date__gte=today - timedelta(days=2), air_date__lte=today
     ).select_related("title").prefetch_related("translations", "title__translations")
     sent = failed = 0
+    rate_limited = False
     for episode in episodes:
+        if rate_limited:
+            break
         subscriptions = TitleNotificationSubscription.objects.filter(
             title=episode.title,
             is_active=True,
@@ -52,14 +56,22 @@ def dispatch_episode_notifications():
                     f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}"
                 )
             delivery.attempts += 1
+            send_error: Exception | None = None
             try:
                 send_notification(channel.chat_id, message)
-            except Exception as error:
+            except SoftTimeLimitExceeded:
+                # A soft timeout must abort the whole batch instead of being
+                # misrecorded as one recipient's delivery failure.
+                delivery.status = NotificationDelivery.Status.PENDING
+                delivery.save(update_fields=["attempts", "status"])
+                raise
+            except Exception as exc:
+                send_error = exc
                 delivery.status = NotificationDelivery.Status.FAILED
-                delivery.error = type(error).__name__[:500]
+                delivery.error = type(send_error).__name__[:500]
                 failed += 1
                 increment("notification_deliveries", "failed")
-                if isinstance(error, HTTPError) and error.code in {400, 403}:
+                if isinstance(send_error, HTTPError) and send_error.code in {400, 401, 403}:
                     TelegramNotificationChannel.objects.filter(pk=channel.pk).update(
                         is_active=False, disabled_at=timezone.now(), last_error=delivery.error
                     )
@@ -70,7 +82,15 @@ def dispatch_episode_notifications():
                 sent += 1
                 increment("notification_deliveries", "sent")
             delivery.save(update_fields=["status", "attempts", "error", "sent_at", "updated_at"])
+            if isinstance(send_error, HTTPError) and send_error.code == 429:
+                # Telegram asked us to slow down: leave this delivery pending
+                # for the next beat run instead of hammering through the list.
+                delivery.status = NotificationDelivery.Status.PENDING
+                delivery.save(update_fields=["status"])
+                rate_limited = True
+                break
     logger.info("notification batch completed", extra={
         "event": "notification_batch_completed", "sent": sent, "failed": failed,
+        **({"aborted": "rate_limited"} if rate_limited else {}),
     })
     return {"sent": sent, "failed": failed}

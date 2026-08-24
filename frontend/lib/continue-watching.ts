@@ -7,6 +7,7 @@ export interface ContinueWatchingEntry {
   last_episode: Episode;
   next_episode: Episode | null;
   is_watched: boolean;
+  watched_count: number;
   last_opened_at: string;
 }
 

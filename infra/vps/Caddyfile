@@ -15,6 +15,14 @@ anicast.online {
 		format json
 	}
 
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
 	handle /api/* {
 		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
 	}

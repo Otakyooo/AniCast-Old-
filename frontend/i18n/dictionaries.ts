@@ -94,15 +94,31 @@ Object.assign(ru, {
   // Личный кабинет: сводка, разделы и подсказки.
   "account.title":"Личный кабинет","account.subtitle":"Ваш профиль, статистика и быстрые переходы по личным разделам.","account.noEmail":"Email не указан",
   "account.statsLabel":"Статистика библиотеки","account.statsOnHold":"Отложено","account.statsRatings":"Оценки","account.statsReviews":"Рецензии","account.sections":"Личные разделы",
-  "account.sectionLibraryHint":"{count} в списке","account.sectionHistoryHint":"{count} просмотрено","account.sectionNotesHint":"{count} заметок","account.sectionCollectionsHint":"{count} подборок","account.sectionRecommendationsHint":"На основе вашей библиотеки",
+  "account.sectionLibraryHint":"{count} в списке","account.sectionHistoryHint":"{count} просмотрено","account.sectionNotesHint":"{count} заметок","account.sectionCollectionsHint":"{count} подборок","account.sectionRecommendationsHint":"На основе вашей библиотеки","account.sectionSettingsHint":"Уведомления и язык интерфейса",
   "account.recentNotes":"Последние заметки",
+  "home.heroEyebrow":"Продолжить просмотр","home.continueEpisode":"Продолжить {number} серию","home.aboutTitle":"О тайтле","home.heroProgress":"просмотрено {watched} из {total}",
+  "profile.tabOverview":"Обзор","profile.tabLibrary":"Библиотека","profile.tabHistory":"История",
+  "profile.statsHours":"Часы","profile.statsAvgRating":"Средняя оценка",
+  "profile.favoriteGenres":"Любимые жанры","profile.genreCount":"{count} тайтлов",
+  "profile.guest":"Гость",
+  // Настройки: отдельный приватный маршрут (design freeze §17).
+  "settings.title":"Настройки","settings.subtitle":"Уведомления и язык интерфейса.","settings.languageHint":"Язык переключается кнопкой в шапке сайта и сохраняется в аккаунте.",
+  // Представления внутри вкладки «Библиотека».
+  "library.viewTitles":"Тайтлы","library.viewCollections":"Коллекции",
 });
 
 Object.assign(en, {
   "account.title":"Account","account.subtitle":"Your profile, statistics and shortcuts to personal sections.","account.noEmail":"No email provided",
   "account.statsLabel":"Library statistics","account.statsOnHold":"On hold","account.statsRatings":"Ratings","account.statsReviews":"Reviews","account.sections":"Personal sections",
-  "account.sectionLibraryHint":"{count} in list","account.sectionHistoryHint":"{count} watched","account.sectionNotesHint":"{count} notes","account.sectionCollectionsHint":"{count} lists","account.sectionRecommendationsHint":"Based on your library",
+  "account.sectionLibraryHint":"{count} in list","account.sectionHistoryHint":"{count} watched","account.sectionNotesHint":"{count} notes","account.sectionCollectionsHint":"{count} lists","account.sectionRecommendationsHint":"Based on your library","account.sectionSettingsHint":"Notifications and language",
   "account.recentNotes":"Recent notes",
+  "home.heroEyebrow":"Continue watching","home.continueEpisode":"Continue episode {number}","home.aboutTitle":"About the title","home.heroProgress":"watched {watched} of {total}",
+  "profile.tabOverview":"Overview","profile.tabLibrary":"Library","profile.tabHistory":"History",
+  "profile.statsHours":"Hours","profile.statsAvgRating":"Average rating",
+  "profile.favoriteGenres":"Favorite genres","profile.genreCount":"{count} titles",
+  "profile.guest":"Guest",
+  "settings.title":"Settings","settings.subtitle":"Notifications and interface language.","settings.languageHint":"Switch the language with the header control; the choice is stored in your account.",
+  "library.viewTitles":"Titles","library.viewCollections":"Collections",
 });
 
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };

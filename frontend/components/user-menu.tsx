@@ -108,25 +108,12 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
             <Link className={styles.item} href="/account" role="menuitem" onClick={() => setOpen(false)}>
               {t("nav.myAccount")}
             </Link>
+            {/* Spec §3.3: Профиль, Настройки, Выйти; library quick link allowed. */}
             <Link className={styles.item} href="/library" role="menuitem" onClick={() => setOpen(false)}>
               {t("nav.libraryShort")}
             </Link>
-            <Link className={styles.item} href="/history" role="menuitem" onClick={() => setOpen(false)}>
-              {t("nav.history")}
-            </Link>
-            <Link className={styles.item} href="/collections" role="menuitem" onClick={() => setOpen(false)}>
-              {t("nav.collections")}
-            </Link>
-            <Link className={styles.item} href="/notes" role="menuitem" onClick={() => setOpen(false)}>
-              {t("nav.notes")}
-            </Link>
-            <Link className={styles.item} href="/recommendations" role="menuitem" onClick={() => setOpen(false)}>
-              {t("nav.recommendations")}
-            </Link>
-            {/* Telegram notification settings live on the account page, which the
-                old header bell also linked to. */}
-            <Link className={styles.item} href="/account" role="menuitem" onClick={() => setOpen(false)}>
-              {t("nav.notifications")}
+            <Link className={styles.item} href="/settings" role="menuitem" onClick={() => setOpen(false)}>
+              {t("settings.title")}
             </Link>
             <button className={styles.logout} type="button" role="menuitem" disabled={pending} onClick={logout}>
               {pending ? t("auth.wait") : t("nav.logout")}

@@ -2,13 +2,16 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getI18n } from "../i18n/server";
 import { GlobalSearch } from "./global-search";
+import { MobileSearchLink } from "./mobile-search-link";
 import { UserMenu } from "./user-menu";
 
 export type NavSection =
   | "home" | "catalog" | "schedule" | "franchises" | "characters"
-  | "media" | "community" | "library" | "collections";
+  | "media" | "community" | "profile";
 
-const OVERFLOW_SECTIONS: NavSection[] = ["media", "community", "library", "collections"];
+// Personal routes highlight nothing in the desktop top nav by design: the
+// library lives inside the profile (design freeze v0.2, acceptance #2).
+const OVERFLOW_SECTIONS: NavSection[] = ["media", "community"];
 
 export async function SiteHeader({ active }: { active: NavSection }) {
   const { t } = await getI18n();
@@ -35,9 +38,6 @@ export async function SiteHeader({ active }: { active: NavSection }) {
               <Link className={`compact-only ${linkClass("characters") ?? ""}`} href="/characters">{t("nav.characters")}</Link>
               <Link className={linkClass("media")} href="/media">{t("nav.media")}</Link>
               <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
-              <Link className={linkClass("library")} href="/library">{t("nav.libraryShort")}</Link>
-              <Link className={linkClass("collections")} href="/collections">{t("nav.collections")}</Link>
-              <Link href="/recommendations">{t("nav.recommendations")}</Link>
             </div>
           </details>
         </nav>
@@ -51,8 +51,8 @@ export async function SiteHeader({ active }: { active: NavSection }) {
       <Link className={linkClass("home")} href="/"><span aria-hidden="true">⌂</span>{t("nav.home")}</Link>
       <Link className={linkClass("catalog")} href="/catalog"><span aria-hidden="true">▦</span>{t("nav.catalog")}</Link>
       <Link className={linkClass("schedule")} href="/schedule"><span aria-hidden="true">◫</span>{t("nav.schedule")}</Link>
-      <Link className={linkClass("library")} href="/library"><span aria-hidden="true">▤</span>{t("nav.libraryShort")}</Link>
-      <Link href="/account"><span aria-hidden="true">○</span>{t("nav.profile")}</Link>
+      <MobileSearchLink />
+      <Link className={linkClass("profile")} href="/account"><span aria-hidden="true">○</span>{t("nav.profile")}</Link>
     </nav>
   </>;
 }

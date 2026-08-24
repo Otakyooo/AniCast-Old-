@@ -16,8 +16,15 @@ cleanup() { rmdir "$lock_dir" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
 case "$stack" in
-    mainserver) image_var=BACKEND_IMAGE ;;
-    vps) image_var=FRONTEND_IMAGE ;;
+    mainserver)
+        image_var=BACKEND_IMAGE
+        # Overridable so the pipeline can adopt the live compose project
+        # names (mainserver/vps) instead of spawning parallel stacks with
+        # fresh, empty volumes.
+        project=${ANICAST_PROJECT_MAINSERVER:-anicast-mainserver} ;;
+    vps)
+        image_var=FRONTEND_IMAGE
+        project=${ANICAST_PROJECT_VPS:-anicast-vps} ;;
     *) echo "unknown stack: $stack" >&2; exit 2 ;;
 esac
 image=$(sed -n "s/^$image_var=//p" "$release")
@@ -43,7 +50,7 @@ rollback_on_failure() {
 trap rollback_on_failure EXIT
 
 compose() {
-    docker compose --project-name "anicast-$stack" --env-file "$candidate" -f "$root/infra/$stack/compose.yml" "$@"
+    docker compose --project-name "$project" --env-file "$candidate" -f "$root/infra/$stack/compose.yml" "$@"
 }
 
 compose config -q

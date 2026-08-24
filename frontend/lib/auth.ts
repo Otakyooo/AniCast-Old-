@@ -55,7 +55,9 @@ async function mutateSession(path: string, payload?: AuthPayload): Promise<Sessi
     body: payload ? JSON.stringify(payload) : undefined,
   });
   if (!response.ok) throw new Error(await parseError(response));
-  return response.status === 204 ? null : response.json() as Promise<SessionUser>;
+  const user = response.status === 204 ? null : ((await response.json()) as SessionUser);
+  writeCachedSession(user);
+  return user;
 }
 
 export function register(payload: AuthPayload) {
@@ -70,17 +72,54 @@ export function signOut() {
   return mutateSession("logout");
 }
 
+const SESSION_CACHE_KEY = "anicast.session";
+
+/** Last validated session from sessionStorage: user, null (guest) or undefined (no cache). */
+export function cachedSessionUser(): SessionUser | null | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
+    return raw === null ? undefined : (JSON.parse(raw) as SessionUser | null);
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedSession(user: SessionUser | null) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(user));
+  } catch {
+    // Storage may be unavailable (private mode); the cache is optional.
+  }
+}
+
 export async function getSessionUser(): Promise<SessionUser | null> {
   const response = await fetch("/api/v1/auth/me/", { credentials: "same-origin", cache: "no-store" });
-  if (response.status === 401 || response.status === 403) return null;
+  if (response.status === 401 || response.status === 403) {
+    writeCachedSession(null);
+    return null;
+  }
   if (!response.ok) throw new Error(clientMessage("Не удалось загрузить данные аккаунта.", "Could not load account data."));
-  return response.json() as Promise<SessionUser>;
+  const user = (await response.json()) as SessionUser;
+  writeCachedSession(user);
+  return user;
+}
+
+export interface GenreShare {
+  slug: string;
+  name: string;
+  count: number;
+  share: number;
 }
 
 export interface AccountSummary {
   library: { planned: number; watching: number; completed: number; on_hold: number; dropped: number };
   favorites: number;
   watched_episodes: number;
+  watched_hours: number;
+  average_rating: number | null;
+  top_genres: GenreShare[];
   notes: number;
   collections: number;
   ratings: number;

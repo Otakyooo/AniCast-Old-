@@ -35,9 +35,32 @@ Alert at minimum on repeated backend readiness failures, HTTP 5xx increase, prov
 
 `scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (14 daily dumps plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
 
-Cron on MainServer runs the backup daily at 03:15 UTC-local and a scratch-database restore verification on Sundays at 04:30. Logs live in `~/anicast/backups/{backup,restore-verify}.log`; the newest successful dump is recorded in `backups/db/last_backup`.
+`scripts/backup-posters.sh` does the same for the poster media volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. Scheduled weekly (Sundays 03:45, after the DB backup); the pipeline can also rebuild the volume from recorded origins, but a backup restores full quality instantly instead of re-probing Jikan.
 
-Restore runbook:
+Poster restore runbook (`scripts/restore-posters.sh`, defaults to the newest archive):
+
+```bash
+# Safe: list, extract and validate every object in the archive (JPEG/PNG
+# magic bytes, no zero-byte files); touches nothing.
+scripts/restore-posters.sh --verify [archive]
+
+# Destructive: snapshot the current volume to backups/posters/pre-restore-*.tar.gz,
+# stop backend/celery, swap the volume contents, restart and probe one poster
+# through /api/v1/media/posters/. Requires typing the volume name.
+scripts/restore-posters.sh --force [archive]
+```
+
+Cron on MainServer runs the backups and verifications (logs in `~/anicast/backups/{backup,restore-verify}.log`):
+
+```cron
+15 3 * * *  ~/anicast/scripts/backup-db.sh >> ~/anicast/backups/backup.log 2>&1
+45 3 * * 0  ~/anicast/scripts/backup-posters.sh >> ~/anicast/backups/backup.log 2>&1
+30 4 * * 0  ~/anicast/scripts/restore-db.sh --verify >> ~/anicast/backups/restore-verify.log 2>&1
+```
+
+The newest successful DB dump is recorded in `backups/db/last_backup`. A failed backup sends a Telegram message through the ops bot and exits non-zero; a failed offsite upload still alerts even when the local dump succeeded.
+
+DB restore runbook:
 
 ```bash
 # Safe: restore the newest dump into a scratch database, sanity-check it, drop it.
@@ -49,7 +72,16 @@ scripts/restore-db.sh --force [dump]
 
 `--force` requires typing the production database name, drops and recreates it, restores with `pg_restore`, brings the stack back and waits for backend health. Dumps contain user PII; the Google Drive copy is encrypted with keys that exist only in `~/.config/rclone/rclone.conf` on MainServer.
 
-`rclone` uses the shared Google Drive client_id today; when that client is retired, create a project-owned OAuth client_id and re-authorize, otherwise offsite uploads stop refreshing.
+### Migrating rclone to a project-owned Google Drive client
+
+`rclone` uses a shared Google Drive client_id today; when that client is retired, token refreshes stop working and offsite uploads fail (the backup alert fires). Migration, done once, in order:
+
+1. Create (or pick) an owned Google Cloud project, enable the Drive API and create an OAuth client ID of type *Desktop app*. Note the client id and secret.
+2. On MainServer back up the current config: `cp ~/.config/rclone/rclone.conf ~/.config/rclone/rclone.conf.bak-$(date -u +%Y%m%d)` (keep until the new client is proven).
+3. The crypt remote `gdcrypt:` sits on top of a plain drive remote; the client credentials live on the **underlying** remote. Run `rclone config`, choose the underlying remote (not `gdcrypt`), set `client_id` and `client_secret`.
+4. Re-authorize headless: from a workstation with a browser run `rclone authorize "drive" "<client_id>" "<client_secret>"` and paste the resulting token into the MainServer prompt of `rclone config reconnect <underlying-remote>`.
+5. Prove both paths: `rclone touch gdcrypt:.migration-probe && rclone lsl gdcrypt:.migration-probe && rclone delete gdcrypt:.migration-probe`, then run `scripts/backup-db.sh` manually once and confirm the upload message.
+6. Keep the `.bak` config for ~30 days, then remove it.
 
 ## Monitoring stack
 
@@ -139,12 +171,14 @@ Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`ma
 
 Poster mirroring (2026-08-24): every title's poster is downloaded once into the `poster_media` Compose volume and served by Django from `/api/v1/media/posters/<name>` with `Cache-Control: public, max-age=31536000, immutable`; browsers no longer hotlink `shikimori.one` or `cdn.myanimelist.net`. Filenames encode the quality tier — `m` (MAL maximum), `l` (MAL large fallback) or `s` (existing Shikimori/MAL art mirrored as-is). Downloads are validated (JPEG/PNG magic bytes, minimum 200x280, allowlisted HTTPS hosts only, 8 MiB cap); a failed download never clears an existing poster.
 
-The Celery Beat task `catalog.tasks.refresh_title_posters` (providers queue, every 6 hours, limit 20 random candidates per run, stops starting new titles at a 1300 s budget to respect its soft time limit) keeps upgrading titles until each sits at the `m` tier, so posters converge to the best artwork automatically once Jikan recovers — no manual reruns. Every mirrored row records its remote source in `titles.poster_origin_url`; a missing local file downgrades the title back to an adoption candidate, so the pipeline self-heals after volume loss. Outcomes are exposed as `anicast_poster_refresh_total{result=maximum|large|mirrored|current|unavailable|invalid|error}`. Manual control stays available:
+The Celery Beat task `catalog.tasks.refresh_title_posters` (dedicated `posters` queue so batches never delay provider health checks; every 6 hours, budget-driven — it keeps working until the 1300 s soft-limit budget is spent or the 120-outcome hard cap is hit, and stops starting new titles in time to respect its time limits) keeps upgrading titles until each sits at the `m` tier, so posters converge to the best artwork automatically once Jikan recovers — no manual reruns. Candidates are prioritised: broken/missing local files first (direct viewer impact), then fallback-tier art awaiting a MAL upgrade, then large/kitsu-tier re-probes; within a bucket sampling is random for fair retry spread. Titles at the `m` tier are dropped from the queue without probes, and titles that can never improve (no MAL id in the slug, no allowlisted source) are dropped too. Every mirrored row records its remote source in `titles.poster_origin_url`; a missing local file downgrades the title back to an adoption candidate, so the pipeline self-heals after volume loss. Outcomes are exposed as `anicast_poster_refresh_total{result=maximum|large|kitsu|mirrored|current|unavailable|invalid|error}` with `PosterRefreshErrors`/`PosterRefreshInvalid` Prometheus alerts on sustained failure spikes. Manual control stays available:
 
 ```bash
 docker exec mainserver-backend-1 python manage.py backfill_posters          # dry-run
 docker exec mainserver-backend-1 python manage.py backfill_posters --apply  # mirror + upgrade
 ```
+
+Kitsu fallback tier `k` (2026-08-24): while Jikan cannot serve MAL art, the pipeline resolves `mal_id -> kitsu_id` through the ani.zip offline mapping (`api.ani.zip/mappings`, host allowlisted together with `kitsu.io`) and adopts Kitsu `posterImage.original` from `media.kitsu.app`. Adoption is pixel-based: a candidate replaces stored artwork only when its downloaded dimensions strictly exceed the current file (area comparison), so no title ever loses quality when tiers compete. A later MAL `l` or `m` still wins over an existing `k` through the same comparison path. Both lookup hosts fail closed to `None` and simply skip the fallback.
 
 Rollback note: production rows point `poster_url` at `/api/v1/media/posters/*`, which only this release and newer serve. Rolling back to an older backend image breaks every catalog poster until one of:
 
@@ -215,6 +249,22 @@ sudo scripts/rollback.sh vps
 Rollback changes application images only. It never restores PostgreSQL automatically because traffic may have written data after migration. Migrations must therefore follow expand/contract and keep the previous application release compatible. A destructive migration requires a separately approved maintenance and restore plan; do not use automatic deployment for it.
 
 If both hosts were changed and VPS verification fails, roll back VPS first and then MainServer when release compatibility requires it. Inspect `/var/lib/anicast/releases/<stack>/{current,previous,failed}.env` and JSON logs for the incident record.
+
+## Deploy pipeline rehearsal
+
+The formal pipeline has not executed against production yet: the live stacks run under compose project names `mainserver` and `vps` (directory defaults), while `deploy.sh`/`rollback.sh`/`verify-deploy.sh` default to `anicast-mainserver`/`anicast-vps`. Running the pipeline cold under its default names would spawn parallel stacks with fresh, empty volumes. All three scripts therefore honor `ANICAST_PROJECT_MAINSERVER` and `ANICAST_PROJECT_VPS`; until a deliberate migration to the canonical names, every pipeline command uses the live-name overrides.
+
+Rehearsal checklist (quiet hours):
+
+1. Preconditions: no firing alerts, current image digests written down, fresh verified backup (`scripts/backup-db.sh` plus `scripts/restore-posters.sh --verify` on the latest poster archive).
+2. Prepare manifests for the pending release: `scripts/release-manifest.sh <git-sha>` and preview migrations once (`docker compose --project-name mainserver --env-file infra/mainserver/.env -f infra/mainserver/compose.yml run --rm backend python manage.py migrate --plan` — must be expand-only).
+3. MainServer: `sudo ANICAST_PROJECT_MAINSERVER=mainserver scripts/deploy.sh mainserver /tmp/mainserver-release.env`. Success: check/migrate pass, postgres/redis/backend/celery-worker/celery-beat healthy, `deployment verified`.
+4. Public smoke: the three curl probes from the Deploy section.
+5. VPS: `sudo ANICAST_PROJECT_VPS=vps scripts/deploy.sh vps /tmp/vps-release.env`, then public smoke again.
+6. Rollback drill, proving both directions on the real stack: `sudo ANICAST_PROJECT_VPS=vps scripts/rollback.sh vps` (previous digest serves traffic), then re-run the step-5 deploy forward. The MainServer rollback drill is optional in the same window — it is image-only as well.
+7. Record the outcome in `docs/IMPLEMENTATION_STATUS.md`. State files accumulate under `/var/lib/anicast/releases/<stack>/`.
+
+Adoption caveats: the first pipeline run moves image selection from `infra/<stack>/.env` into the release manifest chain (`current.env`). Keep `BACKEND_IMAGE`/`FRONTEND_IMAGE` out of further hand edits afterwards, or the next manual `compose up -d` silently diverges from the recorded releases. The hermetic test (`scripts/tests/deploy_rollback_test.sh`, part of `scripts/validate.sh`) covers both the automatic-rollback failure path and the happy-path promotion to `current.env`.
 
 ## Validation
 

@@ -5,6 +5,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 COPY requirements.txt constraints.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-RUN DJANGO_DATABASE_URL=sqlite:///db.sqlite3 python manage.py collectstatic --noinput
+RUN DJANGO_DATABASE_URL=sqlite:///db.sqlite3 DJANGO_ALLOW_DEV_SECRET=1 python manage.py collectstatic --noinput
 EXPOSE 8000
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]

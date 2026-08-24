@@ -19,11 +19,12 @@
   --focus-ring: #9d87ff;
   --content-width: 1600px;
   --gutter: 32px;
+  --nav-height: 64px;
 }
 
 * { box-sizing: border-box }
 
-html { scroll-padding-top: 76px }
+html { scroll-padding-top: calc(var(--nav-height) + 12px) }
 
 html, body {
   margin: 0;
@@ -61,7 +62,7 @@ summary:focus-visible {
   position: sticky;
   top: 0;
   z-index: 50;
-  height: 64px;
+  height: var(--nav-height);
   border-bottom: 1px solid rgba(37, 43, 56, .72);
   background: rgba(7, 9, 14, .94);
   backdrop-filter: blur(16px);
@@ -520,9 +521,8 @@ summary:focus-visible {
 }
 
 @media (max-width: 767px) {
-  :root { --gutter: 16px }
+  :root { --gutter: 16px; --nav-height: 56px }
   body { padding-bottom: 68px }
-  .global-nav { height: 56px }
   .global-nav-inner { display: flex; gap: 10px }
   .global-brand { margin-right: auto }
   .global-brand span:last-child { display: none }

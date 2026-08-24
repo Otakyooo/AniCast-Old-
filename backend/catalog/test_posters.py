@@ -40,6 +40,12 @@ def poster_media_root(tmp_path):
         yield tmp_path / "posters"
 
 
+@pytest.fixture(autouse=True)
+def no_kitsu_lookup(monkeypatch):
+    """Keep the Kitsu fallback hermetic unless a test opts in."""
+    monkeypatch.setattr(posters, "kitsu_original_for_mal", lambda mal_id: None)
+
+
 def test_image_dimensions_parses_png_and_jpeg():
     assert posters.image_dimensions(png_bytes(300, 446)) == ("png", 300, 446)
     assert posters.image_dimensions(jpeg_probe_bytes(420, 600)) == ("jpg", 420, 600)
@@ -137,6 +143,44 @@ def test_refresh_deadline_stops_new_work(poster_media_root, monkeypatch):
 
     outcomes = posters.refresh_batch(limit=0, apply_changes=True, deadline=time.monotonic() - 1)
     assert outcomes == []
+
+
+@pytest.mark.django_db
+def test_hopeless_candidates_are_dropped_without_probes(poster_media_root, monkeypatch):
+    Title.objects.create(name="Demo", slug="demo-title", poster_url="")
+    calls: list[int] = []
+
+    def probe(mal_id):
+        calls.append(mal_id)
+        return None
+
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", probe)
+    assert posters.refresh_batch(limit=10, apply_changes=False) == []
+    assert calls == []
+
+
+@pytest.mark.django_db
+def test_batch_prioritizes_broken_then_fallback_then_large(poster_media_root, monkeypatch):
+    broken = Title.objects.create(name="Broken", slug="80-broken",
+                                  poster_url=posters.public_poster_url("80-m-cafecafe.png"))
+    fallback_file = posters.store_poster(81, "s", png_bytes(225, 318))
+    fallback = Title.objects.create(name="Fall", slug="81-fall",
+                                    poster_url=posters.public_poster_url(fallback_file))
+    large_file = posters.store_poster(82, "l", png_bytes(300, 446))
+    large = Title.objects.create(name="Large", slug="82-large",
+                                 poster_url=posters.public_poster_url(large_file))
+
+    order: list[str] = []
+    real_refresh = posters.refresh_title
+
+    def spy(title, apply_changes):
+        order.append(title.slug)
+        return ("unavailable", f"{title.slug}: skipped") if title.slug != fallback.slug else real_refresh(title, False)
+
+    monkeypatch.setattr(posters, "refresh_title", spy)
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: None)
+    posters.refresh_batch(limit=0, apply_changes=False)
+    assert order.index(broken.slug) < order.index(fallback.slug) < order.index(large.slug)
 
 
 @pytest.mark.django_db
@@ -322,3 +366,115 @@ def test_poster_media_view_serves_immutable_file(poster_media_root):
     assert b"".join(response.streaming_content) == data
     assert client.get("/api/v1/media/posters/../secret.png").status_code == 404
     assert client.get("/api/v1/media/posters/not-a-poster.txt").status_code == 404
+
+
+@pytest.mark.django_db
+def test_kitsu_original_replaces_smaller_mirror(poster_media_root, monkeypatch):
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    fallback_file = posters.store_poster(21, "s", png_bytes(225, 318))
+    title = Title.objects.create(name="Kit", slug="21-kit", poster_url=posters.public_poster_url(fallback_file))
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: None)
+    monkeypatch.setattr(
+        posters,
+        "kitsu_original_for_mal",
+        lambda mal_id: "https://media.kitsu.app/anime/poster_images/12/original.jpg",
+    )
+    monkeypatch.setattr(posters, "download_bytes", lambda url: png_bytes(550, 780))
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "kitsu"
+    title.refresh_from_db()
+    assert "-k-" in title.poster_url
+    assert (poster_media_root / fallback_file).exists() is False
+
+    # Re-probing with the same art keeps the stored file without churn.
+    again, _ = posters.refresh_title(title, apply_changes=True)
+    assert again == "current"
+
+
+@pytest.mark.django_db
+def test_kitsu_candidate_never_shrinks_existing_art(poster_media_root, monkeypatch):
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    large_file = posters.store_poster(22, "l", png_bytes(500, 700))
+    title = Title.objects.create(name="Big", slug="22-big", poster_url=posters.public_poster_url(large_file))
+    kitsu_url = "https://media.kitsu.app/anime/poster_images/13/original.jpg"
+    downloads: list[str] = []
+
+    def record_download(url):
+        downloads.append(url)
+        return png_bytes(460, 650)
+
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: None)
+    monkeypatch.setattr(posters, "kitsu_original_for_mal", lambda mal_id: kitsu_url)
+    monkeypatch.setattr(posters, "download_bytes", record_download)
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "current"
+    title.refresh_from_db()
+    assert "-l-" in title.poster_url and downloads == [kitsu_url]
+    assert (poster_media_root / large_file).is_file()
+
+
+@pytest.mark.django_db
+def test_large_mal_art_beats_smaller_kitsu_tier(poster_media_root, monkeypatch):
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    kitsu_file = posters.store_poster(23, "k", png_bytes(300, 420))
+    title = Title.objects.create(name="Mix", slug="23-mix", poster_url=posters.public_poster_url(kitsu_file))
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: ("https://cdn.myanimelist.net/images/anime/23l.jpg", "l"))
+    monkeypatch.setattr(posters, "download_bytes", lambda url: png_bytes(425, 600))
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "large"
+    title.refresh_from_db()
+    assert "-l-" in title.poster_url
+    assert not (poster_media_root / kitsu_file).exists()
+
+
+@pytest.mark.django_db
+def test_maximum_tier_never_probes_upstreams(poster_media_root, monkeypatch):
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    filename = posters.store_poster(30, "m", png_bytes(400, 600))
+    title = Title.objects.create(name="Max", slug="30-max", poster_url=posters.public_poster_url(filename))
+
+    mal_calls: list[int] = []
+    kitsu_calls: list[int] = []
+
+    def probe_mal(mal_id):
+        mal_calls.append(mal_id)
+        return None
+
+    def probe_kitsu(mal_id):
+        kitsu_calls.append(mal_id)
+        return "https://media.kitsu.app/anime/poster_images/14/original.png"
+
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", probe_mal)
+    monkeypatch.setattr(posters, "kitsu_original_for_mal", probe_kitsu)
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "current"
+    assert mal_calls == [] and kitsu_calls == []
+
+
+@pytest.mark.django_db
+def test_dry_run_reports_kitsu_plan_without_downloads(poster_media_root, monkeypatch):
+    title = Title.objects.create(
+        name="PlanKit", slug="9-plankit",
+        poster_url="https://shikimori.one/system/animes/original/9.jpg",
+    )
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: None)
+    monkeypatch.setattr(
+        posters,
+        "kitsu_original_for_mal",
+        lambda mal_id: "https://media.kitsu.app/anime/poster_images/15/original.jpg",
+    )
+    downloads: list[str] = []
+
+    def fail_download(url):
+        downloads.append(url)
+        return b""
+
+    monkeypatch.setattr(posters, "download_bytes", fail_download)
+
+    result, detail = posters.refresh_title(title, apply_changes=False)
+    assert result == "plan" and "k-tier" in detail
+    assert downloads == []

@@ -1,31 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { fetchAccountSummary, getSessionUser, signOut, type AccountSummary, type SessionUser } from "../lib/auth";
-import { ContinueWatchingShelf } from "./continue-watching-shelf";
-import { NotificationPanel } from "./notification-panel";
+import { cachedSessionUser, fetchAccountSummary, getSessionUser, type AccountSummary, type SessionUser } from "../lib/auth";
+import { ResumeShelf } from "./continue-watching-block";
 import { RecentNotes } from "./recent-notes";
 import { useI18n } from "./i18n-provider";
-import styles from "../app/profile.module.css";
 import authStyles from "../app/auth.module.css";
+import styles from "../app/profile.module.css";
 
-type SectionLink = {
-  href: string;
-  titleKey: string;
-  countKey: string;
-  count?: number;
-};
-
-export function AccountPanel({ notificationBotUsername }: { notificationBotUsername?: string }) {
-  const router = useRouter();
+export function AccountPanel() {
   const { t } = useI18n();
+  // First client render must match the server (loading state); the cached
+  // identity is applied post-mount, before the network revalidation lands.
   const [user, setUser] = useState<SessionUser | null | undefined>();
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const cached = cachedSessionUser();
+    if (cached !== undefined) setUser(cached);
     getSessionUser().then(setUser).catch((reason) => setError(reason instanceof Error ? reason.message : t("common.error")));
   }, [t]);
 
@@ -40,82 +34,77 @@ export function AccountPanel({ notificationBotUsername }: { notificationBotUsern
     };
   }, [user]);
 
-  async function logout() {
-    setError("");
-    try {
-      await signOut();
-      router.push("/");
-      router.refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("common.error"));
-    }
-  }
-
   if (error) return <div className={authStyles.accountState} role="alert"><p>{error}</p><Link href="/">{t("account.home")}</Link></div>;
   if (user === undefined) return <div className={authStyles.accountState} role="status">{t("account.loading")}</div>;
   if (user === null) return <div className={authStyles.accountState}><h2>{t("account.noSession")}</h2><p>{t("account.noSessionText")}</p><Link className={authStyles.submit} href="/login">{t("common.login")}</Link></div>;
 
-  const libraryTotal = summary ? Object.values(summary.library).reduce((sum, value) => sum + value, 0) : undefined;
-  const sections: SectionLink[] = [
-    { href: "/library", titleKey: "library.title", countKey: "account.sectionLibraryHint", count: libraryTotal },
-    { href: "/history", titleKey: "history.title", countKey: "account.sectionHistoryHint", count: summary?.watched_episodes },
-    { href: "/notes", titleKey: "notes.title", countKey: "account.sectionNotesHint", count: summary?.notes },
-    { href: "/collections", titleKey: "collections.title", countKey: "account.sectionCollectionsHint", count: summary?.collections },
-    { href: "/recommendations", titleKey: "recommendations.title", countKey: "account.sectionRecommendationsHint" },
+  // Stats strip per spec §5.1: exactly five metrics. On-hold/dropped live in
+  // the library filters, not here.
+  const strip: Array<{ labelKey: string; value: number | string }> = [
+    { labelKey: "nav.completed", value: summary?.library.completed ?? "—" },
+    { labelKey: "nav.watching", value: summary?.library.watching ?? "—" },
+    { labelKey: "nav.planned", value: summary?.library.planned ?? "—" },
+    { labelKey: "profile.statsHours", value: summary ? summary.watched_hours : "—" },
+    {
+      labelKey: "profile.statsAvgRating",
+      value: summary?.average_rating != null ? summary.average_rating.toFixed(1) : "—",
+    },
   ];
 
-  const stats: Array<{ labelKey: string; value?: number }> = [
-    { labelKey: "nav.watching", value: summary?.library.watching },
-    { labelKey: "nav.planned", value: summary?.library.planned },
-    { labelKey: "nav.completed", value: summary?.library.completed },
-    { labelKey: "nav.favorites", value: summary?.favorites },
-    { labelKey: "account.statsOnHold", value: summary?.library.on_hold },
-    { labelKey: "library.dropped", value: summary?.library.dropped },
-    { labelKey: "account.statsRatings", value: summary?.ratings },
-    { labelKey: "account.statsReviews", value: summary?.reviews },
+  const quickLinks: Array<{ href: string; titleKey: string; hint?: string }> = [
+    {
+      href: "/library?view=collections",
+      titleKey: "collections.title",
+      hint: summary ? t("account.sectionCollectionsHint", { count: summary.collections }) : undefined,
+    },
+    { href: "/recommendations", titleKey: "recommendations.title", hint: t("account.sectionRecommendationsHint") },
+    { href: "/settings", titleKey: "settings.title", hint: t("account.sectionSettingsHint") },
   ];
 
   return (
-    <div className={styles.hub}>
-      <header className={styles.head}>
-        <div className={styles.avatar} aria-hidden="true">
-          {(user.display_name || t("account.viewer")).trim().charAt(0).toUpperCase()}
-        </div>
-        <div className={styles.identity}>
-          <p className={styles.name}>{user.display_name || t("account.viewer")}</p>
-          <p className={styles.email}>{user.email || t("account.noEmail")}</p>
-        </div>
-        <button className={authStyles.secondary} type="button" onClick={logout}>{t("account.logout")}</button>
-      </header>
-
-      <section className={styles.stats} aria-label={t("account.statsLabel")}>
-        {stats.map((stat) => (
-          <div className={styles.stat} key={stat.labelKey}>
-            <span className={styles.statValue}>{stat.value ?? "—"}</span>
-            <span className={styles.statLabel}>{t(stat.labelKey)}</span>
+    <div className={styles.overview}>
+      <section className={styles.strip} aria-label={t("account.statsLabel")}>
+        {strip.map((item) => (
+          <div className={styles.stripItem} key={item.labelKey}>
+            <span className={styles.stripValue}>{item.value}</span>
+            <span className={styles.stripLabel}>{t(item.labelKey)}</span>
           </div>
         ))}
       </section>
 
-      <ContinueWatchingShelf />
+      <ResumeShelf />
+
+      {(summary?.top_genres.length ?? 0) > 0 && (
+        <section aria-label={t("profile.favoriteGenres")}>
+          <div className={styles.sectionHeading}><h2>{t("profile.favoriteGenres")}</h2></div>
+          <ul className={styles.genreList}>
+            {summary?.top_genres.map((genre) => (
+              <li className={styles.genreRow} key={genre.slug}>
+                <span className={styles.genreName}>{genre.name}</span>
+                <span className={styles.genreTrack}>
+                  <span className={styles.genreBar} style={{ width: `${genre.share}%` }} />
+                </span>
+                <span className={styles.genreCount}>{t("profile.genreCount", { count: genre.count })}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <RecentNotes />
 
       <section aria-label={t("account.sections")}>
         <div className={styles.grid}>
-          {sections.map((section) => (
-            <Link className={styles.sectionCard} key={section.href} href={section.href}>
-              <span className={styles.sectionTitle}>{t(section.titleKey)}</span>
+          {quickLinks.map((link) => (
+            <Link className={styles.sectionCard} key={link.href} href={link.href}>
+              <span className={styles.sectionTitle}>{t(link.titleKey)}</span>
               <span className={styles.sectionCount}>
-                {section.count === undefined ? "" : t(section.countKey, { count: section.count })}
+                {link.hint}
                 <span aria-hidden="true">→</span>
               </span>
             </Link>
           ))}
         </div>
-      </section>
-
-      <section className={styles.notifications}>
-        <NotificationPanel botUsername={notificationBotUsername} />
       </section>
     </div>
   );

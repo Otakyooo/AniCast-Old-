@@ -7,10 +7,16 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 previous="$state_dir/previous.env"
 current="$state_dir/current.env"
 
+case "$stack" in
+    mainserver) project=${ANICAST_PROJECT_MAINSERVER:-anicast-mainserver} ;;
+    vps) project=${ANICAST_PROJECT_VPS:-anicast-vps} ;;
+    *) echo "unknown stack: $stack" >&2; exit 2 ;;
+esac
+
 [ -f "$previous" ] || { echo "no previous release manifest: $previous" >&2; exit 1; }
 cp "$previous" "$state_dir/rollback.env"
-docker compose --project-name "anicast-$stack" --env-file "$state_dir/rollback.env" -f "$root/infra/$stack/compose.yml" pull
-docker compose --project-name "anicast-$stack" --env-file "$state_dir/rollback.env" -f "$root/infra/$stack/compose.yml" up -d --no-build --remove-orphans
+docker compose --project-name "$project" --env-file "$state_dir/rollback.env" -f "$root/infra/$stack/compose.yml" pull
+docker compose --project-name "$project" --env-file "$state_dir/rollback.env" -f "$root/infra/$stack/compose.yml" up -d --no-build --remove-orphans
 "$root/scripts/verify-deploy.sh" "$stack" "$state_dir/rollback.env"
 if [ ! -f "$state_dir/failed.env" ] && [ -f "$current" ]; then cp "$current" "$state_dir/failed.env"; fi
 mv "$state_dir/rollback.env" "$current"

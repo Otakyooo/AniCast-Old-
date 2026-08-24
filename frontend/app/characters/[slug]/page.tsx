@@ -1,13 +1,39 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { CatalogCard } from "../../../components/catalog-card";
 import { PageShell } from "../../../components/page-shell";
 import { getI18n } from "../../../i18n/server";
 import { apiErrorStatus, getCharacter } from "../../../lib/api";
+import { absoluteUrl, metaDescription } from "../../../lib/site";
 import styles from "../../discovery.module.css";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const { t } = await getI18n();
+  try {
+    const character = await getCharacter(slug);
+    const description = metaDescription(character.description, t("character.descriptionMissing"));
+    return {
+      title: character.name,
+      description,
+      alternates: { canonical: `/characters/${character.slug}` },
+      openGraph: {
+        type: "profile",
+        url: `/characters/${character.slug}`,
+        title: character.name,
+        description,
+        ...(character.image_url ? { images: [{ url: absoluteUrl(character.image_url), alt: character.name }] } : {}),
+      },
+    };
+  } catch (error) {
+    if (apiErrorStatus(error) === 404) notFound();
+    return {};
+  }
+}
 
 export default async function CharacterPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

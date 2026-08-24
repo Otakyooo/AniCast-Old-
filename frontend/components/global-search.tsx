@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { globalSearch, SEARCH_MIN_LENGTH, type GlobalSearchResponse } from "../lib/api";
+import { OPEN_SEARCH_EVENT } from "./mobile-search-link";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/search.module.css";
 
@@ -88,6 +89,28 @@ export function GlobalSearch() {
     setOpen(next);
     if (next) window.requestAnimationFrame(() => inputRef.current?.focus());
   }
+
+  // The mobile bottom-nav "Поиск" action and the Ctrl/Cmd+K shortcut (design
+  // spec §13) both expand this field from anywhere on the page.
+  useEffect(() => {
+    function openSearch() {
+      setExpanded(true);
+      setOpen(true);
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openSearch();
+      }
+    }
+    window.addEventListener(OPEN_SEARCH_EVENT, openSearch);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener(OPEN_SEARCH_EVENT, openSearch);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   return (
     <div className={`${styles.wrap} ${expanded ? styles.wrapExpanded : ""}`} ref={containerRef}>

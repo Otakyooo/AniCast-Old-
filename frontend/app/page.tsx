@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CatalogCard } from "../components/catalog-card";
-import { ContinueWatchingShelf } from "../components/continue-watching-shelf";
+import { ContinueWatchingBlock } from "../components/continue-watching-block";
 import { ScheduleStrip } from "../components/schedule-strip";
 import { PageShell } from "../components/page-shell";
 import { emptyPage, getCatalog, getSchedule, type CatalogItem, type ScheduleResponse } from "../lib/api";
@@ -59,14 +59,7 @@ export default async function HomePage() {
   ]);
 
   return <PageShell active="home">
-    <div className="hero">
-      <p className="eyebrow">{t("home.eyebrow")}</p>
-      <h1>{t("home.title")}</h1>
-      <p className="muted">{t("home.subtitle")}</p>
-      <Link className="primary inline-button" href="/catalog">{t("home.openCatalog")}</Link>
-    </div>
-
-    <ContinueWatchingShelf />
+    <ContinueWatchingBlock />
 
     {schedule.results.length > 0 && (
       <section className="section">

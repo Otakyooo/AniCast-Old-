@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ScheduleBoard } from "../../components/schedule-board";
 import { PageShell } from "../../components/page-shell";
 import { emptyPage, getSchedule, type ScheduleResponse } from "../../lib/api";
@@ -7,6 +8,15 @@ import { getI18n } from "../../i18n/server";
 import styles from "./schedule.module.css";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return {
+    title: t("schedule.title"),
+    description: t("schedule.subtitle"),
+    alternates: { canonical: "/schedule" },
+  };
+}
 
 const WEEK_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 

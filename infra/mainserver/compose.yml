@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
+    mem_limit: 768m
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
     volumes:
@@ -18,7 +19,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    mem_limit: 256m
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "200mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -32,6 +34,7 @@ services:
   backend:
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
+    mem_limit: 512m
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
     depends_on:
@@ -52,6 +55,7 @@ services:
   celery-worker:
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
+    mem_limit: 512m
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
     command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications,providers,posters,maintenance,analytics"]
@@ -69,6 +73,7 @@ services:
   celery-beat:
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
+    mem_limit: 128m
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
     command: ["celery", "-A", "config", "beat", "-l", "INFO", "--pidfile=/tmp/celerybeat.pid"]

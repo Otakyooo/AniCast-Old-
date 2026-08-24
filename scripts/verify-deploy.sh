@@ -5,11 +5,17 @@ stack=${1:?usage: verify-deploy.sh mainserver|vps [env-file]}
 env_file=${2:-}
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 
+case "$stack" in
+    mainserver) project=${ANICAST_PROJECT_MAINSERVER:-anicast-mainserver} ;;
+    vps) project=${ANICAST_PROJECT_VPS:-anicast-vps} ;;
+    *) echo "unknown stack: $stack" >&2; exit 2 ;;
+esac
+
 compose() {
     if [ -n "$env_file" ]; then
-        docker compose --project-name "anicast-$stack" --env-file "$env_file" -f "$root/infra/$stack/compose.yml" "$@"
+        docker compose --project-name "$project" --env-file "$env_file" -f "$root/infra/$stack/compose.yml" "$@"
     else
-        docker compose --project-name "anicast-$stack" -f "$root/infra/$stack/compose.yml" "$@"
+        docker compose --project-name "$project" -f "$root/infra/$stack/compose.yml" "$@"
     fi
 }
 

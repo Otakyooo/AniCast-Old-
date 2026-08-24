@@ -13,3 +13,18 @@
 }
 .filters a:active, .pagination a:active { background: var(--surface-2) }
 .filterActive { border-color: var(--primary); background: rgba(124, 92, 255, .16) }
+
+/* Sibling views of the profile library tab: titles vs collections. */
+.viewSwitch { display: flex; gap: 8px; margin-bottom: 16px }
+.viewSwitch a {
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.viewSwitch a:hover { color: var(--text); border-color: var(--primary) }
+.viewActive { border-color: var(--primary); background: rgba(124, 92, 255, .16); color: var(--text) }

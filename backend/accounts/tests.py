@@ -111,7 +111,7 @@ def test_user_public_ids_are_stable_unique_uuids():
 
 @pytest.mark.django_db
 def test_account_summary_counts_personal_data():
-    from catalog.models import Title
+    from catalog.models import Genre, Title
     from community.models import TitleRating
     from library.models import LibraryEntry, TitleCollection, TitleNote
 
@@ -119,6 +119,10 @@ def test_account_summary_counts_personal_data():
     other = User.objects.create_user(email="summary-other@example.com", password="A-strong-passphrase-2042")
     first = Title.objects.create(name="Summary One", slug="900-summary-one")
     second = Title.objects.create(name="Summary Two", slug="901-summary-two")
+    action = Genre.objects.create(slug="action", name="Action")
+    drama = Genre.objects.create(slug="drama", name="Drama")
+    first.genres.set([action, drama])
+    second.genres.set([action])
     LibraryEntry.objects.create(user=user, title=first, status=LibraryEntry.Status.WATCHING, is_favorite=True)
     LibraryEntry.objects.create(user=user, title=second, status=LibraryEntry.Status.PLANNED)
     LibraryEntry.objects.create(user=other, title=first, status=LibraryEntry.Status.COMPLETED)
@@ -137,6 +141,11 @@ def test_account_summary_counts_personal_data():
     assert body["collections"] == 1
     assert body["ratings"] == 1
     assert body["reviews"] == 0
+    assert body["watched_hours"] == 0
+    assert body["average_rating"] == 8.0
+    genre_names = [genre["name"] for genre in body["top_genres"]]
+    assert "Action" in genre_names
+    assert all(genre["share"] > 0 for genre in body["top_genres"])
 
     anonymous = APIClient()
     assert anonymous.get("/api/v1/account/summary/").status_code in (401, 403)

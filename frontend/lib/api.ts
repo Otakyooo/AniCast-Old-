@@ -138,12 +138,19 @@ async function contentLanguage() {
   }
 }
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const language = await contentLanguage();
   const separator = path.includes("?") ? "&" : "?";
+  // A stalled backend must fail fast so SSR falls back to the unavailable
+  // state instead of hanging the render indefinitely.
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
   const response = await fetch(`${API_BASE_URL}${path}${separator}lang=${encodeURIComponent(language)}`, {
     ...init,
     headers: { Accept: "application/json", "Accept-Language": language, ...init?.headers },
+    signal,
   });
 
   if (!response.ok) {
@@ -240,9 +247,11 @@ export async function getFranchise(slug: string): Promise<FranchiseDetail> {
   return request<FranchiseDetail>(`/franchises/${encodeURIComponent(slug)}/`, { cache: "no-store" });
 }
 
-export async function getCharacters(search = ""): Promise<CharacterResponse> {
-  const query = search ? `?q=${encodeURIComponent(search)}` : "";
-  return request<CharacterResponse>(`/characters/${query}`, { cache: "no-store" });
+export async function getCharacters(search = "", page = 1): Promise<CharacterResponse> {
+  const query = new URLSearchParams();
+  if (search.trim()) query.set("q", search.trim());
+  if (page > 1) query.set("page", String(page));
+  return request<CharacterResponse>(`/characters/${query.size ? `?${query}` : ""}`, { cache: "no-store" });
 }
 
 export async function getCharacter(slug: string): Promise<CharacterDetail> {

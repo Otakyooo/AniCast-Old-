@@ -12,15 +12,24 @@ from rest_framework.authentication import CSRFCheck
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
 from .models import ExternalIdentity, TelegramLoginChallenge, User
 from .serializers import LoginSerializer, RegisterSerializer, UserPreferencesSerializer, UserSerializer
 from .telegram_bot import create_challenge_token, hash_secret, valid_challenge_token
 
 
-class AuthRateThrottle(AnonRateThrottle):
-    rate = "10/min"
+class AuthRateThrottle(SimpleRateThrottle):
+    """IP-scoped auth throttle that also applies to authenticated callers.
+
+    DRF's AnonRateThrottle skips logged-in requests entirely, which let a
+    single throwaway session brute-force login at unlimited rate.
+    """
+
+    scope = "auth"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
 
 
 def enforce_csrf(request):
@@ -82,8 +91,9 @@ def current_user(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def account_summary(request):
+    from catalog.i18n import translated_value_for_language
     from community.models import TitleRating, TitleReview
-    from django.db.models import Count
+    from django.db.models import Avg, Count
     from library.models import EpisodeProgress, LibraryEntry, TitleCollection, TitleNote
 
     user = request.user
@@ -91,10 +101,38 @@ def account_summary(request):
         row["status"]: row["total"]
         for row in LibraryEntry.objects.filter(user=user).values("status").annotate(total=Count("id"))
     }
+    watched_episodes = EpisodeProgress.objects.filter(user=user, is_watched=True).count()
+    average_rating = TitleRating.objects.filter(user=user).aggregate(value=Avg("value"))["value"]
+
+    # Favorite genres per design spec §5.3: top-5 horizontal bars derived
+    # from the personal library composition.
+    genre_counts: dict[object, int] = {}
+    for entry in LibraryEntry.objects.filter(user=user).select_related("title").prefetch_related(
+        "title__genres__translations"
+    ):
+        for genre in entry.title.genres.all():
+            genre_counts[genre] = genre_counts.get(genre, 0) + 1
+    top_genres = sorted(genre_counts.items(), key=lambda pair: (-pair[1], pair[0].slug))[:5]
+    max_genre_count = top_genres[0][1] if top_genres else 0
+    language = getattr(user, "preferred_language", None) or "ru"
+
     return Response({
         "library": {choice: status_counts.get(choice, 0) for choice, _ in LibraryEntry.Status.choices},
         "favorites": LibraryEntry.objects.filter(user=user, is_favorite=True).count(),
-        "watched_episodes": EpisodeProgress.objects.filter(user=user, is_watched=True).count(),
+        "watched_episodes": watched_episodes,
+        # No episode runtime data yet: estimate from the standard 24-minute
+        # anime episode length until durations are imported.
+        "watched_hours": round(watched_episodes * 24 / 60),
+        "average_rating": round(average_rating, 1) if average_rating is not None else None,
+        "top_genres": [
+            {
+                "slug": genre.slug,
+                "name": translated_value_for_language(genre, "name", language),
+                "count": count,
+                "share": round(count * 100 / max_genre_count) if max_genre_count else 0,
+            }
+            for genre, count in top_genres
+        ],
         "notes": TitleNote.objects.filter(user=user).count(),
         "collections": TitleCollection.objects.filter(owner=user).count(),
         "ratings": TitleRating.objects.filter(user=user).count(),
@@ -164,10 +202,18 @@ def telegram_challenge(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([ScopedRateThrottle])
 def telegram_challenge_complete(request):
     enforce_csrf(request)
     raw_token = request.data.get("token")
     if not valid_challenge_token(raw_token) or not request.session.session_key:
+        return Response({"detail": "Challenge не найден."}, status=404)
+    # Cheap indexed existence check keeps junk tokens from opening the
+    # row-locking transaction below.
+    if not TelegramLoginChallenge.objects.filter(
+        token_hash=hash_secret(raw_token),
+        session_hash=hash_secret(request.session.session_key),
+    ).exists():
         return Response({"detail": "Challenge не найден."}, status=404)
     with transaction.atomic():
         challenge = TelegramLoginChallenge.objects.select_for_update().filter(
@@ -192,6 +238,9 @@ def telegram_challenge_complete(request):
         challenge.save(update_fields=["status", "consumed_at"])
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return Response(UserSerializer(user).data)
+
+
+telegram_challenge_complete.throttle_scope = "telegram_challenge"
 
 
 @api_view(["POST"])

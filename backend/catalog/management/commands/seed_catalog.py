@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta
 
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -32,6 +33,10 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        if not settings.DEBUG and not settings.USE_SQLITE:
+            raise CommandError(
+                "seed_catalog is a development fixture and is blocked outside local development"
+            )
         genres = {}
         for english_name, russian_name, slug in GENRES:
             genre = Genre.objects.update_or_create(slug=slug, defaults={"name": english_name})[0]

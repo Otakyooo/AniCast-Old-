@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getNotes, type TitleNote } from "../lib/notes";
+import { pickRecentNotes } from "../lib/account-summary";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/profile.module.css";
-
-const RECENT_NOTES_LIMIT = 3;
 
 /**
  * Latest personal notes for the account hub. Collapses entirely for guests,
@@ -19,7 +18,7 @@ export function RecentNotes() {
   useEffect(() => {
     const controller = new AbortController();
     getNotes(controller.signal)
-      .then((page) => setNotes(page.results.slice(0, RECENT_NOTES_LIMIT)))
+      .then((page) => setNotes(pickRecentNotes(page.results)))
       .catch((reason) => {
         if (reason instanceof DOMException && reason.name === "AbortError") return;
         setNotes([]);
