@@ -38,8 +38,11 @@ export function LibraryView() {
   const filterQuery = status ? `status=${status}` : favorite ? "favorite=true" : "";
   const pageHref = (target: number) => `/library?${filterQuery}${filterQuery ? "&" : ""}page=${target}`;
   const pageCount = Math.max(1, Math.ceil(data.count / 20));
+  // The current filter is derived from the URL, so the active chip stays correct
+  // after a reload or a shared link.
+  const activeHref = status ? `/library?status=${status}` : favorite ? "/library?favorite=true" : "/library";
   return <>
-    <nav className={styles.filters}>{filters.map(([label, href]) => <Link href={href} key={label}>{label}</Link>)}</nav>
+    <nav className={styles.filters}>{filters.map(([label, href]) => <Link className={href === activeHref ? styles.filterActive : undefined} aria-current={href === activeHref ? "page" : undefined} href={href} key={label}>{label}</Link>)}</nav>
     {data.results.length ? <div className={styles.grid}>{data.results.map((entry) => <div className={styles.entry} key={entry.title.slug}><CatalogCard item={entry.title} /><div className={styles.entryMeta}><span>{statusLabels[entry.status]}</span>{entry.is_favorite && <span>{t("nav.favorites")}</span>}</div></div>)}</div> : <div className="empty-state"><strong>{t("library.empty")}</strong><span>{t("library.emptyText")}</span><Link className={styles.primary} href="/catalog">{t("home.openCatalog")}</Link></div>}
     {pageCount > 1 && <div className={styles.pagination}>{page > 1 && <Link href={pageHref(page - 1)}>{t("common.back")}</Link>}<span>{t("catalog.page", { current: page, total: pageCount })}</span>{page < pageCount && <Link href={pageHref(page + 1)}>{t("common.next")}</Link>}</div>}
   </>;

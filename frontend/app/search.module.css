@@ -1,0 +1,160 @@
+/* Header search field, collapsed trigger and suggestion panel. */
+
+.wrap {
+  position: relative;
+  min-width: 0;
+}
+
+/* Wide viewports show the field inline; the trigger only exists once the header
+   collapses, so it stays hidden here. */
+.trigger { display: none }
+
+.field { min-width: 0 }
+.form { width: 100% }
+.form input::-webkit-search-cancel-button { display: none }
+
+.panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: 0;
+  z-index: 70;
+  display: grid;
+  gap: 4px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .45);
+}
+
+.hint {
+  margin: 0;
+  padding: 10px 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.message {
+  display: grid;
+  gap: 4px;
+  padding: 12px 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.message strong { color: var(--text) }
+
+.group { display: grid; gap: 2px }
+
+.group h3 {
+  margin: 8px 8px 4px;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  transition: background 120ms ease;
+}
+
+.row:hover, .row:focus-visible { background: var(--surface-1) }
+.row:active { background: var(--background) }
+
+.thumb {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  width: 40px;
+  height: 56px;
+  place-items: center;
+  border-radius: 6px;
+  background: linear-gradient(145deg, #2a2260, #12161f 72%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.thumbRound { height: 40px; border-radius: 999px }
+.thumbFlat { height: 40px }
+.thumbImage { object-fit: cover }
+
+.rowBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowBody strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowBody small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.allResults {
+  margin-top: 4px;
+  padding: 11px 8px;
+  border-top: 1px solid var(--border);
+  color: var(--primary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.allResults:hover { color: var(--primary-hover) }
+
+@media (max-width: 1199px) {
+  .wrap { justify-self: end }
+
+  .trigger {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 19px;
+    cursor: pointer;
+    transition: border-color 140ms ease, color 140ms ease;
+  }
+
+  .trigger:hover { border-color: var(--primary); color: var(--text) }
+  .trigger:active { background: var(--surface-1) }
+
+  /* Collapsed by default: the field becomes a sheet under the header once the
+     trigger is pressed, so the input is never a 40px-wide unusable box. */
+  .field { display: none }
+
+  .wrapExpanded .field {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    display: block;
+    width: min(420px, calc(100vw - 2 * var(--gutter)));
+  }
+
+  .wrapExpanded .trigger { border-color: var(--primary); color: var(--text) }
+}
+
+@media (max-width: 767px) {
+  .wrapExpanded .field { width: calc(100vw - 2 * var(--gutter)) }
+  .panel { max-height: min(60vh, 420px) }
+}

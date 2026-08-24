@@ -41,7 +41,7 @@ class EpisodeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Episode
-        fields = ["id", "number", "name", "synopsis", "air_date", "sources"]
+        fields = ["id", "number", "name", "synopsis", "air_date", "air_at", "sources"]
 
 
 class FranchiseSerializer(serializers.ModelSerializer):
@@ -82,9 +82,10 @@ class TitleSerializer(serializers.ModelSerializer):
 class TitleDetailSerializer(TitleSerializer):
     episodes = serializers.SerializerMethodField()
     episodes_count = serializers.SerializerMethodField()
+    characters = serializers.SerializerMethodField()
 
     class Meta(TitleSerializer.Meta):
-        fields = TitleSerializer.Meta.fields + ["episodes", "episodes_count"]
+        fields = TitleSerializer.Meta.fields + ["episodes", "episodes_count", "characters"]
 
     def get_episodes(self, obj):
         from .playback import playback_sources_prefetch
@@ -104,6 +105,9 @@ class TitleDetailSerializer(TitleSerializer):
         count = getattr(obj, "episodes_count", None)
         return count if count is not None else obj.episodes.count()
 
+    def get_characters(self, obj):
+        return TitleCharacterSerializer(obj.character_links.all(), many=True, context=self.context).data
+
 
 class ScheduleTitleSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
@@ -113,7 +117,7 @@ class ScheduleTitleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Title
-        fields = ["name", "slug", "poster_url", "title_type", "status"]
+        fields = ["name", "slug", "poster_url", "title_type", "status", "year"]
 
 
 class ScheduleEpisodeSerializer(serializers.ModelSerializer):
@@ -129,7 +133,7 @@ class ScheduleEpisodeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Episode
-        fields = ["id", "number", "name", "synopsis", "air_date", "title"]
+        fields = ["id", "number", "name", "synopsis", "air_date", "air_at", "title"]
 
 
 class SourceReportSerializer(serializers.ModelSerializer):
@@ -214,6 +218,28 @@ class CharacterSummarySerializer(serializers.ModelSerializer):
         fields = ["name", "slug", "original_name", "description", "image_url", "title_count"]
 
 
+class CastCharacterSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    class Meta:
+        model = Character
+        fields = ["name", "slug", "original_name", "image_url"]
+
+
+class TitleCharacterSerializer(serializers.ModelSerializer):
+    """Cast entry on the title page. Deliberately narrower than the character list
+    payload so the nested list needs no per-character aggregate query."""
+
+    character = CastCharacterSerializer(read_only=True)
+
+    class Meta:
+        model = TitleCharacter
+        fields = ["character", "role", "sort_order"]
+
+
 class CharacterTitleLinkSerializer(serializers.ModelSerializer):
     title = FranchiseTitleSerializer(read_only=True)
 
@@ -247,3 +273,18 @@ class EpisodeDetailSerializer(EpisodeSerializer):
 
     class Meta(EpisodeSerializer.Meta):
         fields = EpisodeSerializer.Meta.fields + ["title"]
+
+
+class ShelfEpisodeSerializer(serializers.ModelSerializer):
+    """Episode reference without sources, for shelves that only need to link to
+    the episode page. Skipping sources keeps playback authorization out of a
+    list response that never offers playback itself."""
+
+    name = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    class Meta:
+        model = Episode
+        fields = ["id", "number", "name", "air_date", "air_at"]

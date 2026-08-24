@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponseRedirect
-from django.db.models import Case, Count, FloatField, Prefetch, Q, Value, When
+from django.db.models import Case, Count, F, FloatField, Prefetch, Q, Value, When
 from django.db.models.functions import Cast
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -40,6 +40,9 @@ class CatalogPagination(PageNumberPagination):
 class TitleListView(ListAPIView):
     serializer_class = TitleSerializer
     pagination_class = CatalogPagination
+    # Ordering stays opt-in: without the parameter the queryset keeps the
+    # model default (name), so existing catalog URLs are unaffected.
+    ordering_options = frozenset({"popular", "recent", "name"})
 
     def get_queryset(self):
         queryset = Title.objects.select_related("franchise").prefetch_related(
@@ -57,7 +60,19 @@ class TitleListView(ListAPIView):
             queryset = queryset.filter(status=status)
         if title_type := params.get("type", "").strip():
             queryset = queryset.filter(title_type=title_type)
-        return queryset.distinct()
+        queryset = queryset.distinct()
+        ordering = params.get("ordering", "").strip()
+        if ordering and ordering not in self.ordering_options:
+            raise ValidationError({"ordering": "Неизвестный порядок сортировки."})
+        if ordering == "popular":
+            # Popularity is derived from real engagement only: library adds and
+            # submitted ratings. Without engagement the fallback stays factual.
+            return queryset.annotate(
+                popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True)
+            ).order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")
+        if ordering == "recent":
+            return queryset.order_by(F("year").desc(nulls_last=True), "name", "slug")
+        return queryset
 
 
 class EpisodePagination(PageNumberPagination):
@@ -74,6 +89,7 @@ class TitleDetailView(RetrieveAPIView):
         "franchise"
     ).prefetch_related(
         "translations", "franchise__translations", "genres", "genres__translations",
+        "character_links__character__translations",
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
@@ -158,10 +174,12 @@ class ScheduleView(ListAPIView):
             raise ValidationError({"date": "Конечная дата не может быть раньше начальной."})
         if (end - start).days > 30:
             raise ValidationError({"date": "Диапазон расписания не может превышать 31 день."})
+        # `air_at` sorts first when it is known so a day keeps its real broadcast
+        # order; episodes with only a confirmed date fall back to title/number.
         return Episode.objects.filter(air_date__range=(start, end)).select_related("title").prefetch_related(
             "translations", "title__translations"
         ).order_by(
-            "air_date", "title__name", "number"
+            "air_date", F("air_at").asc(nulls_last=True), "title__name", "number"
         )
 
 
@@ -221,7 +239,70 @@ class PlaybackResolveView(APIView):
 class FranchiseListView(ListAPIView):
     serializer_class = FranchiseSummarySerializer
     pagination_class = CatalogPagination
-    queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related("translations").order_by("sort_order", "name")
+
+    def get_queryset(self):
+        queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related("translations").order_by(
+            "sort_order", "name"
+        )
+        if query := self.request.query_params.get("q", "").strip():
+            queryset = queryset.filter(
+                Q(name__icontains=query) | Q(translations__name__icontains=query)
+            ).distinct()
+        return queryset
+
+
+class GlobalSearchView(APIView):
+    """Cross-entity search used by the header: titles, characters and franchises
+    in one response so the suggestion panel needs a single request."""
+
+    permission_classes = [AllowAny]
+    group_limit = 5
+    min_query_length = 2
+    max_query_length = 120
+
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
+        if len(query) < self.min_query_length:
+            raise ValidationError({"q": "Запрос должен содержать не менее двух символов."})
+        # Bound the term so an oversized value cannot turn into an expensive
+        # multi-table ILIKE scan.
+        query = query[: self.max_query_length]
+        context = {"request": request}
+        titles = (
+            Title.objects.filter(
+                Q(name__icontains=query)
+                | Q(original_name__icontains=query)
+                | Q(translations__name__icontains=query)
+            )
+            .select_related("franchise")
+            .prefetch_related("translations", "franchise__translations", "genres", "genres__translations")
+            .distinct()
+            .order_by("name", "slug")[: self.group_limit]
+        )
+        characters = (
+            Character.objects.filter(
+                Q(name__icontains=query)
+                | Q(original_name__icontains=query)
+                | Q(translations__name__icontains=query)
+            )
+            .annotate(title_count=Count("titles", distinct=True))
+            .prefetch_related("translations")
+            .distinct()
+            .order_by("name", "slug")[: self.group_limit]
+        )
+        franchises = (
+            Franchise.objects.filter(Q(name__icontains=query) | Q(translations__name__icontains=query))
+            .annotate(title_count=Count("titles", distinct=True))
+            .prefetch_related("translations")
+            .distinct()
+            .order_by("sort_order", "name")[: self.group_limit]
+        )
+        return Response({
+            "query": query,
+            "titles": TitleSerializer(titles, many=True, context=context).data,
+            "characters": CharacterSummarySerializer(characters, many=True, context=context).data,
+            "franchises": FranchiseSummarySerializer(franchises, many=True, context=context).data,
+        })
 
 
 class FranchiseDetailView(RetrieveAPIView):

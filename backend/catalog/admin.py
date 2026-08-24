@@ -65,7 +65,7 @@ class SourceAdminForm(forms.ModelForm):
 
 class EpisodeInline(admin.TabularInline):
     model = Episode
-    fields = ["number", "name", "air_date"]
+    fields = ["number", "name", "air_date", "air_at"]
     ordering = ["number"]
     extra = 0
 
@@ -164,7 +164,7 @@ class TitleAdmin(admin.ModelAdmin):
 
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
-    list_display = ["title", "number", "name", "air_date"]
+    list_display = ["title", "number", "name", "air_date", "air_at"]
     list_filter = ["air_date"]
     search_fields = ["title__name", "name"]
     autocomplete_fields = ["title"]

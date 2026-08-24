@@ -1,1 +1,18 @@
 .panel{display:grid;gap:18px;margin-top:28px;padding:20px;border:1px solid var(--border);border-radius:14px;background:var(--surface-1)}.summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}.summary h2{width:100%;margin:0}.rating{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.rating span{width:100%;color:var(--muted)}.rating button{width:34px;height:34px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text);cursor:pointer}.rating .active{border-color:var(--primary);background:var(--primary);color:#fff}.form{display:grid;gap:10px}.form label{display:grid;gap:7px}.form textarea{min-height:120px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font:inherit}.form button{padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer}.form button[type=submit]{border-color:var(--primary);background:var(--primary);color:#fff}.form .spoiler{display:flex;grid-template-columns:auto 1fr;align-items:center}.review{margin-top:10px;padding:14px;border:1px solid var(--border);border-radius:9px}.review p{white-space:pre-wrap}.review summary{cursor:pointer;color:var(--primary)}
+
+/* Interaction states for the rating scale and review form. */
+.rating button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary) }
+.rating button:active:not(:disabled) { background: var(--surface-2) }
+.rating .active:hover { background: var(--primary-hover); color: #fff }
+.rating button:disabled { color: var(--muted-2); cursor: not-allowed }
+.form textarea:focus { border-color: var(--primary); outline: none }
+.form button:hover:not(:disabled) { border-color: var(--primary) }
+.form button:active:not(:disabled) { background: var(--surface-2) }
+.form button[type=submit]:hover:not(:disabled) { background: var(--primary-hover) }
+.form button:disabled { color: var(--muted-2); background: var(--surface-1); cursor: not-allowed }
+.summary strong { overflow-wrap: anywhere }
+@media (max-width: 640px) {
+  .panel { padding: 16px }
+  .rating button { width: 32px; height: 32px }
+  .form button { flex: 1 }
+}

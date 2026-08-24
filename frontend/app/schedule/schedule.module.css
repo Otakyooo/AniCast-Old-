@@ -1,3 +1,285 @@
-.range{display:flex;gap:8px;margin-bottom:30px}.range a{padding:10px 15px;border:1px solid var(--border);border-radius:9px;background:var(--surface-1)}.range a:hover{border-color:var(--primary)}.days{display:grid;gap:30px}.day{display:grid;gap:14px}.dayHeading{display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border);padding-bottom:10px}.dayHeading h2,.dayHeading p{margin:0}.dayHeading p{color:var(--muted)}.episodes{display:grid;gap:10px}.episode{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:16px;border:1px solid var(--border);border-radius:11px;background:var(--surface-1)}.episode:hover{border-color:var(--primary)}.episode strong{font-size:17px}.episode span,.episode small{color:var(--muted)}.episode small{grid-column:1/-1}.number{align-self:start;padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--primary)!important;font-size:12px}@media(max-width:640px){.episode{grid-template-columns:1fr}.number{justify-self:start}.dayHeading{align-items:flex-start;flex-direction:column;gap:4px}}
+/* Schedule route styling: week navigation, weekday tabs and episode rows. */
 
-.rangeActive{border-color:var(--primary);background:rgba(124,92,255,.16);color:var(--text)}
+.board {
+  display: grid;
+  gap: 18px;
+}
+
+.weekNav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.weekLink {
+  min-height: 40px;
+  padding: 10px 15px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-1);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.weekLink:hover { border-color: var(--primary) }
+.weekLink:active { background: var(--surface-2) }
+
+.weekRange {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dayTabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dayTab {
+  display: grid;
+  gap: 3px;
+  padding: 11px 6px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-1);
+  color: var(--muted);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.dayTab:hover { border-color: var(--primary); color: var(--text) }
+.dayTab:active { background: var(--surface-2) }
+
+.dayTabActive {
+  border-color: var(--primary);
+  background: rgba(124, 92, 255, .16);
+  color: var(--text);
+}
+
+.dayTabToday .dayTabDate { color: var(--primary) }
+
+.dayTabName {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.dayTabDate {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dayTabCount {
+  color: var(--muted-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dayTabActive .dayTabCount { color: var(--muted) }
+
+.dayHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.dayHeading h2 {
+  margin: 0;
+  font-size: 21px;
+  overflow-wrap: anywhere;
+}
+
+.dayMeta {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dayHeadingActions { display: flex; gap: 8px }
+
+.todayButton {
+  min-height: 38px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.todayButton:hover { border-color: var(--primary) }
+.todayButton:active { background: var(--surface-2) }
+
+.timezoneNote {
+  margin: 0;
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+.episodes {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.episode {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.episode:hover { border-color: var(--primary); transform: translateY(-1px) }
+.episode:active { transform: none }
+
+.poster {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  width: 56px;
+  height: 78px;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #2a2260, #12161f 72%);
+}
+
+.posterImage { object-fit: cover }
+
+.posterFallback {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.episodeBody {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.episodeTitle {
+  /* Long imported titles must never push the time column out of the row. */
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.episodeMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.number {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--primary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.episodeName {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.episodeSide {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  text-align: right;
+}
+
+.time {
+  color: var(--text);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Placeholder shown for the first paint, before the browser timezone is known. */
+.timePending {
+  color: var(--muted-2);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.statusReleased { border-color: rgba(164, 172, 185, .35); color: var(--muted) }
+.statusAiring { border-color: rgba(50, 196, 141, .5); background: rgba(50, 196, 141, .14); color: var(--success) }
+.statusSoon { border-color: rgba(242, 184, 75, .5); background: rgba(242, 184, 75, .12); color: var(--warning) }
+.statusUpcoming { border-color: rgba(124, 92, 255, .45); color: var(--primary) }
+.statusUnknown { border-color: var(--border); color: var(--muted-2) }
+
+.emptyWeek { display: grid; gap: 16px }
+
+@media (max-width: 900px) {
+  .dayTabs { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px }
+  .dayTab { padding: 9px 3px }
+  .dayTabName { font-size: 10px }
+  .dayTabDate { font-size: 17px }
+}
+
+@media (max-width: 640px) {
+  .weekNav { justify-content: space-between }
+  .weekRange { order: 3; width: 100%; text-align: center }
+  .weekLink { flex: 1; text-align: center }
+  .episode {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  .poster { width: 48px; height: 68px }
+  .episodeSide {
+    grid-column: 1 / -1;
+    grid-auto-flow: column;
+    justify-items: start;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+  .time { font-size: 14px }
+  .timePending { font-size: 14px }
+  .dayHeading { align-items: flex-start; flex-direction: column }
+  .dayHeadingActions { width: 100% }
+  .todayButton { flex: 1 }
+}

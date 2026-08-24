@@ -1,5 +1,8 @@
+from datetime import datetime, time, timedelta
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from catalog.models import (
     Episode,
@@ -72,6 +75,32 @@ class Command(BaseCommand):
         EpisodeTranslation.objects.update_or_create(
             episode=episode, language="ru", defaults={"name": "Первый эпизод", "synopsis": "История начинается."}
         )
+        # Upcoming episodes exercise the schedule statuses locally: one released,
+        # one within the hour and one on a later day, all with an explicit moment.
+        today = timezone.localdate()
+        current_zone = timezone.get_current_timezone()
+        upcoming = [
+            (2, "Second Episode", "Второй эпизод", timezone.now() - timedelta(hours=3)),
+            (3, "Third Episode", "Третий эпизод", timezone.now() + timedelta(minutes=25)),
+            (
+                4,
+                "Fourth Episode",
+                "Четвёртый эпизод",
+                timezone.make_aware(
+                    datetime.combine(today + timedelta(days=2), time(21, 30)), current_zone
+                ),
+            ),
+        ]
+        for number, english_name, russian_name, moment in upcoming:
+            extra, _ = Episode.objects.update_or_create(
+                title=title, number=number, defaults={"name": english_name, "air_at": moment}
+            )
+            EpisodeTranslation.objects.update_or_create(
+                episode=extra, language="en", defaults={"name": english_name}
+            )
+            EpisodeTranslation.objects.update_or_create(
+                episode=extra, language="ru", defaults={"name": russian_name}
+            )
         provider, _ = Provider.objects.update_or_create(
             slug="demo-provider",
             defaults={"name": "Demo Provider", "allowed_hosts": ["example.invalid"], "is_enabled": False},

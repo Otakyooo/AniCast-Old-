@@ -18,3 +18,11 @@
 .accountState { display:grid; gap:16px }
 .accountState h2,.accountState p { margin:0 }
 .divider{display:flex;align-items:center;gap:12px;margin:24px 0;color:var(--muted);font-size:12px}.divider:before,.divider:after{content:"";height:1px;flex:1;background:var(--border)}.telegramBlock{display:grid;justify-items:center;gap:10px;color:var(--muted);font-size:13px}.telegramUnavailable{margin:0;text-align:center;color:var(--muted);font-size:13px}
+
+/* Interaction states for auth buttons. */
+.submit:hover:not(:disabled) { background:var(--primary-hover) }
+.submit:active:not(:disabled) { transform:scale(.99) }
+.secondary:hover:not(:disabled) { border-color:var(--primary) }
+.secondary:active:not(:disabled) { background:var(--surface-1) }
+.submit:disabled,.secondary:disabled { border-color:var(--border); background:var(--surface-1); color:var(--muted-2)!important; cursor:not-allowed }
+.accountState h2 { overflow-wrap:anywhere }

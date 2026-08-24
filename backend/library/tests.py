@@ -121,6 +121,58 @@ def test_history_is_private_and_ordered_by_last_open(users, titles):
 
 
 @pytest.mark.django_db
+def test_continue_watching_requires_auth_and_is_empty_without_progress(users, titles):
+    Episode.objects.create(title=titles[0], number=1)
+    assert APIClient().get("/api/v1/continue-watching/").status_code in {401, 403}
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/continue-watching/")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_continue_watching_resumes_after_the_watched_episode(users, titles):
+    for number in (1, 2, 3):
+        Episode.objects.create(title=titles[0], number=number)
+    Episode.objects.create(title=titles[1], number=1)
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+    client.put("/api/v1/episodes/first/1/progress/", {"is_watched": True}, format="json")
+    client.post("/api/v1/episodes/second/1/progress/")
+
+    entries = client.get("/api/v1/continue-watching/").json()
+    assert [entry["title"]["slug"] for entry in entries] == ["second", "first"]
+    resumed = next(entry for entry in entries if entry["title"]["slug"] == "first")
+    assert resumed["last_episode"]["number"] == 1
+    assert resumed["is_watched"] is True
+    # A watched episode resumes on the next one; an opened-but-unwatched episode
+    # resumes on itself, so nothing is skipped.
+    assert resumed["next_episode"]["number"] == 2
+    opened = next(entry for entry in entries if entry["title"]["slug"] == "second")
+    assert opened["next_episode"]["number"] == 1
+
+    client.put("/api/v1/episodes/first/3/progress/", {"is_watched": True}, format="json")
+    finished = next(
+        entry for entry in client.get("/api/v1/continue-watching/").json()
+        if entry["title"]["slug"] == "first"
+    )
+    assert finished["next_episode"] is None
+
+
+@pytest.mark.django_db
+def test_continue_watching_is_private(users, titles):
+    Episode.objects.create(title=titles[0], number=1)
+    other = APIClient()
+    other.force_login(users[1])
+    other.post("/api/v1/episodes/first/1/progress/")
+    client = APIClient()
+    client.force_login(users[0])
+    assert client.get("/api/v1/continue-watching/").json() == []
+
+
+@pytest.mark.django_db
 def test_episode_progress_requires_auth_and_csrf(users, titles):
     Episode.objects.create(title=titles[0], number=1)
     assert APIClient().post("/api/v1/episodes/first/1/progress/").status_code in {401, 403}

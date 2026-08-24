@@ -118,6 +118,28 @@ def test_import_catalog_dry_run_rolls_back_and_apply_persists(tmp_path):
 
 
 @pytest.mark.django_db
+def test_import_catalog_reads_air_at_and_rejects_naive_or_invalid_values(tmp_path):
+    payload = import_payload()
+    payload["titles"][0]["episodes"][0]["air_at"] = "2026-08-21T18:30:00+03:00"
+    path = tmp_path / "air-at.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    call_command("import_catalog", path, apply=True)
+    episode = Title.objects.get(slug="import-title").episodes.get(number=1)
+    assert episode.air_at is not None
+    assert episode.air_date is not None
+
+    payload["titles"][0]["episodes"][0]["air_at"] = "2026-08-21T18:30:00"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(CommandError, match="часового пояса"):
+        call_command("import_catalog", path, apply=True)
+
+    payload["titles"][0]["episodes"][0]["air_at"] = "not-a-datetime"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(CommandError, match="неверная air_at"):
+        call_command("import_catalog", path, apply=True)
+
+
+@pytest.mark.django_db
 def test_import_catalog_rejects_http_source(tmp_path):
     payload = import_payload()
     payload["titles"][0]["episodes"][0]["sources"][0]["url"] = "http://127.0.0.1/private"

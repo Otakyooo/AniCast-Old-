@@ -12,7 +12,7 @@ export default async function CharactersPage({ searchParams }: { searchParams: P
   const [data, { t }] = await Promise.all([getCharacters(query).catch((): CharacterResponse => emptyPage()), getI18n()]);
 
   return <PageShell active="characters" heading={{ eyebrow: t("character.title"), title: t("character.title"), subtitle: t("character.subtitle") }}>
-    <form className={styles.searchRow} action="/characters">
+    <form className={styles.searchRow} action="/characters" role="search">
       <input name="q" defaultValue={query} aria-label={t("character.search")} placeholder={t("character.search")} />
       <button type="submit">{t("common.search")}</button>
     </form>
@@ -32,7 +32,10 @@ export default async function CharactersPage({ searchParams }: { searchParams: P
         ))}
       </div>
     ) : (
-      <div className="empty-state"><strong>{t("character.empty")}</strong></div>
+      <div className="empty-state" role="status">
+        <strong>{query ? t("catalog.notFound") : t("character.empty")}</strong>
+        {query && <Link className="secondary" href="/characters">{t("catalog.resetFilters")}</Link>}
+      </div>
     )}
   </PageShell>;
 }

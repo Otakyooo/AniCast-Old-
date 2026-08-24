@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import IntegrityError, transaction
-from django.db.models import Case, F, FloatField, Sum, Value, When
+from django.db.models import Case, F, FloatField, Min, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 
 from catalog.models import Episode, Title
 from catalog.playback import playback_sources_prefetch
+from catalog.serializers import ShelfEpisodeSerializer, TitleSerializer
 from community.models import TitleRating
 
 from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
@@ -187,6 +188,80 @@ class EpisodeProgressView(APIView):
             EpisodeProgressSerializer(progress).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+
+
+class ContinueWatchingView(APIView):
+    """Resume shelf for the home page.
+
+    Built only from recorded progress: the newest opened episode per title plus
+    the next existing episode after the highest episode the viewer actually
+    marked as watched. Nothing is inferred for titles without progress.
+    """
+
+    permission_classes = [IsAuthenticated]
+    title_limit = 12
+
+    def get(self, request):
+        progress_entries = list(
+            EpisodeProgress.objects.filter(user=request.user)
+            .select_related("episode", "episode__title", "episode__title__franchise")
+            .prefetch_related(
+                "episode__translations",
+                "episode__title__translations",
+                "episode__title__franchise__translations",
+                "episode__title__genres",
+                "episode__title__genres__translations",
+            )
+            .order_by("-last_opened_at", "-id")[: self.title_limit * 20]
+        )
+        latest_by_title: dict[int, EpisodeProgress] = {}
+        watched_numbers: dict[int, int] = {}
+        for entry in progress_entries:
+            title_id = entry.episode.title_id
+            if title_id not in latest_by_title and len(latest_by_title) < self.title_limit:
+                latest_by_title[title_id] = entry
+            if title_id in latest_by_title and entry.is_watched:
+                watched_numbers[title_id] = max(watched_numbers.get(title_id, 0), entry.episode.number)
+        if not latest_by_title:
+            return Response([])
+        # An opened-but-unwatched episode resumes on itself; a watched one resumes
+        # on the next existing episode, so nothing is skipped or invented.
+        resume_after = {
+            title_id: watched_numbers.get(title_id, entry.episode.number - 1)
+            for title_id, entry in latest_by_title.items()
+        }
+        candidate_filter = Q()
+        for title_id, threshold in resume_after.items():
+            candidate_filter |= Q(title_id=title_id, number__gt=threshold)
+        # Two bounded queries instead of loading every episode of a long series.
+        next_numbers = (
+            Episode.objects.filter(candidate_filter)
+            .values("title_id")
+            .annotate(next_number=Min("number"))
+        )
+        next_filter = Q()
+        for row in next_numbers:
+            next_filter |= Q(title_id=row["title_id"], number=row["next_number"])
+        next_by_title: dict[int, Episode] = {}
+        if next_filter:
+            for episode in Episode.objects.filter(next_filter).prefetch_related("translations"):
+                next_by_title[episode.title_id] = episode
+        context = {"request": request}
+        ordered = sorted(latest_by_title.values(), key=lambda entry: entry.last_opened_at, reverse=True)
+        return Response([
+            {
+                "title": TitleSerializer(entry.episode.title, context=context).data,
+                "last_episode": ShelfEpisodeSerializer(entry.episode, context=context).data,
+                "next_episode": (
+                    ShelfEpisodeSerializer(next_by_title[entry.episode.title_id], context=context).data
+                    if entry.episode.title_id in next_by_title
+                    else None
+                ),
+                "is_watched": entry.is_watched,
+                "last_opened_at": entry.last_opened_at,
+            }
+            for entry in ordered
+        ])
 
 
 class TitleNoteListView(ListAPIView):

@@ -18,6 +18,7 @@ function catalogHref(filters: CatalogFilters, page: number) {
   if (filters.q) query.set("q", filters.q);
   if (filters.type) query.set("type", filters.type);
   if (filters.status) query.set("status", filters.status);
+  if (filters.genre) query.set("genre", filters.genre);
   if (page > 1) query.set("page", String(page));
   const suffix = query.toString();
   return suffix ? `/catalog?${suffix}` : "/catalog";
@@ -30,16 +31,20 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     q: firstValue(params.q).trim(),
     type: firstValue(params.type),
     status: firstValue(params.status),
+    genre: firstValue(params.genre),
     page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   };
   const catalog: CatalogResponse = await getCatalog(filters).catch(() => emptyPage());
   const currentPage = filters.page ?? 1;
   const pageCount = Math.max(1, Math.ceil(catalog.count / 20));
-  const hasFilters = Boolean(filters.q || filters.type || filters.status);
+  const hasFilters = Boolean(filters.q || filters.type || filters.status || filters.genre);
   const { t } = await getI18n();
 
   return <PageShell active="catalog" heading={{ eyebrow: t("catalog.eyebrow"), title: t("catalog.title"), subtitle: t("catalog.subtitle") }}>
     <form className={styles.filters} action="/catalog">
+      {/* The genre filter is set by links from title pages, so carry it through
+          the form instead of silently dropping it on submit. */}
+      {filters.genre && <input type="hidden" name="genre" value={filters.genre} />}
       <label className={styles.field}>
         <span>{t("catalog.searchLabel")}</span>
         <input name="q" defaultValue={filters.q} placeholder={t("catalog.searchPlaceholder")} />

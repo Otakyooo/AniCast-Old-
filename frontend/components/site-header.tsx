@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { getI18n } from "../i18n/server";
-import { AccountLink } from "./account-link";
+import { GlobalSearch } from "./global-search";
+import { UserMenu } from "./user-menu";
 
 export type NavSection =
   | "home" | "catalog" | "schedule" | "franchises" | "characters"
@@ -10,6 +12,9 @@ const OVERFLOW_SECTIONS: NavSection[] = ["media", "community", "library", "colle
 
 export async function SiteHeader({ active }: { active: NavSection }) {
   const { t } = await getI18n();
+  // Presence of the session cookie decides the first paint only. The client
+  // component confirms the real session, so a stale cookie cannot grant access.
+  const hasSessionCookie = Boolean((await cookies()).get("sessionid")?.value);
   const linkClass = (section: NavSection) => section === active ? "active" : undefined;
 
   return <>
@@ -36,16 +41,9 @@ export async function SiteHeader({ active }: { active: NavSection }) {
             </div>
           </details>
         </nav>
-        <form className="global-search" action="/catalog">
-          <span aria-hidden="true">⌕</span>
-          <input name="q" aria-label={t("catalog.searchLabel")} placeholder={t("catalog.searchPlaceholder")} />
-          <kbd>⌘K</kbd>
-        </form>
+        <GlobalSearch />
         <div className="global-actions">
-          <Link className="notification-link" href="/account" aria-label={t("nav.notifications")}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
-          </Link>
-          <AccountLink />
+          <UserMenu initialSignedIn={hasSessionCookie} />
         </div>
       </div>
     </header>
@@ -53,8 +51,8 @@ export async function SiteHeader({ active }: { active: NavSection }) {
       <Link className={linkClass("home")} href="/"><span aria-hidden="true">⌂</span>{t("nav.home")}</Link>
       <Link className={linkClass("catalog")} href="/catalog"><span aria-hidden="true">▦</span>{t("nav.catalog")}</Link>
       <Link className={linkClass("schedule")} href="/schedule"><span aria-hidden="true">◫</span>{t("nav.schedule")}</Link>
-      <Link href="/catalog"><span aria-hidden="true">⌕</span>{t("nav.search")}</Link>
-      <Link className={linkClass("library")} href="/account"><span aria-hidden="true">○</span>{t("nav.profile")}</Link>
+      <Link className={linkClass("library")} href="/library"><span aria-hidden="true">▤</span>{t("nav.libraryShort")}</Link>
+      <Link href="/account"><span aria-hidden="true">○</span>{t("nav.profile")}</Link>
     </nav>
   </>;
 }

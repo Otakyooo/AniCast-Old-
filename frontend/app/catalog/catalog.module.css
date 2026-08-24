@@ -96,3 +96,10 @@
     flex-wrap: wrap;
   }
 }
+
+/* Interaction states for the catalog filter form. */
+.field input:focus, .field select:focus { border-color: var(--primary); outline: none }
+.field select:hover { border-color: var(--primary) }
+.submit:hover { background: var(--primary-hover) }
+.submit:active { transform: scale(.985) }
+.pageLink:active, .reset:active { background: var(--surface-2) }

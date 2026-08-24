@@ -1,19 +1,35 @@
 import Link from "next/link";
-import { LibraryControl } from "../../../components/library-control";
-import { PageShell } from "../../../components/page-shell";
 import Image from "next/image";
+import { PageShell } from "../../../components/page-shell";
+import { TitleActions } from "../../../components/title-actions";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
-import { apiErrorStatus, getCatalogItemEpisodes, getSimilarTitles, type Episode, type Source } from "../../../lib/api";
+import {
+  apiErrorStatus,
+  getCatalogItemEpisodes,
+  getFirstEpisodeNumber,
+  getSimilarTitles,
+  type Episode,
+  type Source,
+  type TitleCastEntry,
+} from "../../../lib/api";
 import { getI18n } from "../../../i18n/server";
+import styles from "../title.module.css";
 
 export const dynamic = "force-dynamic";
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
+
+const TABS = ["overview", "episodes", "characters", "community", "notes"] as const;
+type Tab = typeof TABS[number];
+
+function isTab(value: string | undefined): value is Tab {
+  return TABS.includes((value ?? "") as Tab);
+}
 
 function SourceStatus({ source, t }: { source: Source; t: Translator }) {
   return (
@@ -36,7 +52,7 @@ function EpisodeCard({ episode, slug, t }: { episode: Episode; slug: string; t: 
       <div className="episode-heading">
         <span className="episode-number">{t("episode.number", { number: episode.number })}</span>
         <strong>{episode.name || t("episode.untitled")}</strong>
-        {episode.air_date && <time dateTime={episode.air_date}>{episode.air_date}</time>}
+        {episode.air_date && <time dateTime={episode.air_at ?? episode.air_date}>{episode.air_date}</time>}
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
       <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
@@ -54,83 +70,231 @@ function EpisodeCard({ episode, slug, t }: { episode: Episode; slug: string; t: 
   );
 }
 
+function CastCard({ entry, t }: { entry: TitleCastEntry; t: Translator }) {
+  const { character } = entry;
+  return (
+    <Link className={styles.castCard} href={`/characters/${character.slug}`}>
+      <span className={styles.castAvatar}>
+        {character.image_url ? (
+          <Image
+            className={styles.castImage}
+            src={character.image_url}
+            alt=""
+            fill
+            sizes="96px"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <span aria-hidden="true">{character.name.slice(0, 1).toUpperCase()}</span>
+        )}
+      </span>
+      <span className={styles.castBody}>
+        <strong>{character.name}</strong>
+        <small>{t(`role.${entry.role}`)}</small>
+      </span>
+    </Link>
+  );
+}
+
 export default async function CatalogDetailPage({
   params,
   searchParams,
-}: { params: Promise<{ slug: string }>; searchParams: Promise<{ episodes_page?: string }> }) {
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ episodes_page?: string; tab?: string }>;
+}) {
   const { slug } = await params;
-  const rawPage = Number((await searchParams).episodes_page);
-  const episodesPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const query = await searchParams;
+  const rawPage = Number(query.episodes_page);
+  const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  // An existing `?episodes_page=` link must still land on the episode list, so
+  // pagination implies the episodes tab when no explicit tab is requested.
+  const tab: Tab = isTab(query.tab) ? query.tab : query.episodes_page ? "episodes" : "overview";
+
   let item;
+  let episodesPage = requestedPage;
   try {
-    item = await getCatalogItemEpisodes(slug, episodesPage);
+    item = await getCatalogItemEpisodes(slug, requestedPage);
   } catch (error) {
-    if (apiErrorStatus(error) === 404) return <NotFoundState />;
-    return <ApiUnavailableState />;
+    if (apiErrorStatus(error) !== 404) return <ApiUnavailableState />;
+    // The API answers 404 both for a missing title and for an episode page past
+    // the end. Retry the first page so an existing title still renders instead
+    // of claiming the title does not exist.
+    if (requestedPage === 1) return <NotFoundState />;
+    try {
+      item = await getCatalogItemEpisodes(slug, 1);
+      episodesPage = 1;
+    } catch (retryError) {
+      if (apiErrorStatus(retryError) === 404) return <NotFoundState />;
+      return <ApiUnavailableState />;
+    }
   }
 
   const episodes = item.episodes ?? [];
   const episodesCount = item.episodes_count ?? episodes.length;
   const pageCount = Math.max(1, Math.ceil(episodesCount / 20));
   const genres = item.genres ?? [];
-  const similar = await getSimilarTitles(slug);
+  const cast = item.characters ?? [];
+  const [similar, firstEpisode] = await Promise.all([
+    tab === "overview" ? getSimilarTitles(slug) : Promise.resolve([]),
+    // The hero action must point at the real first episode regardless of which
+    // episode page the viewer is on, so it is resolved independently.
+    episodesPage === 1 && episodes.length
+      ? Promise.resolve(Math.min(...episodes.map((episode) => episode.number)))
+      : getFirstEpisodeNumber(slug),
+  ]);
   const { t } = await getI18n();
+
+  const tabHref = (value: Tab) => value === "overview" ? `/titles/${item.slug}` : `/titles/${item.slug}?tab=${value}`;
+  const tabLabel: Record<Tab, string> = {
+    overview: t("title.tabOverview"),
+    episodes: t("title.tabEpisodes"),
+    characters: t("title.tabCharacters"),
+    community: t("title.tabCommunity"),
+    notes: t("title.tabNotes"),
+  };
 
   return (
     <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
-      <article className="detail">
-        <div className="detail-poster poster-wrap" aria-label={t("title.cover", { name: item.name })}>
+      <article className={styles.hero}>
+        <div className={styles.heroPoster}>
           {item.poster_url ? (
             <Image
-              className="poster-image"
+              className={styles.heroImage}
               src={item.poster_url}
               alt={t("title.cover", { name: item.name })}
               fill
-              sizes="(max-width: 721px) 100vw, 330px"
+              sizes="(max-width: 767px) 45vw, 280px"
               referrerPolicy="no-referrer"
+              priority
             />
           ) : (
-            <div className="poster-placeholder" style={{ "--poster-accent": "#6d5dfb" } as React.CSSProperties} aria-hidden="true">
-              <span>{item.name.slice(0, 1).toUpperCase()}</span>
+            <span className={styles.heroPosterFallback} aria-hidden="true">
+              {item.name.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div className={styles.heroCopy}>
+          <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
+          <h1 className={styles.heroTitle}>{item.name}</h1>
+          {item.original_name && <p className={styles.heroOriginal}>{item.original_name}</p>}
+          <div className={styles.heroMeta}>
+            <span className={item.status === "ongoing" ? styles.metaOngoing : undefined}>
+              {item.status ? t(`status.${item.status}`) : t("status.unknown")}
+            </span>
+            <span>{item.year ?? t("title.yearUnknown")}</span>
+            <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
+          </div>
+          {genres.length > 0 && (
+            <div className={styles.heroGenres}>
+              {genres.map((genre) => (
+                <Link href={`/catalog?genre=${encodeURIComponent(genre.slug)}`} key={genre.slug}>{genre.name}</Link>
+              ))}
             </div>
           )}
         </div>
-        <div className="detail-copy">
-          <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
-          <h1>{item.name}</h1>
-          {item.original_name && <p className="original-title">{item.original_name}</p>}
-          <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
-          <div className="detail-meta">
-            <span>{item.year ?? t("title.yearUnknown")}</span>
-            <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
-            <span>{item.status ? t(`status.${item.status}`) : t("status.unknown")}</span>
-          </div>
-          {genres.length > 0 && <div className="tag-list">{genres.map((genre) => <span key={genre.slug}>{genre.name}</span>)}</div>}
-          <LibraryControl slug={item.slug} />
-          <NotificationSubscription slug={item.slug} />
-          <TitleNoteControl slug={item.slug} />
-          <TitleCollectionControl titleSlug={item.slug} />
-          <CommunityPanel slug={item.slug} />
-          {item.franchise && <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}><p className="eyebrow">{t("franchise.label")}</p><h2>{item.franchise.name}</h2>{item.franchise.description && <p className="muted">{item.franchise.description}</p>}</Link>}
-        </div>
+        <TitleActions slug={item.slug} firstEpisode={firstEpisode} />
       </article>
-      <section className="episodes-section" aria-labelledby="episodes-heading">
-        <div className="section-heading"><p className="eyebrow">{t("title.watch")}</p><h2 id="episodes-heading">{t("title.episodes")}</h2></div>
-        {episodes.length ? <ol className="episode-list">{episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}</ol> : <div className="empty-state"><strong>{t("title.noEpisodes")}</strong><span>{t("title.noEpisodesText")}</span></div>}
-        {pageCount > 1 && (
-          <nav className="episode-pagination" aria-label={t("title.episodes")}>
-            {episodesPage > 1 && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage - 1}`}>{t("common.back")}</Link>}
-            <span>{t("catalog.page", { current: episodesPage, total: pageCount })}</span>
-            {episodesPage < pageCount && <Link className="secondary" href={`/titles/${item.slug}?episodes_page=${episodesPage + 1}`}>{t("common.next")}</Link>}
-          </nav>
-        )}
-      </section>
-      {similar.length > 0 && (
-        <section className="episodes-section" aria-labelledby="similar-heading">
-          <div className="section-heading"><p className="eyebrow">{t("similar.eyebrow")}</p><h2 id="similar-heading">{t("similar.title")}</h2></div>
-          <div className="catalog-grid">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
-        </section>
+
+      <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
+        {TABS.map((value) => (
+          <Link
+            className={`${styles.tab} ${value === tab ? styles.tabActive : ""}`}
+            href={tabHref(value)}
+            aria-current={value === tab ? "page" : undefined}
+            key={value}
+          >
+            {tabLabel[value]}
+            {value === "episodes" && episodesCount > 0 && <span className={styles.tabCount}>{episodesCount}</span>}
+            {value === "characters" && cast.length > 0 && <span className={styles.tabCount}>{cast.length}</span>}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "overview" && (
+        <div className={styles.panel}>
+          <section className={styles.block}>
+            <h2>{t("title.description")}</h2>
+            <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
+          </section>
+          <section className={styles.block}>
+            <h2>{t("title.details")}</h2>
+            <dl className={styles.detailsList}>
+              <div><dt>{t("catalog.format")}</dt><dd>{t(`type.${item.title_type ?? "anime"}`)}</dd></div>
+              <div><dt>{t("catalog.status")}</dt><dd>{item.status ? t(`status.${item.status}`) : t("status.unknown")}</dd></div>
+              <div><dt>{t("title.episodes")}</dt><dd>{episodesCount || t("title.episodesUnknown")}</dd></div>
+              <div><dt>{t("title.genres")}</dt><dd>{genres.length ? genres.map((genre) => genre.name).join(", ") : t("title.noGenres")}</dd></div>
+            </dl>
+          </section>
+          {item.franchise && (
+            <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}>
+              <p className="eyebrow">{t("franchise.label")}</p>
+              <h2>{item.franchise.name}</h2>
+              {item.franchise.description && <p className="muted">{item.franchise.description}</p>}
+            </Link>
+          )}
+          <NotificationSubscription slug={item.slug} />
+          <TitleCollectionControl titleSlug={item.slug} />
+          {similar.length > 0 && (
+            <section className={styles.block}>
+              <div className="section-heading">
+                <h2>{t("similar.title")}</h2>
+                <Link href="/catalog">{t("home.allCatalog")}</Link>
+              </div>
+              <div className="catalog-grid">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
+            </section>
+          )}
+        </div>
       )}
+
+      {tab === "episodes" && (
+        <div className={styles.panel}>
+          {episodes.length ? (
+            <ol className="episode-list">
+              {episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}
+            </ol>
+          ) : (
+            <div className="empty-state" role="status">
+              <strong>{t("title.noEpisodes")}</strong>
+              <span>{t("title.noEpisodesText")}</span>
+            </div>
+          )}
+          {pageCount > 1 && (
+            <nav className="episode-pagination" aria-label={t("title.episodes")}>
+              {episodesPage > 1 && (
+                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${episodesPage - 1}`}>
+                  {t("common.back")}
+                </Link>
+              )}
+              <span>{t("catalog.page", { current: episodesPage, total: pageCount })}</span>
+              {episodesPage < pageCount && (
+                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${episodesPage + 1}`}>
+                  {t("common.next")}
+                </Link>
+              )}
+            </nav>
+          )}
+        </div>
+      )}
+
+      {tab === "characters" && (
+        <div className={styles.panel}>
+          {cast.length ? (
+            <div className={styles.castGrid}>
+              {cast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
+            </div>
+          ) : (
+            <div className="empty-state" role="status">
+              <strong>{t("title.noCast")}</strong>
+              <Link className="secondary" href="/characters">{t("character.title")}</Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "community" && <div className={styles.panel}><CommunityPanel slug={item.slug} /></div>}
+
+      {tab === "notes" && <div className={styles.panel}><TitleNoteControl slug={item.slug} /></div>}
     </PageShell>
   );
 }

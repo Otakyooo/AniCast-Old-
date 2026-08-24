@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
+from django.utils import timezone
 from django.utils.text import slugify
 
 LANGUAGE_CHOICES = [
@@ -122,15 +123,32 @@ class Episode(models.Model):
     name = models.CharField(max_length=240, blank=True)
     synopsis = models.TextField(blank=True)
     air_date = models.DateField(null=True, blank=True)
+    # Confirmed broadcast moment. `air_date` stays the source of truth for the
+    # calendar day, `air_at` is only set when the exact time is known, so the
+    # schedule never invents a release time it cannot verify.
+    air_at = models.DateTimeField("Точное время выхода", null=True, blank=True)
 
     class Meta:
         ordering = ["number"]
         constraints = [models.UniqueConstraint(fields=["title", "number"], name="unique_title_episode_number")]
+        indexes = [models.Index(fields=["air_date"]), models.Index(fields=["air_at"])]
         verbose_name = "Эпизод"
         verbose_name_plural = "Эпизоды"
 
     def __str__(self) -> str:
         return f"{self.title.name} #{self.number}"
+
+    def save(self, *args, **kwargs):
+        # A confirmed exact moment always implies its calendar day, so the
+        # schedule range filter and the day grouping stay consistent.
+        if self.air_at is not None:
+            self.air_date = timezone.localtime(self.air_at).date()
+            update_fields = kwargs.get("update_fields")
+            # A partial save of `air_at` alone would otherwise leave a stale
+            # `air_date` in the database.
+            if update_fields is not None and "air_at" in update_fields and "air_date" not in update_fields:
+                kwargs["update_fields"] = [*update_fields, "air_date"]
+        super().save(*args, **kwargs)
 
 
 class EpisodeTranslation(models.Model):

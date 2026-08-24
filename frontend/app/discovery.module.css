@@ -31,3 +31,27 @@
   color: #fff;
   cursor: pointer;
 }
+
+/* Interaction states and long-text handling for discovery grids. */
+.card:active { background: var(--surface-2) }
+.card h2, .copy h1 { overflow-wrap: anywhere }
+.card p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.filters a:hover { border-color: var(--primary) }
+.filters a:active { background: var(--surface-2) }
+.mediaCard:hover { border-color: var(--primary) }
+.mediaCard:active { background: var(--surface-2) }
+.mediaCard strong { overflow-wrap: anywhere }
+.searchRow input:focus { border-color: var(--primary); outline: none }
+.searchRow button:hover { background: var(--primary-hover) }
+.searchRow button:active { transform: scale(.985) }
+@media (max-width: 640px) {
+  .filters { flex-wrap: wrap }
+  .filters a { flex: 1; text-align: center }
+  .searchRow input { max-width: none }
+}
+.filterActive { border-color: var(--primary); background: rgba(124, 92, 255, .16) }

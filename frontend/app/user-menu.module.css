@@ -1,0 +1,114 @@
+/* Header identity area: guest actions, avatar button and its dropdown. */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.register {
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  border-radius: 8px;
+}
+
+.register:hover { color: var(--text) }
+.register:active { background: var(--surface-1) }
+
+.login:hover { border-color: var(--primary) }
+.login:active { background: var(--surface-1) }
+
+.menuWrap { position: relative }
+
+.avatar,
+.avatarPlaceholder {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: linear-gradient(140deg, rgba(124, 92, 255, .38), var(--surface-2));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.avatarPlaceholder {
+  background: var(--surface-1);
+  cursor: default;
+}
+
+.avatar:hover { border-color: var(--primary) }
+.avatar:active { transform: scale(.96) }
+
+.menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 70;
+  display: grid;
+  min-width: 232px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .45);
+}
+
+.identity {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+  min-width: 0;
+}
+
+.identity strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item,
+.logout {
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.item:hover, .logout:hover { background: var(--surface-1); color: var(--text) }
+.item:active, .logout:active { background: var(--background) }
+.logout:disabled { color: var(--muted-2); background: transparent; cursor: not-allowed }
+
+.logout {
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  color: var(--danger);
+}
+
+@media (max-width: 767px) {
+  .actions { gap: 6px }
+  .register { display: none }
+}

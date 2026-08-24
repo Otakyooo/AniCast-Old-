@@ -6,7 +6,7 @@
 
 ```bash
 cd backend && python3 -m pytest
-cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
+cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
 
 docker compose -f infra/mainserver/compose.yml config
 # Для VPS:

@@ -27,11 +27,21 @@ export interface Episode {
   name: string;
   synopsis?: string;
   air_date?: string | null;
+  /** Confirmed broadcast moment (ISO 8601 with offset) or null when only the day is known. */
+  air_at?: string | null;
   sources?: Source[];
 }
 
 export interface EpisodeDetail extends Episode {
   title: Pick<CatalogItem, "name" | "slug" | "title_type" | "status"> & { poster_url?: string };
+}
+
+export type CharacterRole = "protagonist" | "supporting" | "antagonist" | "cameo" | string;
+
+export interface TitleCastEntry {
+  role: CharacterRole;
+  sort_order: number;
+  character: { name: string; slug: string; original_name: string; image_url: string };
 }
 
 export interface CatalogItem {
@@ -48,6 +58,7 @@ export interface CatalogItem {
   franchise?: { name: string; slug: string; description?: string } | null;
   episodes?: Episode[];
   episodes_count?: number;
+  characters?: TitleCastEntry[];
 }
 
 export interface CatalogResponse {
@@ -57,6 +68,8 @@ export interface CatalogResponse {
   previous?: string | null;
 }
 
+export type CatalogOrdering = "popular" | "recent" | "name";
+
 export interface CatalogFilters {
   q?: string;
   type?: string;
@@ -64,6 +77,7 @@ export interface CatalogFilters {
   genre?: string;
   page?: number;
   pageSize?: number;
+  ordering?: CatalogOrdering;
 }
 
 export interface ScheduleItem {
@@ -72,7 +86,8 @@ export interface ScheduleItem {
   name: string;
   synopsis?: string;
   air_date: string;
-  title: Pick<CatalogItem, "name" | "slug" | "title_type" | "status"> & { poster_url?: string };
+  air_at?: string | null;
+  title: Pick<CatalogItem, "name" | "slug" | "title_type" | "status" | "year"> & { poster_url?: string };
 }
 
 export interface ScheduleResponse {
@@ -89,6 +104,13 @@ export interface FranchiseResponse { count: number; next: string | null; previou
 export interface CharacterSummary { name: string; slug: string; original_name: string; description: string; image_url: string; title_count: number }
 export interface CharacterDetail extends CharacterSummary { title_links: Array<{ title: CatalogItem; role: string; sort_order: number }> }
 export interface CharacterResponse { count: number; next: string | null; previous: string | null; results: CharacterSummary[] }
+
+export interface GlobalSearchResponse {
+  query: string;
+  titles: CatalogItem[];
+  characters: CharacterSummary[];
+  franchises: FranchiseSummary[];
+}
 export interface MediaAsset { id: number; kind: string; url: string; thumbnail_url: string; caption: string; credit: string; title: Pick<CatalogItem, "name" | "slug" | "status" | "title_type"> | null; character: CharacterSummary | null }
 export interface MediaResponse { count: number; next: string | null; previous: string | null; results: MediaAsset[] }
 
@@ -146,6 +168,7 @@ export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogR
   if (filters.type) query.set("type", filters.type);
   if (filters.status) query.set("status", filters.status);
   if (filters.genre) query.set("genre", filters.genre);
+  if (filters.ordering) query.set("ordering", filters.ordering);
   if (filters.page && filters.page > 1) query.set("page", String(filters.page));
   if (filters.pageSize) query.set("page_size", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
@@ -166,6 +189,21 @@ export async function getCatalogItemEpisodes(
   return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, { cache: "no-store" });
 }
 
+/**
+ * Lowest existing episode number of a title, or null when it has none.
+ *
+ * Used by the title hero, whose watch action must not depend on which episode
+ * page is currently displayed.
+ */
+export async function getFirstEpisodeNumber(slug: string): Promise<number | null> {
+  try {
+    const item = await getCatalogItemEpisodes(slug, 1, 1);
+    return item.episodes?.[0]?.number ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getEpisode(slug: string, number: number): Promise<EpisodeDetail> {
   return request<EpisodeDetail>(`/titles/${encodeURIComponent(slug)}/episodes/${number}/`, { cache: "no-store" });
 }
@@ -183,8 +221,19 @@ export async function getSchedule(from: string, to: string): Promise<ScheduleRes
   return request<ScheduleResponse>(`/schedule/?${query}`, { cache: "no-store" });
 }
 
-export async function getFranchises(page = 1): Promise<FranchiseResponse> {
-  return request<FranchiseResponse>(`/franchises/${page > 1 ? `?page=${page}` : ""}`, { cache: "no-store" });
+/** Minimum length accepted by the backend search endpoint. */
+export const SEARCH_MIN_LENGTH = 2;
+
+export async function globalSearch(query: string, signal?: AbortSignal): Promise<GlobalSearchResponse> {
+  return request<GlobalSearchResponse>(`/search/?q=${encodeURIComponent(query)}`, { cache: "no-store", signal });
+}
+
+export async function getFranchises(page = 1, search = ""): Promise<FranchiseResponse> {
+  const query = new URLSearchParams();
+  if (search.trim()) query.set("q", search.trim());
+  if (page > 1) query.set("page", String(page));
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return request<FranchiseResponse>(`/franchises/${suffix}`, { cache: "no-store" });
 }
 
 export async function getFranchise(slug: string): Promise<FranchiseDetail> {

@@ -1,65 +1,71 @@
 import Link from "next/link";
+import { ScheduleBoard } from "../../components/schedule-board";
 import { PageShell } from "../../components/page-shell";
-import { emptyPage, getSchedule, type ScheduleItem, type ScheduleResponse } from "../../lib/api";
+import { emptyPage, getSchedule, type ScheduleResponse } from "../../lib/api";
+import { addDays, localDayKey, weekStart } from "../../lib/schedule";
 import { getI18n } from "../../i18n/server";
 import styles from "./schedule.module.css";
 
 export const dynamic = "force-dynamic";
 
-type Range = "today" | "week";
+const WEEK_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-function dateString(date: Date) {
-  return date.toISOString().slice(0, 10);
+/** Validates a `week` query value and normalizes it to that week's Monday. */
+function resolveWeekStart(raw: string | undefined, todayKey: string) {
+  if (raw && WEEK_KEY_PATTERN.test(raw) && !Number.isNaN(Date.parse(`${raw}T00:00:00Z`))) {
+    return weekStart(raw);
+  }
+  return weekStart(todayKey);
 }
 
-function formatDay(value: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
-}
-
-export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
+export default async function SchedulePage({
+  searchParams,
+}: { searchParams: Promise<{ week?: string; range?: string }> }) {
   const params = await searchParams;
-  const range: Range = params.range === "today" ? "today" : "week";
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + (range === "today" ? 0 : 6));
-  const schedule = await getSchedule(dateString(start), dateString(end)).catch((): ScheduleResponse => emptyPage());
-  const { t, locale } = await getI18n();
-  const grouped = new Map<string, ScheduleItem[]>();
-  for (const episode of schedule.results) grouped.set(episode.air_date, [...(grouped.get(episode.air_date) ?? []), episode]);
+  const todayKey = localDayKey(new Date());
+  const startKey = resolveWeekStart(params.week, todayKey);
+  const endKey = addDays(startKey, 6);
+  // Neighbouring days are fetched too: a confirmed late-night `air_at` can fall
+  // into the previous or next calendar day once the viewer timezone applies.
+  const [schedule, { t }] = await Promise.all([
+    getSchedule(addDays(startKey, -1), addDays(endKey, 1)).catch((): ScheduleResponse => emptyPage()),
+    getI18n(),
+  ]);
 
-  return <PageShell active="schedule" heading={{ eyebrow: t("schedule.eyebrow"), title: t("schedule.title"), subtitle: t("schedule.subtitle") }}>
-    <nav className={styles.range} aria-label={t("schedule.title")}>
-      <Link className={range === "today" ? styles.rangeActive : undefined} href="/schedule?range=today">{t("schedule.today")}</Link>
-      <Link className={range === "week" ? styles.rangeActive : undefined} href="/schedule?range=week">{t("schedule.week")}</Link>
-    </nav>
-    {grouped.size ? (
-      <div className={styles.days}>
-        {[...grouped.entries()].map(([date, episodes]) => (
-          <section className={styles.day} key={date}>
-            <header className={styles.dayHeading}>
-              <h2>{formatDay(date, locale)}</h2>
-              <p>{date}</p>
-            </header>
-            <div className={styles.episodes}>
-              {episodes.map((episode) => (
-                <Link className={styles.episode} href={`/titles/${episode.title.slug}/episodes/${episode.number}`} key={episode.id}>
-                  <strong>{episode.title.name}</strong>
-                  <span className={styles.number}>{t("episode.number", { number: episode.number })}</span>
-                  <span>{episode.name || t("episode.untitled")}</span>
-                  {episode.synopsis && <small>{episode.synopsis}</small>}
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    ) : (
-      <div className="empty-state">
-        <strong>{t("schedule.empty")}</strong>
-        <span>{t("schedule.emptyText")}</span>
-        <Link href="/catalog">{t("home.openCatalog")}</Link>
-      </div>
-    )}
-  </PageShell>;
+  return (
+    <PageShell
+      active="schedule"
+      heading={{ eyebrow: t("schedule.eyebrow"), title: t("schedule.title"), subtitle: t("schedule.subtitle") }}
+    >
+      {schedule.results.length ? (
+        <ScheduleBoard
+          items={schedule.results}
+          weekStartKey={startKey}
+          serverTodayKey={todayKey}
+          prevWeekHref={`/schedule?week=${addDays(startKey, -7)}`}
+          nextWeekHref={`/schedule?week=${addDays(startKey, 7)}`}
+          thisWeekHref="/schedule"
+        />
+      ) : (
+        <div className={styles.emptyWeek}>
+          <nav className={styles.weekNav} aria-label={t("schedule.weekdays")}>
+            <Link className={styles.weekLink} href={`/schedule?week=${addDays(startKey, -7)}`}>
+              {t("schedule.prevWeek")}
+            </Link>
+            {startKey !== weekStart(todayKey) && (
+              <Link className={styles.weekLink} href="/schedule">{t("schedule.thisWeek")}</Link>
+            )}
+            <Link className={styles.weekLink} href={`/schedule?week=${addDays(startKey, 7)}`}>
+              {t("schedule.nextWeek")}
+            </Link>
+          </nav>
+          <div className="empty-state" role="status">
+            <strong>{t("schedule.emptyWeek")}</strong>
+            <span>{t("schedule.emptyText")}</span>
+            <Link className="secondary" href="/catalog">{t("home.openCatalog")}</Link>
+          </div>
+        </div>
+      )}
+    </PageShell>
+  );
 }

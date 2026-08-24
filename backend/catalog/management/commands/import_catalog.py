@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 
 from catalog.models import (
     LANGUAGE_CHOICES,
@@ -213,9 +213,21 @@ def apply_payload(payload):
             air_date = parse_date(episode_item["air_date"]) if episode_item.get("air_date") else None
             if episode_item.get("air_date") and air_date is None:
                 raise CommandError(f"{title.slug} episode {episode_item['number']}: неверная air_date")
+            air_at = parse_datetime(episode_item["air_at"]) if episode_item.get("air_at") else None
+            if episode_item.get("air_at") and air_at is None:
+                raise CommandError(f"{title.slug} episode {episode_item['number']}: неверная air_at")
+            if air_at is not None and air_at.tzinfo is None:
+                raise CommandError(
+                    f"{title.slug} episode {episode_item['number']}: air_at должна содержать смещение часового пояса"
+                )
             episode, _ = Episode.objects.update_or_create(
                 title=title, number=episode_item["number"],
-                defaults={"name": str(episode_item.get("name", "")), "synopsis": str(episode_item.get("synopsis", "")), "air_date": air_date},
+                defaults={
+                    "name": str(episode_item.get("name", "")),
+                    "synopsis": str(episode_item.get("synopsis", "")),
+                    "air_date": air_date,
+                    "air_at": air_at,
+                },
             )
             values = {"en": {"name": str(episode_item.get("name", "")), "synopsis": str(episode_item.get("synopsis", ""))}, **episode_item.get("translations", {})}
             for language, value in values.items():

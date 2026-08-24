@@ -1,1 +1,5 @@
 .actions{display:flex;align-items:center;gap:10px}.switcher{display:flex;padding:3px;border:1px solid var(--border);border-radius:8px;background:var(--surface-1)}.switcher button{padding:5px 7px;border:0;border-radius:5px;background:transparent;color:var(--muted);font-size:11px;cursor:pointer}.switcher .active{background:var(--primary);color:#fff}@media(max-width:640px){.actions{gap:6px}.switcher button{padding:5px}}
+
+.switcher button:hover{color:var(--text)}
+.switcher button:active{background:var(--surface-2)}
+.switcher .active:hover{background:var(--primary-hover);color:#fff}

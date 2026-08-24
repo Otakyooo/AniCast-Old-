@@ -1,10 +1,12 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from community.models import TitleRating
+from library.models import LibraryEntry
 from catalog.models import (
     Episode,
     EpisodeTranslation,
@@ -164,6 +166,137 @@ def test_schedule_defaults_to_seven_days_and_orders_episodes(catalog_data):
     assert response.json()["count"] == 2
     assert [item["id"] for item in response.json()["results"]] == [catalog_data.episodes.get(number=1).id, later.id]
     assert response.json()["results"][0]["title"]["slug"] == "sky-test"
+
+
+@pytest.mark.django_db
+def test_schedule_exposes_air_at_and_orders_by_it_within_a_day(catalog_data):
+    today = timezone.localdate()
+    first = catalog_data.episodes.get(number=1)
+    first.air_date = today
+    first.air_at = None
+    first.save(update_fields=["air_date", "air_at"])
+    evening = Episode.objects.create(
+        title=catalog_data, number=2, name="Evening",
+        air_at=timezone.make_aware(datetime.combine(today, time(21, 30))),
+    )
+    morning = Episode.objects.create(
+        title=catalog_data, number=3, name="Morning",
+        air_at=timezone.make_aware(datetime.combine(today, time(9, 0))),
+    )
+    # Saving an exact moment derives its calendar day, so no separate air_date input.
+    assert Episode.objects.get(pk=morning.pk).air_date == today
+    results = APIClient().get("/api/v1/schedule/").json()["results"]
+    assert [item["id"] for item in results] == [morning.id, evening.id, first.id]
+    assert results[0]["air_at"] is not None
+    assert results[-1]["air_at"] is None
+    assert results[0]["title"]["year"] == catalog_data.year
+
+
+@pytest.mark.django_db
+def test_episode_air_at_keeps_air_date_in_sync(catalog_data):
+    episode = catalog_data.episodes.get(number=1)
+    moment = timezone.make_aware(datetime.combine(timezone.localdate(), time(22, 15)))
+    episode.air_at = moment
+    # A partial save of air_at alone must still refresh the derived day.
+    episode.save(update_fields=["air_at"])
+    episode.refresh_from_db()
+    assert episode.air_date == timezone.localtime(moment).date()
+
+    episode.air_at = None
+    episode.air_date = None
+    episode.save(update_fields=["air_at", "air_date"])
+    episode.refresh_from_db()
+    # Clearing the moment leaves the day untouched: a day-only episode is valid.
+    assert episode.air_at is None
+    assert episode.air_date is None
+
+
+@pytest.mark.django_db
+def test_seed_catalog_is_idempotent_and_sets_air_moments():
+    call_command("seed_catalog")
+    call_command("seed_catalog")
+    episodes = Episode.objects.filter(title__slug="demo-title").order_by("number")
+    assert [episode.number for episode in episodes] == [1, 2, 3, 4]
+    scheduled = [episode for episode in episodes if episode.air_at is not None]
+    assert len(scheduled) == 3
+    # Saving an exact moment derives the calendar day used by the schedule range.
+    for episode in scheduled:
+        assert episode.air_date == timezone.localtime(episode.air_at).date()
+
+
+@pytest.mark.django_db
+def test_title_list_ordering_is_opt_in_and_validated(catalog_data):
+    client = APIClient()
+    popular = Title.objects.create(name="Zeta Popular", slug="zeta-popular", year=2001)
+    Title.objects.create(name="Alpha Recent", slug="alpha-recent", year=2030)
+    viewer = User.objects.create_user(email="ordering@example.com", password="A-strong-passphrase-2042")
+    LibraryEntry.objects.create(user=viewer, title=popular)
+    TitleRating.objects.create(user=viewer, title=popular, value=9)
+
+    default_order = [item["slug"] for item in client.get("/api/v1/titles/").json()["results"]]
+    assert default_order == sorted(default_order)
+    assert client.get("/api/v1/titles/?ordering=popular").json()["results"][0]["slug"] == "zeta-popular"
+    assert client.get("/api/v1/titles/?ordering=recent").json()["results"][0]["slug"] == "alpha-recent"
+    assert client.get("/api/v1/titles/?ordering=unknown").status_code == 400
+
+
+@pytest.mark.django_db
+def test_global_search_groups_titles_characters_and_franchises(catalog_data):
+    character = Character.objects.create(name="Sky Hero", slug="sky-hero")
+    TitleCharacter.objects.create(title=catalog_data, character=character)
+    Franchise.objects.create(name="Sky Saga", slug="sky-saga")
+    client = APIClient()
+    assert client.get("/api/v1/search/?q=s").status_code == 400
+    assert client.get("/api/v1/search/").status_code == 400
+    body = client.get("/api/v1/search/?q=sky").json()
+    assert body["query"] == "sky"
+    assert [item["slug"] for item in body["titles"]] == ["sky-test"]
+    assert [item["slug"] for item in body["characters"]] == ["sky-hero"]
+    assert [item["slug"] for item in body["franchises"]] == ["sky-saga"]
+    assert body["titles"][0]["poster_url"] == catalog_data.poster_url
+    empty = client.get("/api/v1/search/?q=nothing-matches").json()
+    assert empty["titles"] == [] and empty["characters"] == [] and empty["franchises"] == []
+
+
+@pytest.mark.django_db
+def test_global_search_matches_translated_names(catalog_data):
+    TitleTranslation.objects.create(title=catalog_data, language="ru", name="Небесный тест")
+    body = APIClient().get("/api/v1/search/?q=Небесный").json()
+    assert [item["slug"] for item in body["titles"]] == ["sky-test"]
+
+
+@pytest.mark.django_db
+def test_global_search_bounds_the_query_and_group_sizes(catalog_data):
+    for index in range(8):
+        Title.objects.create(name=f"Sky Extra {index}", slug=f"sky-extra-{index}")
+    body = APIClient().get("/api/v1/search/?q=sky").json()
+    assert len(body["titles"]) == 5
+    # An oversized term is truncated instead of rejected, so the panel still works.
+    long_query = "sky" + "y" * 500
+    assert APIClient().get(f"/api/v1/search/?q={long_query}").status_code == 200
+
+
+@pytest.mark.django_db
+def test_franchise_list_supports_search(catalog_data):
+    Franchise.objects.create(name="Other Worlds", slug="other-worlds")
+    results = APIClient().get("/api/v1/franchises/?q=test").json()["results"]
+    assert [item["slug"] for item in results] == ["test-franchise"]
+
+
+@pytest.mark.django_db
+def test_title_detail_exposes_cast_without_extra_queries(catalog_data, django_assert_max_num_queries):
+    hero = Character.objects.create(name="Hero", slug="hero", image_url="https://example.invalid/hero.jpg")
+    rival = Character.objects.create(name="Rival", slug="rival")
+    TitleCharacter.objects.create(title=catalog_data, character=hero, role="protagonist", sort_order=0)
+    TitleCharacter.objects.create(title=catalog_data, character=rival, role="antagonist", sort_order=1)
+    CharacterTranslation.objects.create(character=hero, language="ru", name="Герой")
+    with django_assert_max_num_queries(12):
+        body = APIClient().get("/api/v1/titles/sky-test/").json()
+    assert [entry["character"]["slug"] for entry in body["characters"]] == ["hero", "rival"]
+    assert body["characters"][0]["role"] == "protagonist"
+    assert body["characters"][0]["character"]["name"] == "Герой"
+    assert body["characters"][0]["character"]["image_url"] == "https://example.invalid/hero.jpg"
+
 
 
 @pytest.mark.django_db
