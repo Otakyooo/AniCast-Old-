@@ -76,7 +76,7 @@ export function ContinueWatchingBlock() {
             {total ? ` · ${t("home.heroProgress", { watched: heroEntry.watched_count, total })}` : ""}
           </p>
           <div className={styles.resumeHeroActions}>
-            <Link className={`primary inline-button ${styles.resumeHeroCta}`} href={`/titles/${heroEntry.title.slug}/episodes/${heroTarget.number}`}>
+            <Link className={`primary inline-button ${styles.resumeHeroCta}`} href={`/titles/${heroEntry.title.slug}/watch?episode=${heroTarget.number}`}>
               {t("home.continueEpisode", { number: heroTarget.number })}
             </Link>
             <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href={`/titles/${heroEntry.title.slug}`}>
@@ -107,7 +107,7 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
         const target = entry.next_episode ?? entry.last_episode;
         return (
           <li key={entry.title.slug}>
-            <Link className={styles.resumeCard} href={`/titles/${entry.title.slug}/episodes/${target.number}`}>
+            <Link className={styles.resumeCard} href={`/titles/${entry.title.slug}/watch?episode=${target.number}`}>
               <span className={styles.resumeFrame}>
                 {entry.title.poster_url ? (
                   <Image
