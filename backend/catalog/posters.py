@@ -316,6 +316,15 @@ def refresh_title(title: Title, apply_changes: bool) -> tuple[str, str]:
             return upgraded, detail
         # current/invalid/error fall through: a failed origin download must
         # never block the remaining large/kitsu sources.
+    # Kitsu originals are frequently far larger than MAL large art, so this
+    # probe runs before the large fallback; a Kitsu adoption ends the refresh,
+    # anything else (kept/rejected/failed) falls through to MAL large.
+    kitsu_outcome = None
+    kitsu_url = kitsu_original_for_mal(mal_id) if mal_id is not None else None
+    if kitsu_url:
+        kitsu_outcome = _adopt_if_larger(title, mal_id, kitsu_url, TIER_KITSU, apply_changes)
+        if kitsu_outcome[0] == "kitsu":
+            return kitsu_outcome
     if best is not None:
         url, best_tier = best
         if best_tier == TIER_LARGE:
@@ -326,10 +335,8 @@ def refresh_title(title: Title, apply_changes: bool) -> tuple[str, str]:
                 return _adopt_if_larger(title, mal_id, url, TIER_LARGE, apply_changes)
             increment("poster_refresh", "current")
             return "current", f"{title.slug}: already at tier {tier}"
-    if mal_id is not None:
-        kitsu_url = kitsu_original_for_mal(mal_id)
-        if kitsu_url:
-            return _adopt_if_larger(title, mal_id, kitsu_url, TIER_KITSU, apply_changes)
+    if kitsu_outcome is not None:
+        return kitsu_outcome
     mirror_source = next(
         (candidate for candidate in (title.poster_url, title.poster_origin_url)
          if candidate and is_allowed_poster_url(candidate)),

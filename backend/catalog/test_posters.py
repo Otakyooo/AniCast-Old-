@@ -490,6 +490,28 @@ def test_large_mal_art_beats_smaller_kitsu_tier(poster_media_root, monkeypatch):
 
 
 @pytest.mark.django_db
+def test_larger_kitsu_original_upgrades_past_jikan_large(poster_media_root, monkeypatch):
+    """A live Jikan large answer must not lock out bigger Kitsu originals."""
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    large_file = posters.store_poster(33, "l", png_bytes(425, 600))
+    title = Title.objects.create(name="Lock", slug="33-lock", poster_url=posters.public_poster_url(large_file))
+    kitsu_url = "https://media.kitsu.app/anime/poster_images/16/original.jpg"
+
+    def record_download(url):
+        return png_bytes(920, 1270) if url == kitsu_url else png_bytes(425, 600)
+
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: ("https://cdn.myanimelist.net/images/anime/33l.jpg", "l"))
+    monkeypatch.setattr(posters, "kitsu_original_for_mal", lambda mal_id: kitsu_url)
+    monkeypatch.setattr(posters, "download_bytes", record_download)
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "kitsu"
+    title.refresh_from_db()
+    assert "-k-" in title.poster_url
+    assert not (poster_media_root / large_file).exists()
+
+
+@pytest.mark.django_db
 def test_maximum_tier_never_probes_upstreams(poster_media_root, monkeypatch):
     poster_media_root.mkdir(parents=True, exist_ok=True)
     filename = posters.store_poster(30, "m", png_bytes(400, 600))
