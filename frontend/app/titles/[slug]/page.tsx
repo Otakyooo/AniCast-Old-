@@ -7,6 +7,8 @@ import { TitleActions } from "../../../components/title-actions";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
+import { BreadcrumbsJsonLd } from "../../../components/breadcrumbs-jsonld";
+import { ShareButton } from "../../../components/share-button";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
@@ -43,9 +45,10 @@ export async function generateMetadata({
   try {
     item = await getCatalogItem(slug);
   } catch (error) {
-    if (apiErrorStatus(error) === 404) notFound();
     // Degraded API still needs sane metadata; the page itself shows the
-    // unavailable state.
+    // unavailable state. The page component owns the 404: notFound() inside
+    // generateMetadata races the render and can answer 200.
+    if (apiErrorStatus(error) === 404) return { title: t("title.notFound") };
     return { title: "AniCast", description: t("meta.description") };
   }
 
@@ -224,6 +227,13 @@ export default async function CatalogDetailPage({
   return (
     <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
       <TitleJsonLd item={item} />
+      <BreadcrumbsJsonLd
+        items={[
+          { name: t("account.home"), href: "/" },
+          { name: t("catalog.title"), href: "/catalog" },
+          { name: item.name, href: `/titles/${item.slug}` },
+        ]}
+      />
       <article className={styles.hero}>
         <div className={styles.heroPoster}>
           {item.poster_url ? (
@@ -260,6 +270,7 @@ export default async function CatalogDetailPage({
               ))}
             </div>
           )}
+          <ShareButton path={`/titles/${item.slug}`} title={item.name} />
         </div>
         <TitleActions slug={item.slug} firstEpisode={firstEpisode} />
       </article>

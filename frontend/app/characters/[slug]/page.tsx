@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
+import { BreadcrumbsJsonLd } from "../../../components/breadcrumbs-jsonld";
 import { CatalogCard } from "../../../components/catalog-card";
 import { PageShell } from "../../../components/page-shell";
 import { getI18n } from "../../../i18n/server";
@@ -30,7 +31,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       },
     };
   } catch (error) {
-    if (apiErrorStatus(error) === 404) notFound();
+    // The page component owns the 404: notFound() inside generateMetadata
+    // races the render and can answer 200 with the not-found UI.
     return {};
   }
 }
@@ -43,6 +45,27 @@ export default async function CharacterPage({ params }: { params: Promise<{ slug
   catch (error) { if (apiErrorStatus(error) === 404) notFound(); return <ApiUnavailableState />; }
 
   return <PageShell active="characters" back={{ href: "/characters", label: t("character.title") }}>
+    <BreadcrumbsJsonLd
+      items={[
+        { name: t("account.home"), href: "/" },
+        { name: t("character.title"), href: "/characters" },
+        { name: character.name, href: `/characters/${character.slug}` },
+      ]}
+    />
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Person",
+          name: character.name,
+          ...(character.original_name ? { alternateName: character.original_name } : {}),
+          ...(character.description ? { description: character.description } : {}),
+          ...(character.image_url ? { image: absoluteUrl(character.image_url) } : {}),
+          url: absoluteUrl(`/characters/${character.slug}`),
+        }),
+      }}
+    />
     <div className={styles.hero}>
       <div className={styles.portraitWrap}>
         {character.image_url

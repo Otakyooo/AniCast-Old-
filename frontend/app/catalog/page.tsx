@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { CatalogCard } from "../../components/catalog-card";
 import { CatalogFiltersForm } from "../../components/catalog-filters";
+import { RandomTitleButton } from "../../components/random-title-button";
 import { PageShell } from "../../components/page-shell";
 import {
   emptyPage,
@@ -18,12 +19,29 @@ export const dynamic = "force-dynamic";
 
 const ORDERINGS: CatalogOrdering[] = ["popular", "recent", "name"];
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
   const { t } = await getI18n();
+  const params = await searchParams;
+  const requestedPage = Number.parseInt(firstValue(params.page), 10);
+  const rawOrdering = firstValue(params.ordering);
+  const filters: CatalogFilters = {
+    q: firstValue(params.q).trim(),
+    type: firstValue(params.type),
+    status: firstValue(params.status),
+    genre: firstValue(params.genre),
+    ordering: ORDERINGS.includes(rawOrdering as CatalogOrdering) ? rawOrdering as CatalogOrdering : undefined,
+    page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
+  };
   return {
     title: t("catalog.title"),
     description: t("meta.description"),
-    alternates: { canonical: "/catalog" },
+    // Self-canonical per active view: paginated and filtered pages keep their
+    // own address instead of collapsing onto the bare catalog.
+    alternates: { canonical: catalogHref(filters, filters.page ?? 1) },
   };
 }
 
@@ -77,6 +95,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       }}
       genres={genres}
     />
+    {catalog.count > 0 && <RandomTitleButton count={catalog.count} />}
     {catalog.results.length ? (
       <div className="catalog-grid">{catalog.results.map(item => <CatalogCard item={item} key={item.slug} />)}</div>
     ) : (

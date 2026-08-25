@@ -1,10 +1,22 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { WatchSpace } from "../../../../components/watch-space";
 import { ApiUnavailableState } from "../../../../components/api-unavailable";
 import { PageShell } from "../../../../components/page-shell";
 import { apiErrorStatus, getCatalogItem, getEpisode, getFirstEpisodeNumber } from "../../../../lib/api";
 
 export const dynamic = "force-dynamic";
+
+// Episode views duplicate the title page content: they canonicalize to the
+// title and stay out of the index.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  return {
+    title: "AniCast",
+    alternates: { canonical: `/titles/${slug}` },
+    robots: { index: false, follow: true },
+  };
+}
 
 export default async function WatchPage({
   params,
