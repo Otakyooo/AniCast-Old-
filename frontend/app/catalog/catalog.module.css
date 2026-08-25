@@ -133,3 +133,28 @@
 .chip:hover {
   border-color: var(--primary);
 }
+
+.randomButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -8px 0 24px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.randomButton:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.randomButton:active {
+  transform: scale(.98);
+}
