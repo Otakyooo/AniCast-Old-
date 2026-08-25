@@ -55,6 +55,35 @@ def _poster_tier_counts() -> dict[str, int]:
     return counts
 
 
+def _system_cards() -> list[dict[str, Any]]:
+    """Background-system health from Redis counters (lifetime since reset)."""
+    from common.metrics import TASKS, value
+
+    failures = sum(value("celery_tasks", task, "failure") for task in TASKS)
+    retries = sum(value("celery_tasks", task, "retry") for task in TASKS)
+    failed_deliveries = value("notification_deliveries", "failed")
+    try:
+        channels_url = _changelist("admin:push_telegramnotificationchannel_changelist")
+    except Exception:
+        channels_url = ""
+    return [
+        {
+            "label": "Сбои фоновых задач",
+            "value": failures,
+            "hint": f"повторы: {retries} · всего с момента сброса Redis",
+            "tone": "danger" if failures else "ok",
+            "url": "",
+        },
+        {
+            "label": "Неудачные доставки уведомлений",
+            "value": failed_deliveries,
+            "hint": "канал отключается после трёх сбоев подряд",
+            "tone": "warn" if failed_deliveries else "ok",
+            "url": channels_url if failed_deliveries else "",
+        },
+    ]
+
+
 def build_dashboard() -> list[dict[str, Any]]:
     """One entry per attention area; ``tone`` drives the template colour."""
     new_reports = SourceReport.objects.filter(status=SourceReport.Status.NEW).count()
@@ -101,6 +130,7 @@ def build_dashboard() -> list[dict[str, Any]]:
             "tone": "warn" if below_maximum else "ok",
             "url": _changelist("admin:catalog_title_changelist"),
         },
+        *_system_cards(),
     ]
 
 

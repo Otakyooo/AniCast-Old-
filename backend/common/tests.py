@@ -213,3 +213,82 @@ def test_beat_task_persists_samples_for_every_target():
         ):
             probe_site_availability.run()
     assert AvailabilitySample.objects.count() == 3
+
+
+@pytest.mark.django_db
+def test_summarize_reports_latency_and_probe_counts():
+    now = dj_timezone.now()
+    _sample("site", now - timedelta(minutes=10), True, latency_ms=100)
+    _sample("site", now - timedelta(minutes=5), True, latency_ms=300)
+
+    summary = availability.summarize("site", now=now)
+    assert summary["avg_latency_ms"] == 200
+    assert summary["samples_24h"] == 2
+    assert summary["last_checked_at"] == now - timedelta(minutes=5)
+
+
+@pytest.mark.django_db
+def test_dashboard_rows_link_to_filtered_samples():
+    now = dj_timezone.now()
+    _sample("site", now, True, latency_ms=120)
+    _sample("api", now - timedelta(hours=30), True, latency_ms=400)
+
+    rows = availability.build_availability_dashboard(now=now)
+    site_row = next(row for row in rows if row["label"] == "Сайт")
+    api_row = next(row for row in rows if row["label"] == "API каталога")
+    assert site_row["url"] == "/staff/common/availabilitysample/?target__exact=site"
+    assert "~120 мс" in site_row["checked_line"]
+    assert "проб за 24ч: 1" in site_row["checked_line"]
+    # The 30-hour-old api sample is outside the 24h window: no latency line.
+    assert "~400 мс" not in api_row["checked_line"]
+
+
+@pytest.mark.django_db
+def test_system_cards_surface_background_failures():
+    from common import staff_dashboard
+
+    fake_tasks = ("task.a", "task.b")
+
+    def fake_value(metric, *labels):
+        if metric == "celery_tasks":
+            if labels == ("task.a", "failure"):
+                return 2
+            if labels == ("task.b", "retry"):
+                return 1
+            return 0
+        if metric == "notification_deliveries":
+            return 3
+        return 0
+
+    with patch("common.metrics.TASKS", fake_tasks), patch(
+        "common.metrics.value", side_effect=fake_value
+    ):
+        cards = staff_dashboard._system_cards()
+
+    tasks_card, delivery_card = cards
+    assert tasks_card["value"] == 2
+    assert tasks_card["tone"] == "danger"
+    assert tasks_card["url"] == ""
+    assert "повторы: 1" in tasks_card["hint"]
+    assert delivery_card["value"] == 3
+    assert delivery_card["tone"] == "warn"
+    assert "telegramnotificationchannel" in delivery_card["url"]
+
+    with patch("common.metrics.TASKS", fake_tasks), patch("common.metrics.value", return_value=0):
+        quiet = staff_dashboard._system_cards()
+    assert all(card["tone"] == "ok" and card["url"] == "" for card in quiet)
+
+
+@pytest.mark.django_db
+def test_staff_index_renders_availability_section():
+    from django.contrib.auth import get_user_model
+
+    user = get_user_model().objects.create_superuser("staff@example.com", "Sup3rSecret!42")
+    client = APIClient()
+    client.force_login(user)
+    response = client.get("/staff/")
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Доступность" in body
+    assert "Работает" in body or "Нет данных" in body
+    assert "Сводка редактора" in body

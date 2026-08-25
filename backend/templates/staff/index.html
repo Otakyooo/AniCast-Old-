@@ -3,49 +3,82 @@
 {% block extrastyle %}
   {{ block.super }}
   <style>
-    .staff-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px }
+    .staff-section-title {
+      margin: 20px 0 8px; font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em;
+      color: var(--body-quiet-color, #666);
+    }
+    .staff-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 8px }
     .staff-dash-card {
-      display: grid; gap: 4px; padding: 14px 16px;
+      display: grid; gap: 4px; align-content: start; padding: 14px 16px;
       border: 1px solid var(--border-color, #ccc); border-left-width: 4px; border-radius: 8px;
       background: var(--body-bg, #fff); color: inherit; text-decoration: none;
     }
-    .staff-dash-card:hover { filter: brightness(.98) }
-    .staff-dash-value { font-size: 26px; font-weight: 700; line-height: 1.1 }
+    a.staff-dash-card:hover { filter: brightness(.97) }
+    .staff-dash-value { font-size: 22px; font-weight: 700; line-height: 1.15; display: flex; align-items: center; gap: 8px }
     .staff-dash-label { font-weight: 600 }
-    .staff-dash-hint { color: var(--body-quiet-color, #666); font-size: 11.5px }
+    .staff-dash-hint { color: var(--body-quiet-color, #666); font-size: 11.5px; line-height: 1.5 }
     .staff-dash-card--ok { border-left-color: #1b7d54 }
     .staff-dash-card--warn { border-left-color: #b45309 }
     .staff-dash-card--danger { border-left-color: #b3261e }
     .staff-dash-card--danger .staff-dash-value { color: #b3261e }
     .staff-dash-card--warn .staff-dash-value { color: #b45309 }
+    .staff-status-dot::before {
+      content: ""; display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; background: #1b7d54; flex-shrink: 0;
+    }
+    .staff-status-dot--danger::before { background: #b3261e }
+    .staff-status-dot--warn::before { background: #b45309 }
+
+    @media (prefers-color-scheme: dark) {
+      .staff-dash-card--ok { border-left-color: #3ddc97 }
+      .staff-dash-card--warn { border-left-color: #f5b04d }
+      .staff-dash-card--danger { border-left-color: #ff6b5e }
+      .staff-dash-card--danger .staff-dash-value { color: #ff8a80 }
+      .staff-dash-card--warn .staff-dash-value { color: #f5b04d }
+      .staff-status-dot::before { background: #3ddc97 }
+      .staff-status-dot--danger::before { background: #ff6b5e }
+      .staff-status-dot--warn::before { background: #f5b04d }
+    }
   </style>
 {% endblock %}
 
 {% block content %}
-  {% if dashboard %}
-    <div class="staff-dash" role="region" aria-label="Сводка редактора">
-      {% for item in dashboard %}
-        <a class="staff-dash-card staff-dash-card--{{ item.tone }}" href="{{ item.url }}">
-          <span class="staff-dash-value">{{ item.value }}</span>
+  {% if availability %}
+    <h2 class="staff-section-title">Доступность</h2>
+    <div class="staff-dash" role="region" aria-label="Доступность сайта">
+      {% for item in availability %}
+        <a class="staff-dash-card staff-dash-card--{{ item.tone }}" href="{{ item.url }}"
+           title="Пробы этой цели за 30 дней">
+          <span class="staff-dash-value staff-status-dot{% if item.tone != 'ok' %} staff-status-dot--{{ item.tone }}{% endif %}">{{ item.status_label }}</span>
           <span class="staff-dash-label">{{ item.label }}</span>
-          <span class="staff-dash-hint">{{ item.hint }}</span>
+          <span class="staff-dash-hint">
+            24ч: {{ item.uptime_24h }} · 7д: {{ item.uptime_7d }}
+            {% if item.detail_line %}<br/>{{ item.detail_line }}{% endif %}
+            {% if item.checked_line %}<br/>{{ item.checked_line }}{% endif %}
+          </span>
         </a>
       {% endfor %}
     </div>
   {% endif %}
 
-  {% if availability %}
-    <h2 style="margin: 8px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em;">Доступность</h2>
-    <div class="staff-dash" role="region" aria-label="Доступность сайта">
-      {% for item in availability %}
-        <div class="staff-dash-card staff-dash-card--{{ item.tone }}">
-          <span class="staff-dash-value">{{ item.status_label }}</span>
-          <span class="staff-dash-label">{{ item.label }}</span>
-          <span class="staff-dash-hint">
-            24ч: {{ item.uptime_24h }} · 7д: {{ item.uptime_7d }}
-            {% if item.detail_line %}· {{ item.detail_line }}{% endif %}
-          </span>
-        </div>
+  {% if dashboard %}
+    <h2 class="staff-section-title">Сводка редактора</h2>
+    <div class="staff-dash" role="region" aria-label="Сводка редактора">
+      {% for item in dashboard %}
+        {% if item.url %}
+          <a class="staff-dash-card staff-dash-card--{{ item.tone }}" href="{{ item.url }}">
+            <span class="staff-dash-value">{{ item.value }}</span>
+            <span class="staff-dash-label">{{ item.label }}</span>
+            <span class="staff-dash-hint">{{ item.hint }}</span>
+          </a>
+        {% else %}
+          <div class="staff-dash-card staff-dash-card--{{ item.tone }}">
+            <span class="staff-dash-value">{{ item.value }}</span>
+            <span class="staff-dash-label">{{ item.label }}</span>
+            <span class="staff-dash-hint">{{ item.hint }}</span>
+          </div>
+        {% endif %}
       {% endfor %}
     </div>
   {% endif %}

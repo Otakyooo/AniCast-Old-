@@ -120,7 +120,7 @@ def summarize(target_key: str, now=None) -> dict:
     samples = list(
         AvailabilitySample.objects.filter(target=target_key, checked_at__gte=week_ago)
         .order_by("checked_at")
-        .values("checked_at", "ok")
+        .values("checked_at", "ok", "latency_ms")
     )
 
     def uptime_percent(window_start) -> str:
@@ -154,10 +154,18 @@ def summarize(target_key: str, now=None) -> dict:
     if last_incident is not None:
         lines.append(f"последний сбой {timezone.localtime(last_incident):%d.%m %H:%M}")
 
+    day_ago = now - timedelta(hours=24)
+    day_window = [s for s in samples if s["checked_at"] >= day_ago]
+    avg_latency = (
+        round(sum(s["latency_ms"] for s in day_window) / len(day_window)) if day_window else None
+    )
     return {
         "currently_up": currently_up,
-        "uptime_24h": uptime_percent(now - timedelta(hours=24)),
+        "uptime_24h": uptime_percent(day_ago),
         "uptime_7d": uptime_percent(week_ago),
+        "avg_latency_ms": avg_latency,
+        "samples_24h": len(day_window),
+        "last_checked_at": samples[-1]["checked_at"] if samples else None,
         "detail_line": " · ".join(lines) or "данные собираются",
         "streak_started": streak_started,
         "last_incident": last_incident,
@@ -166,10 +174,24 @@ def summarize(target_key: str, now=None) -> dict:
 
 def build_availability_dashboard(now=None) -> list[dict]:
     """Status-page style rows for the staff dashboard template."""
+    from django.urls import reverse
+
     rows = []
     for target in _targets():
         summary = summarize(target.key, now=now)
         latest_ok = summary["currently_up"] if summary["uptime_24h"] != "—" else None
+        checked_line = ""
+        if summary["last_checked_at"] is not None:
+            checked_line = f"проверено {timezone.localtime(summary['last_checked_at']):%H:%M}"
+            if summary["avg_latency_ms"] is not None:
+                checked_line += f" · ~{summary['avg_latency_ms']} мс"
+            if summary["samples_24h"]:
+                checked_line += f" · проб за 24ч: {summary['samples_24h']}"
+        try:
+            url = reverse("admin:common_availabilitysample_changelist")
+            url += f"?target__exact={target.key}"
+        except Exception:  # pragma: no cover — admin urls are always loaded in prod
+            url = ""
         rows.append(
             {
                 "label": target.label,
@@ -180,6 +202,8 @@ def build_availability_dashboard(now=None) -> list[dict]:
                 "uptime_24h": summary["uptime_24h"],
                 "uptime_7d": summary["uptime_7d"],
                 "detail_line": summary["detail_line"],
+                "checked_line": checked_line,
+                "url": url,
             }
         )
     return rows
