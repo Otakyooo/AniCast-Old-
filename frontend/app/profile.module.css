@@ -159,6 +159,18 @@
   white-space: nowrap;
 }
 
+/* Clickable strip entries deep-link into the filtered library view. */
+a.stripItem {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: background 140ms ease;
+}
+
+a.stripItem:hover {
+  background: var(--surface-2);
+}
+
 /* ---------- Favorite genres: top-5 horizontal bars per spec §5.3 ---------- */
 
 .sectionHeading {
@@ -187,6 +199,20 @@
   grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
+}
+
+/* Genre rows deep-link into the catalog filtered by that genre. */
+a.genreRow {
+  color: inherit;
+  text-decoration: none;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 10px;
+  transition: background 140ms ease;
+}
+
+a.genreRow:hover {
+  background: var(--surface-2);
 }
 
 .genreName {

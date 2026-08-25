@@ -103,3 +103,33 @@
 .submit:hover { background: var(--primary-hover) }
 .submit:active { transform: scale(.985) }
 .pageLink:active, .reset:active { background: var(--surface-2) }
+
+/* Active filter chips: one per applied param, click removes just that one. */
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.chip b {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.chip:hover {
+  border-color: var(--primary);
+}

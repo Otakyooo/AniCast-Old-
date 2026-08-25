@@ -212,6 +212,13 @@ export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogR
   return normalizeCatalog(payload);
 }
 
+export interface GenreOption { slug: string; name: string; titles_count: number }
+
+/** Localized genre options for the catalog filter bar, most used first. */
+export async function getGenres(): Promise<GenreOption[]> {
+  return request<GenreOption[]>("/genres/", revalidated(300));
+}
+
 export async function getCatalogItem(slug: string): Promise<CatalogItem> {
   return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, revalidated(60));
 }

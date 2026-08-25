@@ -1,12 +1,22 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CatalogCard } from "../../components/catalog-card";
+import { CatalogFiltersForm } from "../../components/catalog-filters";
 import { PageShell } from "../../components/page-shell";
-import { emptyPage, getCatalog, type CatalogFilters, type CatalogResponse } from "../../lib/api";
+import {
+  emptyPage,
+  getCatalog,
+  getGenres,
+  type CatalogFilters,
+  type CatalogItem,
+  type CatalogOrdering,
+} from "../../lib/api";
 import { getI18n } from "../../i18n/server";
 import styles from "./catalog.module.css";
 
 export const dynamic = "force-dynamic";
+
+const ORDERINGS: CatalogOrdering[] = ["popular", "recent", "name"];
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -29,6 +39,7 @@ function catalogHref(filters: CatalogFilters, page: number) {
   if (filters.type) query.set("type", filters.type);
   if (filters.status) query.set("status", filters.status);
   if (filters.genre) query.set("genre", filters.genre);
+  if (filters.ordering) query.set("ordering", filters.ordering);
   if (page > 1) query.set("page", String(page));
   const suffix = query.toString();
   return suffix ? `/catalog?${suffix}` : "/catalog";
@@ -37,50 +48,35 @@ function catalogHref(filters: CatalogFilters, page: number) {
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const requestedPage = Number.parseInt(firstValue(params.page), 10);
+  const rawOrdering = firstValue(params.ordering);
   const filters: CatalogFilters = {
     q: firstValue(params.q).trim(),
     type: firstValue(params.type),
     status: firstValue(params.status),
     genre: firstValue(params.genre),
+    ordering: ORDERINGS.includes(rawOrdering as CatalogOrdering) ? rawOrdering as CatalogOrdering : undefined,
     page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   };
-  const catalog: CatalogResponse = await getCatalog(filters).catch(() => emptyPage());
+  const [catalog, genres] = await Promise.all([
+    getCatalog(filters).catch(() => emptyPage<CatalogItem>()),
+    getGenres().catch(() => []),
+  ]);
   const currentPage = filters.page ?? 1;
   const pageCount = Math.max(1, Math.ceil(catalog.count / 20));
-  const hasFilters = Boolean(filters.q || filters.type || filters.status || filters.genre);
+  const hasFilters = Boolean(filters.q || filters.type || filters.status || filters.genre || filters.ordering);
   const { t } = await getI18n();
 
   return <PageShell active="catalog" heading={{ eyebrow: t("catalog.eyebrow"), title: t("catalog.title"), subtitle: t("catalog.subtitle") }}>
-    <form className={styles.filters} action="/catalog">
-      {/* The genre filter is set by links from title pages, so carry it through
-          the form instead of silently dropping it on submit. */}
-      {filters.genre && <input type="hidden" name="genre" value={filters.genre} />}
-      <label className={styles.field}>
-        <span>{t("catalog.searchLabel")}</span>
-        <input name="q" defaultValue={filters.q} placeholder={t("catalog.searchPlaceholder")} />
-      </label>
-      <label className={styles.field}>
-        <span>{t("catalog.format")}</span>
-        <select name="type" defaultValue={filters.type}>
-          <option value="">{t("catalog.allFormats")}</option>
-          <option value="anime">{t("catalog.series")}</option>
-          <option value="movie">{t("catalog.movie")}</option>
-          <option value="ova">OVA</option>
-          <option value="special">{t("catalog.special")}</option>
-        </select>
-      </label>
-      <label className={styles.field}>
-        <span>{t("catalog.status")}</span>
-        <select name="status" defaultValue={filters.status}>
-          <option value="">{t("catalog.anyStatus")}</option>
-          <option value="ongoing">{t("status.ongoing")}</option>
-          <option value="finished">{t("status.finished")}</option>
-          <option value="planned">{t("status.planned")}</option>
-        </select>
-      </label>
-      <button className={styles.submit} type="submit">{t("catalog.apply")}</button>
-      {hasFilters && <Link className={styles.reset} href="/catalog">{t("catalog.reset")}</Link>}
-    </form>
+    <CatalogFiltersForm
+      values={{
+        q: filters.q ?? "",
+        type: filters.type ?? "",
+        status: filters.status ?? "",
+        genre: filters.genre ?? "",
+        ordering: filters.ordering,
+      }}
+      genres={genres}
+    />
     {catalog.results.length ? (
       <div className="catalog-grid">{catalog.results.map(item => <CatalogCard item={item} key={item.slug} />)}</div>
     ) : (
