@@ -436,3 +436,47 @@ a.railLink:hover {
   gap: 12px;
   padding: 10px 0;
 }
+
+.playerShell {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #080b12;
+}
+
+.playerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-1);
+}
+
+.playerFrameWrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+}
+
+.playerFrame,
+.playerLoading {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.playerFrame {
+  border: 0;
+}
+
+.playerLoading {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .playerFrameWrap { min-height: 180px }
+}

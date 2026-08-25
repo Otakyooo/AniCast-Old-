@@ -286,6 +286,7 @@ class Source(models.Model):
     ]
     episode = models.ForeignKey(Episode, related_name="sources", on_delete=models.CASCADE)
     provider = models.ForeignKey(Provider, related_name="sources", null=True, blank=True, on_delete=models.PROTECT)
+    external_id = models.CharField(max_length=160, blank=True)
     name = models.CharField(max_length=120)
     url = models.URLField()
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default="sub")
@@ -301,7 +302,22 @@ class Source(models.Model):
 
     class Meta:
         ordering = ["name", "id"]
-        constraints = [models.UniqueConstraint(fields=["episode", "name", "kind"], name="unique_episode_source")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["episode", "name", "kind"],
+                condition=Q(external_id=""),
+                name="unique_manual_episode_source",
+            ),
+            models.UniqueConstraint(
+                fields=["provider", "episode", "external_id"],
+                condition=~Q(external_id=""),
+                name="unique_provider_episode_external_source",
+            ),
+            models.CheckConstraint(
+                condition=Q(external_id="") | Q(provider__isnull=False),
+                name="external_source_requires_provider",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.kind})"

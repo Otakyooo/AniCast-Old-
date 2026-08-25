@@ -36,7 +36,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ slug: 
                 <strong>{source.name}</strong>
                 <span>{source.kind.toUpperCase()} · {sourceLabel(source.availability)}</span>
                 {source.availability_reason && <small>{source.availability_reason}</small>}
-                {source.playback_available && <PlaybackLink sourceId={source.id} />}
+                {source.playback_available && <PlaybackLink sourceId={source.id} playbackMode={source.playback_mode} />}
                 <SourceReportControl sourceId={source.id} />
               </li>
             ))}

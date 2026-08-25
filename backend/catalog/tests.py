@@ -389,6 +389,32 @@ def test_playback_is_fail_closed_and_requires_active_approved_right(catalog_data
     assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 404
 
 
+@pytest.mark.django_db
+def test_iframe_playback_uses_signed_resolver_and_rechecks_rights(authorized_source):
+    source, provider, grant = authorized_source
+    provider.allowed_hosts = ["kodikplayer.com"]
+    provider.playback_adapter = "iframe_embed"
+    provider.save(update_fields=["allowed_hosts", "playback_adapter"])
+    source.url = "https://kodikplayer.com/seria/1/redacted/720p"
+    source.save(update_fields=["url"])
+
+    issued = APIClient().get(f"/api/v1/sources/{source.id}/playback/")
+    assert issued.status_code == 200
+    assert issued.json()["mode"] == "iframe_embed"
+    assert issued.json()["url"].startswith("/api/v1/playback/")
+    assert source.url not in issued.json()["url"]
+    episode = APIClient().get("/api/v1/titles/playback-test/episodes/1/").json()
+    assert episode["sources"][0]["playback_mode"] == "iframe_embed"
+    assert "url" not in episode["sources"][0]
+    resolved = APIClient().get(issued.json()["url"])
+    assert resolved.status_code == 302
+    assert resolved.url == source.url
+
+    grant.status = RightsGrant.Status.REVOKED
+    grant.save(update_fields=["status"])
+    assert APIClient().get(issued.json()["url"]).status_code == 404
+
+
 @pytest.fixture
 def authorized_source(db):
     title = Title.objects.create(name="Playback Test", slug="playback-test")

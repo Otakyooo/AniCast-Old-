@@ -1,21 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { getPlayback } from "../lib/api";
+import { getPlayback, type PlaybackMode } from "../lib/api";
+import { safePlaybackTarget } from "../lib/playback";
 import { useI18n } from "./i18n-provider";
 
-export function PlaybackLink({ sourceId }: { sourceId: number }) {
+export function PlaybackLink({
+  sourceId,
+  playbackMode,
+  onEmbed,
+}: {
+  sourceId: number;
+  playbackMode?: PlaybackMode | null;
+  onEmbed?: (url: string) => void;
+}) {
   const { t } = useI18n();
   const [error, setError] = useState("");
   async function open() {
-    const popup = window.open("about:blank", "_blank");
+    const popup = playbackMode === "iframe_embed" && onEmbed ? null : window.open("about:blank", "_blank");
     if (popup) popup.opener = null;
     setError("");
     try {
       const payload = await getPlayback(sourceId);
-      const target = new URL(payload.url, window.location.origin);
-      if (payload.mode !== "external_link" || target.origin !== window.location.origin) throw new Error("Unsafe playback response");
-      if (popup) popup.location.href = target.href;
+      const target = safePlaybackTarget(payload, window.location.origin);
+      if (playbackMode && target.mode !== playbackMode) throw new Error("Playback mode changed");
+      if (target.mode === "iframe_embed" && onEmbed) {
+        popup?.close();
+        onEmbed(target.url);
+      } else if (popup) {
+        popup.location.href = target.url;
+      } else {
+        throw new Error("Popup blocked");
+      }
     } catch {
       popup?.close();
       setError(t("source.gone"));

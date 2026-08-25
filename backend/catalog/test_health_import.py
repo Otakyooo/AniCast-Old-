@@ -73,6 +73,19 @@ def test_task_marks_three_failures_and_recovers_automatic_error(monitored_source
 
 
 @pytest.mark.django_db
+def test_task_skips_browser_only_iframe_sources(monitored_source, monkeypatch):
+    monitored_source.provider.playback_adapter = "iframe_embed"
+    monitored_source.provider.save(update_fields=["playback_adapter"])
+    monkeypatch.setattr(
+        "catalog.tasks.check_source",
+        lambda source: pytest.fail("iframe source must not be checked from the backend"),
+    )
+
+    assert check_provider_sources() == {"checked": 0, "failed": 0}
+    assert not SourceHealthCheck.objects.filter(source=monitored_source).exists()
+
+
+@pytest.mark.django_db
 def test_health_error_does_not_persist_source_url(monitored_source, monkeypatch):
     secret_url = "https://watch.example.com/episode/1?token=must-not-leak"
     monitored_source.url = secret_url

@@ -51,7 +51,7 @@ def check_provider_sources():
     queryset = Source.objects.filter(
         provider__is_enabled=True,
         availability__in=["available", "provider_error"],
-    ).select_related("provider")
+    ).exclude(provider__playback_adapter="iframe_embed").select_related("provider")
     for source in queryset:
         result = check_source(source)
         increment("source_checks", "healthy" if result.is_healthy else "failed")

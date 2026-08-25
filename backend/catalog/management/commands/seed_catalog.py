@@ -114,6 +114,7 @@ class Command(BaseCommand):
             episode=episode,
             name="Demo Provider",
             kind="sub",
+            external_id="",
             defaults={"provider": provider, "url": "https://example.invalid/demo-title/1", "availability": "available", "availability_reason": "Demo source only."},
         )
         self.stdout.write(self.style.SUCCESS("Catalog seed completed."))

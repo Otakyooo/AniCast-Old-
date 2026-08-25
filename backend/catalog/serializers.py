@@ -17,15 +17,23 @@ class GenreSerializer(serializers.ModelSerializer):
 class SourceSerializer(serializers.ModelSerializer):
     is_available = serializers.BooleanField(read_only=True)
     playback_available = serializers.SerializerMethodField()
+    playback_mode = serializers.SerializerMethodField()
 
     class Meta:
         model = Source
-        fields = ["id", "name", "kind", "availability", "availability_reason", "is_available", "playback_available"]
+        fields = ["id", "name", "kind", "availability", "availability_reason", "is_available", "playback_available", "playback_mode"]
 
     def get_playback_available(self, obj):
         from .playback import playback_available
 
         return playback_available(obj)
+
+    def get_playback_mode(self, obj):
+        from .playback import playback_adapters
+
+        if obj.provider is None or playback_adapters.get(obj.provider.playback_adapter) is None:
+            return None
+        return obj.provider.playback_adapter
 
 
 class EpisodeSerializer(serializers.ModelSerializer):

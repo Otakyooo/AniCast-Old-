@@ -247,7 +247,7 @@ def apply_payload(payload):
                 if not source_url_allowed(candidate):
                     raise CommandError(f"Источник {source_item['name']}: URL не соответствует provider allowlist")
                 Source.objects.update_or_create(
-                    episode=episode, name=source_item["name"], kind=source_item.get("kind", "sub"),
+                    episode=episode, name=source_item["name"], kind=source_item.get("kind", "sub"), external_id="",
                     defaults={"provider": provider, "url": source_item["url"], "availability": source_item.get("availability", "available"), "availability_reason": str(source_item.get("availability_reason", ""))},
                 )
                 stats["sources"] += 1

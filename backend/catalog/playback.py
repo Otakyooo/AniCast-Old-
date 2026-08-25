@@ -46,6 +46,17 @@ class ExternalLinkAdapter:
         return source.url
 
 
+class IframeEmbedAdapter:
+    name = "iframe_embed"
+
+    def validate_config(self, config: object) -> None:
+        if config != {}:
+            raise ValueError("iframe_embed adapter does not accept configuration")
+
+    def target_url(self, source: Source) -> str:
+        return source.url
+
+
 class PlaybackAdapterRegistry:
     def __init__(self) -> None:
         self._adapters: dict[str, PlaybackAdapter] = {}
@@ -61,6 +72,7 @@ class PlaybackAdapterRegistry:
 
 playback_adapters = PlaybackAdapterRegistry()
 playback_adapters.register(ExternalLinkAdapter())
+playback_adapters.register(IframeEmbedAdapter())
 
 
 def playback_url_ttl() -> int:

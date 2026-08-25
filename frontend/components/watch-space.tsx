@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { EpisodeProgressControl } from "./episode-progress-control";
 import { PlaybackLink } from "./playback-link";
+import { ProviderPlayer } from "./provider-player";
 import { SourceReportControl } from "./source-report-control";
 import type { Source } from "../lib/api";
 import { useI18n } from "./i18n-provider";
@@ -17,12 +18,6 @@ interface WatchEpisode {
   sources: Source[];
 }
 
-/**
- * Unified viewing space for one title: episode rail, prev/next navigation,
- * progress control and source actions on a single shareable route
- * (/titles/<slug>/watch?episode=N). Playback stays an external provider tab —
- * the backend only issues same-origin external links by design.
- */
 export function WatchSpace({
   slug,
   titleName,
@@ -52,6 +47,7 @@ export function WatchSpace({
   const [chosenSourceId, setChosenSourceId] = useState<number | null>(
     playableSources[0]?.id ?? null,
   );
+  const [embedUrl, setEmbedUrl] = useState("");
   const chosen = playableSources.find((source) => source.id === chosenSourceId) ?? null;
 
   const sourceLabel = (value: string) =>
@@ -95,6 +91,10 @@ export function WatchSpace({
 
       <EpisodeProgressControl slug={slug} number={episode.number} />
 
+      {embedUrl && chosen && (
+        <ProviderPlayer src={embedUrl} title={chosen.name} onClose={() => setEmbedUrl("")} />
+      )}
+
       <section className={styles.watchSources}>
         <h2>{t("episode.sources")}</h2>
         <p className="muted">{t("watch.sourcesHint")}</p>
@@ -102,13 +102,16 @@ export function WatchSpace({
           <>
             <div className={styles.sourceRow}>
               {chosen ? (
-                <PlaybackLink key={chosen.id} sourceId={chosen.id} />
+                <PlaybackLink key={chosen.id} sourceId={chosen.id} playbackMode={chosen.playback_mode} onEmbed={setEmbedUrl} />
               ) : null}
               {playableSources.length > 1 && (
                 <select
                   aria-label={t("episode.sources")}
                   value={chosenSourceId ?? ""}
-                  onChange={(event) => setChosenSourceId(Number(event.target.value))}
+                  onChange={(event) => {
+                    setChosenSourceId(Number(event.target.value));
+                    setEmbedUrl("");
+                  }}
                 >
                   {playableSources.map((source) => (
                     <option key={source.id} value={source.id}>

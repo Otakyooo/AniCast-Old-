@@ -13,10 +13,13 @@ export interface Source {
   availability_reason?: string;
   is_available: boolean;
   playback_available: boolean;
+  playback_mode?: PlaybackMode | null;
 }
 
+export type PlaybackMode = "external_link" | "iframe_embed";
+
 export interface PlaybackResponse {
-  mode: "external_link";
+  mode: PlaybackMode;
   url: string;
   expires_at: string;
 }
