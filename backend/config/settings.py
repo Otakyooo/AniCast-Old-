@@ -94,6 +94,8 @@ CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 CELERY_TASK_ROUTES = {
     "push.tasks.dispatch_episode_notifications": {"queue": "notifications"},
+    "push.tasks.dispatch_event_notifications": {"queue": "notifications"},
+    "push.tasks.send_schedule_digest": {"queue": "notifications"},
     "catalog.tasks.check_provider_sources": {"queue": "providers"},
     "catalog.tasks.refresh_title_posters": {"queue": "posters"},
 }
@@ -103,6 +105,16 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BEAT_SCHEDULE = {
     "dispatch-episode-notifications": {
         "task": "push.tasks.dispatch_episode_notifications",
+        "schedule": 900.0,
+    },
+    "dispatch-event-notifications": {
+        "task": "push.tasks.dispatch_event_notifications",
+        "schedule": 900.0,
+    },
+    "send-schedule-digest": {
+        "task": "push.tasks.send_schedule_digest",
+        # Runs continuously; the per-channel last_digest_date guard makes it
+        # deliver at most once a day and retry failures within 15 minutes.
         "schedule": 900.0,
     },
     "check-provider-sources": {
@@ -115,6 +127,7 @@ CELERY_BEAT_SCHEDULE = {
         "options": {"soft_time_limit": 1500, "time_limit": 1800},
     },
 }
+ANICAST_SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://anicast.online").rstrip("/")
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = not DEBUG and not USE_SQLITE

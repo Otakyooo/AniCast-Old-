@@ -3,7 +3,7 @@ import { clientMessage } from "../i18n/client";
 
 export interface NotificationChannelStatus {
   connected: boolean;
-  channel: { username: string; is_active: boolean; linked_at: string; disabled_at: string | null; last_error: string } | null;
+  channel: { username: string; is_active: boolean; schedule_digest_enabled: boolean; linked_at: string; disabled_at: string | null; last_error: string } | null;
 }
 
 async function csrfRequest(path: string, method: string, body?: object) {
@@ -20,6 +20,11 @@ export async function getNotificationChannel() {
   const response = await fetch("/api/v1/notifications/telegram/channel/", { credentials: "same-origin", cache: "no-store" });
   if (!response.ok) throw new Error(clientMessage("Не удалось проверить канал уведомлений.", "Could not check notification channel."));
   return response.json() as Promise<NotificationChannelStatus>;
+}
+
+export async function setScheduleDigest(enabled: boolean) {
+  const response = await csrfRequest("telegram/channel/", "PATCH", { schedule_digest_enabled: enabled });
+  if (!response.ok) throw new Error(clientMessage("Не удалось изменить дайджест.", "Could not update the digest setting."));
 }
 
 export async function createNotificationChallenge() {

@@ -8,7 +8,7 @@ from .models import NotificationDelivery, TelegramNotificationChannel, TitleNoti
 class ChannelSerializer(serializers.ModelSerializer):
     class Meta:
         model = TelegramNotificationChannel
-        fields = ["username", "is_active", "linked_at", "disabled_at", "last_error"]
+        fields = ["username", "is_active", "schedule_digest_enabled", "linked_at", "disabled_at", "last_error"]
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):

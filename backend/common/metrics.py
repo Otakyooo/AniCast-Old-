@@ -17,7 +17,7 @@ TASKS = (
     "other",
 )
 TASK_RESULTS = ("success", "failure", "retry")
-POSTER_RESULTS = ("maximum", "large", "kitsu", "mirrored", "current", "unavailable", "invalid", "error")
+POSTER_RESULTS = ("maximum", "large", "kitsu", "original", "mirrored", "current", "unavailable", "invalid", "error")
 
 
 def increment(metric: str, *labels: str, value: int = 1) -> None:

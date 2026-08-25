@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from django.utils.html import format_html
 from django.utils import timezone
 
+from push.tasks import notify_report_handled
+
 from . import posters
 from .models import (
     Character,
@@ -384,11 +386,17 @@ class SourceReportAdmin(admin.ModelAdmin):
     def set_status(self, request, queryset, report_status):
         now = timezone.now()
         for report in queryset:
+            previous = report.status
             report.status = report_status
             report.handled_by = request.user
             report.handled_at = now
             report.save(update_fields=["status", "handled_by", "handled_at", "updated_at"])
             self.log_change(request, report, f"Статус изменён на «{report.get_status_display()}».")
+            # Only a final verdict reaches the reporter; "reviewing" is an
+            # internal stage and re-applying the same status is silent.
+            if previous != report_status and report_status in {SourceReport.Status.RESOLVED, SourceReport.Status.REJECTED}:
+                if report.reporter != request.user:
+                    notify_report_handled(report)
 
     @admin.action(description="Взять на проверку")
     def mark_reviewing(self, request, queryset):

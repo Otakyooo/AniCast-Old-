@@ -8,6 +8,7 @@ import {
   getDeliveries,
   getNotificationChannel,
   getSubscriptions,
+  setScheduleDigest,
   unsubscribeFromTitle,
   type DeliveryItem,
   type SubscriptionItem,
@@ -24,12 +25,16 @@ function formatDay(value: string | null) {
 export function NotificationPanel({ botUsername }: { botUsername?: string }) {
   const { t } = useI18n();
   const [connected, setConnected] = useState<boolean>();
+  const [digestEnabled, setDigestEnabled] = useState<boolean>(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>();
   const [deliveries, setDeliveries] = useState<DeliveryItem[]>();
   useEffect(() => {
-    getNotificationChannel().then(value => setConnected(value.connected)).catch(() => setConnected(false));
+    getNotificationChannel().then(value => {
+      setConnected(value.connected);
+      if (value.channel) setDigestEnabled(value.channel.schedule_digest_enabled);
+    }).catch(() => setConnected(false));
     getSubscriptions().then(value => setSubscriptions(value.results)).catch(() => setSubscriptions([]));
     getDeliveries().then(value => setDeliveries(value.results)).catch(() => setDeliveries([]));
   }, []);
@@ -56,6 +61,14 @@ export function NotificationPanel({ botUsername }: { botUsername?: string }) {
       setSubscriptions(current => (current ?? []).filter(item => item.title.slug !== slug));
     } catch (reason) { setError(reason instanceof Error ? reason.message : t("common.error")); } finally { setPending(false); }
   }
+  async function toggleDigest() {
+    const next = !digestEnabled;
+    setPending(true); setError("");
+    try {
+      await setScheduleDigest(next);
+      setDigestEnabled(next);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : t("common.error")); } finally { setPending(false); }
+  }
   if (!botUsername) return null;
   return (
     <section className={styles.panel}>
@@ -63,6 +76,13 @@ export function NotificationPanel({ botUsername }: { botUsername?: string }) {
       <p>{connected ? t("notifications.connected", { bot: botUsername }) : t("notifications.description")}</p>
       <button type="button" disabled={pending || connected === undefined} onClick={connected ? disconnect : connect}>{pending ? t("notifications.pending") : connected ? t("notifications.disconnect") : t("notifications.connect")}</button>
       {error && <span>{error}</span>}
+      {connected && (
+        <div className={styles.section}>
+          <h4>{t("notifications.digestTitle")}</h4>
+          <p className="muted">{t("notifications.digestDescription")}</p>
+          <button type="button" disabled={pending} onClick={toggleDigest}>{digestEnabled ? t("notifications.digestOn") : t("notifications.digestOff")}</button>
+        </div>
+      )}
       {subscriptions !== undefined && subscriptions.length > 0 && !connected && (
         <p className={styles.warning}>{t("notifications.notLinkedWarning")}</p>
       )}

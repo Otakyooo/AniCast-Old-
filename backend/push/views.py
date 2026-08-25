@@ -52,6 +52,15 @@ class NotificationChannelView(APIView):
         channel = TelegramNotificationChannel.objects.filter(user=request.user).first()
         return Response({"connected": bool(channel and channel.is_active), "channel": ChannelSerializer(channel).data if channel else None})
 
+    def patch(self, request):
+        channel = get_object_or_404(TelegramNotificationChannel, user=request.user)
+        enabled = request.data.get("schedule_digest_enabled")
+        if not isinstance(enabled, bool):
+            return Response({"schedule_digest_enabled": ["A boolean is required."]}, status=400)
+        channel.schedule_digest_enabled = enabled
+        channel.save(update_fields=["schedule_digest_enabled", "updated_at"])
+        return Response(ChannelSerializer(channel).data)
+
     def delete(self, request):
         channel = get_object_or_404(TelegramNotificationChannel, user=request.user)
         channel.is_active = False

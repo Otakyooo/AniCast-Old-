@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cachedSessionUser, fetchAccountSummary, getSessionUser, type AccountSummary, type SessionUser } from "../lib/auth";
 import { ResumeShelf } from "./continue-watching-block";
+import { CollectionPreviews } from "./collection-previews";
+import { RecommendationShelf } from "./recommendation-shelf";
 import { RecentNotes } from "./recent-notes";
 import { useI18n } from "./i18n-provider";
 import authStyles from "../app/auth.module.css";
@@ -74,6 +76,8 @@ export function AccountPanel() {
 
       <ResumeShelf />
 
+      <CollectionPreviews />
+
       {(summary?.top_genres.length ?? 0) > 0 && (
         <section aria-label={t("profile.favoriteGenres")}>
           <div className={styles.sectionHeading}><h2>{t("profile.favoriteGenres")}</h2></div>
@@ -90,6 +94,8 @@ export function AccountPanel() {
           </ul>
         </section>
       )}
+
+      <RecommendationShelf />
 
       <RecentNotes />
 

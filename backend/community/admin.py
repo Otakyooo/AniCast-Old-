@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.utils import timezone
 
+from push.tasks import notify_review_moderated
+
 from .models import TitleRating, TitleReview
 
 
@@ -35,12 +37,16 @@ class ReviewAdmin(admin.ModelAdmin):
     def set_status(self, request, queryset, status):
         now = timezone.now()
         for review in queryset:
+            previous = review.status
             review.status = status
             review.moderated_by = request.user
             review.moderated_at = now
             review.published_at = now if status == TitleReview.Status.APPROVED else None
             review.save(update_fields=["status", "moderated_by", "moderated_at", "published_at", "updated_at"])
             self.log_change(request, review, f"Рецензия: {review.get_status_display()}.")
+            # Re-moderating into the same state must not spam the author.
+            if previous != status and review.user != request.user:
+                notify_review_moderated(review)
 
     @admin.action(description="Одобрить рецензии")
     def approve_reviews(self, request, queryset):

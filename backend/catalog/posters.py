@@ -7,6 +7,8 @@ artwork through Jikan with tiers encoded in the stored filename:
 - ``m``: MAL ``maximum_image_url``
 - ``l``: MAL ``large_image_url`` fallback
 - ``k``: Kitsu ``posterImage.original`` (fallback while Jikan is degraded)
+- ``o``: recorded Shikimori origin (``poster_origin_url``), adopted when
+  strictly larger than the stored file
 - ``s``: current Shikimori/MAL hotlink mirrored as-is
 
 Non-maximum artwork is only replaced when the downloaded file is strictly
@@ -35,10 +37,11 @@ from common.metrics import increment
 TIER_MAXIMUM = "m"
 TIER_LARGE = "l"
 TIER_KITSU = "k"
+TIER_ORIGIN = "o"
 TIER_FALLBACK = "s"
 
 ALLOWED_POSTER_HOSTS = frozenset({"shikimori.one", "shikimori.io", "cdn.myanimelist.net", "media.kitsu.app", "media.kitsu.io"})
-POSTER_NAME_RE = re.compile(r"^(\d{1,7}|x)-([mlsk])-([0-9a-f]{8}|[0-9a-f]{16})\.(jpg|png|webp)$")
+POSTER_NAME_RE = re.compile(r"^(\d{1,7}|x)-([mlsko])-([0-9a-f]{8}|[0-9a-f]{16})\.(jpg|png|webp)$")
 MEDIA_PATH_MARKER = "/api/v1/media/posters/"
 MIN_WIDTH = 200
 MIN_HEIGHT = 280
@@ -282,6 +285,11 @@ def _ensure_origin(title: Title, apply_changes: bool) -> None:
 
 def refresh_title(title: Title, apply_changes: bool) -> tuple[str, str]:
     """Bring one title to its best stable poster. Returns ``(result, detail)``."""
+    # Capture the persisted origin before _ensure_origin reconstructs one:
+    # only origins recorded before this refresh are upgrade candidates, so a
+    # legacy row finishes its regular upgrade first and becomes an origin
+    # candidate from the next cycle on.
+    recorded_origin = title.poster_origin_url
     if apply_changes:
         _ensure_origin(title, True)
     mal_id = slug_mal_id(title.slug)
@@ -295,10 +303,25 @@ def refresh_title(title: Title, apply_changes: bool) -> tuple[str, str]:
         url, best_tier = best
         if best_tier == TIER_MAXIMUM and tier != TIER_MAXIMUM:
             return _adopt_labeled(title, mal_id, url, best_tier, apply_changes)
+    # Origin upgrades only apply to titles already serving a local copy;
+    # raw-hotlink rows take the cheaper mirror path below first (same bytes,
+    # and the very next refresh sees them as upgraded candidates).
+    if (
+        recorded_origin
+        and is_allowed_poster_url(recorded_origin)
+        and current_tier(title.poster_url) is not None
+    ):
+        upgraded, detail = _adopt_if_larger(title, mal_id, recorded_origin, TIER_ORIGIN, apply_changes)
+        if upgraded == "original":
+            return upgraded, detail
+        # current/invalid/error fall through: a failed origin download must
+        # never block the remaining large/kitsu sources.
+    if best is not None:
+        url, best_tier = best
         if best_tier == TIER_LARGE:
             if tier in (None, TIER_FALLBACK):
                 return _adopt_labeled(title, mal_id, url, best_tier, apply_changes)
-            if tier == TIER_KITSU:
+            if tier in (TIER_KITSU, TIER_LARGE):
                 # Both sides are per-title sized fallbacks; keep the larger.
                 return _adopt_if_larger(title, mal_id, url, TIER_LARGE, apply_changes)
             increment("poster_refresh", "current")
@@ -386,8 +409,9 @@ def _adopt_if_larger(
         Title.objects.filter(pk=title.pk).update(**updates)
         if current_tier(previous) is not None and previous != public_url:
             drop_stored_poster(previous)
-        increment("poster_refresh", "kitsu" if tier == TIER_KITSU else "large")
-        return ("kitsu" if tier == TIER_KITSU else "large"), f"{title.slug}: stored {filename} ({width}x{height}, {ext})"
+        verb = {"k": "kitsu", "l": "large", "o": "original"}[tier]
+        increment("poster_refresh", verb)
+        return verb, f"{title.slug}: stored {filename} ({width}x{height}, {ext})"
     except ValueError as reason:
         increment("poster_refresh", "invalid")
         return "invalid", f"{title.slug}: artwork rejected ({reason})"
@@ -397,7 +421,7 @@ def _adopt_if_larger(
 
 
 def _adopt(title: Title, mal_id: int | None, url: str, tier: str, apply_changes: bool) -> tuple[str, str]:
-    verb = {"m": "maximum", "l": "large", "k": "kitsu", "s": "mirrored"}[tier]
+    verb = {"m": "maximum", "l": "large", "k": "kitsu", "o": "original", "s": "mirrored"}[tier]
     if not apply_changes:
         return verb, f"{title.slug}: plan {tier}-tier from {url.split('//', 1)[-1].split('/', 1)[0]}"
     data = download_bytes(url)
@@ -442,7 +466,7 @@ def _candidate_priority(title: Title) -> int | None:
     0 — nothing usable on disk (missing local file or no poster yet):
         restore or first-mirror work that directly affects viewers;
     1 — fallback tier: Shikimori-resolution art awaiting an upgrade;
-    2 — large/kitsu tiers: already upgraded, only probing for maximum.
+    2 — large/kitsu/origin tiers: already upgraded, only probing for maximum.
     Titles with neither an allowlisted source nor a MAL id in the slug can
     never improve and are dropped instead of burning probes every run.
     """
@@ -451,7 +475,7 @@ def _candidate_priority(title: Title) -> int | None:
         return None
     if tier == TIER_FALLBACK:
         return 1
-    if tier in (TIER_LARGE, TIER_KITSU):
+    if tier in (TIER_LARGE, TIER_KITSU, TIER_ORIGIN):
         return 2
     if any(url and is_allowed_poster_url(url) for url in (title.poster_url, title.poster_origin_url)):
         return 0

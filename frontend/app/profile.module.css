@@ -284,6 +284,61 @@
   overflow-wrap: anywhere;
 }
 
+/* ---------- Cabinet v3: collection previews ---------- */
+
+.collectionCard {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.collectionCard:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.collectionCard:active {
+  transform: none;
+  background: var(--surface-2);
+}
+
+.collectionName {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.posterRow {
+  display: flex;
+  gap: 6px;
+  min-height: 104px;
+}
+
+.posterThumb {
+  position: relative;
+  display: grid;
+  width: 72px;
+  height: 104px;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.collectionCount {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

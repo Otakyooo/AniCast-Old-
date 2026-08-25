@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    EventNotification,
     NotificationDelivery,
     TelegramNotificationChallenge,
     TelegramNotificationChannel,
@@ -8,10 +9,24 @@ from .models import (
 )
 
 
+@admin.register(EventNotification)
+class EventNotificationAdmin(admin.ModelAdmin):
+    list_display = ["user", "kind", "status", "attempts", "context", "created_at", "sent_at"]
+    list_filter = ["kind", "status", "created_at"]
+    search_fields = ["user__email", "user__display_name", "context"]
+    readonly_fields = [field.name for field in EventNotification._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(TelegramNotificationChannel)
 class ChannelAdmin(admin.ModelAdmin):
-    list_display = ["user", "username", "chat_id", "is_active", "linked_at", "disabled_at"]
-    list_filter = ["is_active", "linked_at"]
+    list_display = ["user", "username", "chat_id", "is_active", "schedule_digest_enabled", "last_digest_date", "linked_at", "disabled_at"]
+    list_filter = ["is_active", "schedule_digest_enabled", "linked_at"]
     search_fields = ["user__email", "user__display_name", "username", "chat_id"]
     readonly_fields = ["user", "telegram_user_id", "chat_id", "username", "linked_at", "updated_at", "last_error"]
 

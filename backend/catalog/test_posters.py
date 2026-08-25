@@ -243,9 +243,68 @@ def test_adopt_records_remote_origin(poster_media_root, monkeypatch):
     (poster_media_root / title.poster_url.rsplit("/", 1)[-1]).unlink()
     result, _ = posters.refresh_title(title, apply_changes=True)
     title.refresh_from_db()
-    assert result == "mirrored"
-    assert "-s-" in title.poster_url
+    assert result == "original"
+    assert "-o-" in title.poster_url
     assert title.poster_origin_url == shikimori
+
+
+@pytest.mark.django_db
+def test_origin_upgrade_replaces_smaller_fallback(poster_media_root, monkeypatch):
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    fallback_file = posters.store_poster(24, "s", png_bytes(225, 318))
+    shikimori = "https://shikimori.one/system/animes/original/24.jpg"
+    title = Title.objects.create(
+        name="Up", slug="24-up",
+        poster_url=posters.public_poster_url(fallback_file),
+        poster_origin_url=shikimori,
+    )
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: None)
+    monkeypatch.setattr(posters, "download_bytes", lambda url: png_bytes(800, 1200))
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "original"
+    title.refresh_from_db()
+    assert "-o-" in title.poster_url and title.poster_url.startswith("https://cdn.test/api/")
+    assert not (poster_media_root / fallback_file).exists()
+    assert title.poster_origin_url == shikimori
+
+
+@pytest.mark.django_db
+def test_origin_smaller_keeps_stored_and_falls_through(poster_media_root, monkeypatch):
+    poster_media_root.mkdir(parents=True, exist_ok=True)
+    large_file = posters.store_poster(25, "l", png_bytes(500, 700))
+    origin = "https://shikimori.io/system/animes/original/25.jpg"
+    mal_large = "https://cdn.myanimelist.net/images/anime/25l.jpg"
+    title = Title.objects.create(
+        name="Keep", slug="25-keep",
+        poster_url=posters.public_poster_url(large_file),
+        poster_origin_url=origin,
+    )
+    downloads: list[str] = []
+
+    def record_download(url):
+        downloads.append(url)
+        return png_bytes(300, 446) if url == origin else png_bytes(425, 600)
+
+    monkeypatch.setattr(posters, "mal_artwork_with_tier", lambda mal_id: (mal_large, "l"))
+    monkeypatch.setattr(posters, "download_bytes", record_download)
+
+    result, _ = posters.refresh_title(title, apply_changes=True)
+    assert result == "current"
+    title.refresh_from_db()
+    assert "-l-" in title.poster_url
+    assert downloads == [origin, mal_large]
+    assert (poster_media_root / large_file).is_file()
+
+
+def test_origin_tier_priority_bucket(poster_media_root):
+    filename = posters.store_poster(26, "o", png_bytes(800, 1200))
+    title = Title(slug="26-bucket", poster_url=posters.public_poster_url(filename))
+    assert posters._candidate_priority(title) == 2
+
+
+def test_origin_tier_filename_matches_poster_regex():
+    assert posters.POSTER_NAME_RE.match("21-o-ab12cd34.jpg")
 
 
 @pytest.mark.django_db
