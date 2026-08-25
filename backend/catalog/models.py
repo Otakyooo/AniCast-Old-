@@ -81,6 +81,7 @@ class Title(models.Model):
     title_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default="anime")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planned")
     year = models.PositiveSmallIntegerField(null=True, blank=True)
+    duration_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
     poster_url = models.URLField(blank=True)
     poster_origin_url = models.URLField(blank=True)
     genres = models.ManyToManyField(Genre, related_name="titles", blank=True)
@@ -214,6 +215,40 @@ class TitleCharacter(models.Model):
         constraints = [models.UniqueConstraint(fields=["title", "character"], name="unique_title_character")]
 
 
+class Creator(models.Model):
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=220, unique=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+        verbose_name = "Автор"
+        verbose_name_plural = "Авторы"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TitleCredit(models.Model):
+    ROLE_CHOICES = [
+        ("director", "Режиссёр"),
+        ("producer", "Продюсер"),
+        ("writer", "Сценарист"),
+        ("composer", "Композитор"),
+        ("designer", "Дизайнер"),
+    ]
+    title = models.ForeignKey(Title, related_name="credits", on_delete=models.CASCADE)
+    creator = models.ForeignKey(Creator, related_name="title_credits", on_delete=models.CASCADE)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    source = models.CharField(max_length=32, default="manual")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Автор тайтла"
+        verbose_name_plural = "Авторы тайтла"
+        constraints = [models.UniqueConstraint(fields=["title", "creator", "role"], name="unique_title_creator_role")]
+
+
 class MediaAsset(models.Model):
     KIND_CHOICES = [("image", "Изображение"), ("trailer", "Трейлер"), ("promo", "Промо")]
     title = models.ForeignKey(Title, related_name="media_assets", null=True, blank=True, on_delete=models.CASCADE)
@@ -264,6 +299,9 @@ class Provider(models.Model):
     allowed_hosts = models.JSONField(default=list, blank=True)
     playback_adapter = models.CharField(max_length=64, blank=True)
     playback_config = models.JSONField(default=dict, blank=True)
+    rights_reference = models.CharField(max_length=240, blank=True)
+    rights_verified_at = models.DateTimeField(null=True, blank=True)
+    rights_valid_until = models.DateTimeField(null=True, blank=True)
     is_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

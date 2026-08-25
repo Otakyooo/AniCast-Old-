@@ -45,11 +45,11 @@ export default async function CharacterPage({ params }: { params: Promise<{ slug
   try { character = await getCharacter(slug); }
   catch (error) { if (apiErrorStatus(error) === 404) notFound(); return <ApiUnavailableState />; }
 
-  return <PageShell active="characters" back={{ href: "/characters", label: t("character.title") }}>
+  return <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
     <BreadcrumbsJsonLd
       items={[
         { name: t("account.home"), href: "/" },
-        { name: t("character.title"), href: "/characters" },
+        { name: t("catalog.title"), href: "/catalog" },
         { name: character.name, href: `/characters/${character.slug}` },
       ]}
     />

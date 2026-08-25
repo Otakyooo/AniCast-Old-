@@ -159,6 +159,67 @@
   white-space: nowrap;
 }
 
+.activityCard {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-1);
+}
+
+.activityCard .sectionHeading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.activityCard .sectionHeading > strong {
+  color: var(--primary);
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+
+.activityChart {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(24px, 1fr));
+  gap: clamp(4px, 1vw, 10px);
+  height: 190px;
+  margin-top: 18px;
+}
+
+.activityColumn {
+  display: grid;
+  grid-template-rows: 18px minmax(0, 1fr) 18px;
+  gap: 5px;
+  min-width: 0;
+  text-align: center;
+}
+
+.activityValue,
+.activityMonth {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.activityTrack {
+  position: relative;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+.activityBar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #9b7cff, var(--primary));
+}
+
 /* Clickable strip entries deep-link into the filtered library view. */
 a.stripItem {
   color: inherit;
@@ -360,6 +421,8 @@ a.genreRow:hover {
   font-weight: 700;
 }
 
+.posterThumbImage { object-fit: cover }
+
 .collectionCount {
   color: var(--muted);
   font-size: 12px;
@@ -464,4 +527,8 @@ a.genreRow:hover {
     grid-template-columns: minmax(90px, 1fr) minmax(0, 1fr) auto;
     gap: 10px;
   }
+
+  .activityCard { padding: 16px 12px }
+  .activityChart { gap: 4px; height: 155px }
+  .activityMonth { font-size: 9px }
 }

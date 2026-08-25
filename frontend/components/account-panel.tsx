@@ -8,6 +8,7 @@ import { CollectionPreviews } from "./collection-previews";
 import { RecommendationShelf } from "./recommendation-shelf";
 import { RecentNotes } from "./recent-notes";
 import { useI18n } from "./i18n-provider";
+import { ViewingActivityChart } from "./viewing-activity-chart";
 import authStyles from "../app/auth.module.css";
 import styles from "../app/profile.module.css";
 
@@ -81,6 +82,8 @@ export function AccountPanel() {
           ),
         )}
       </section>
+
+      {summary && <ViewingActivityChart activity={summary.activity} />}
 
       <ResumeShelf />
 

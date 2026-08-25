@@ -189,9 +189,9 @@ export default async function CatalogDetailPage({
   const pageCount = Math.max(1, Math.ceil(episodesCount / 20));
   const genres = item.genres ?? [];
   const cast = item.characters ?? [];
-  // Main cast for the overview: heroes and antagonists only — supporting and
-  // cameo entries stay on the characters tab. Voice actors are not part of
-  // the dataset at all.
+  const credits = item.credits ?? [];
+  const relatedTitles = item.related_titles ?? [];
+  // Main characters for the overview: heroes and antagonists only.
   const mainCast = cast
     .filter((entry) => entry.role === "protagonist" || entry.role === "antagonist")
     .slice(0, 8);
@@ -275,7 +275,7 @@ export default async function CatalogDetailPage({
           >
             {tabLabel[value]}
             {value === "episodes" && episodesCount > 0 && <span className={styles.tabCount}>{episodesCount}</span>}
-            {value === "characters" && cast.length > 0 && <span className={styles.tabCount}>{cast.length}</span>}
+            {value === "characters" && cast.length + credits.length > 0 && <span className={styles.tabCount}>{cast.length + credits.length}</span>}
           </Link>
         ))}
       </nav>
@@ -298,9 +298,9 @@ export default async function CatalogDetailPage({
           {mainCast.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
-                <h2>{t("title.castMain")}</h2>
+                <h2>{t("title.charactersMain")}</h2>
                 {cast.length > mainCast.length && (
-                  <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.castAll")} ({cast.length})</Link>
+                  <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.peopleAll")}</Link>
                 )}
               </div>
               <div className={styles.castGrid}>
@@ -308,12 +308,18 @@ export default async function CatalogDetailPage({
               </div>
             </section>
           )}
-          {item.franchise && (
-            <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}>
-              <p className="eyebrow">{t("franchise.label")}</p>
-              <h2>{item.franchise.name}</h2>
-              {item.franchise.description && <p className="muted">{item.franchise.description}</p>}
-            </Link>
+          {relatedTitles.length > 0 && (
+            <section className={styles.block}>
+              <div className="section-heading">
+                <div>
+                  <h2>{t("title.relatedWorks")}</h2>
+                  {item.franchise && <p className="muted">{item.franchise.name}</p>}
+                </div>
+              </div>
+              <div className="catalog-grid">
+                {relatedTitles.map((related) => <CatalogCard key={related.slug} item={related} />)}
+              </div>
+            </section>
           )}
           <NotificationSubscription slug={item.slug} />
           <TitleCollectionControl titleSlug={item.slug} />
@@ -361,16 +367,27 @@ export default async function CatalogDetailPage({
 
       {tab === "characters" && (
         <div className={styles.panel}>
-          {cast.length ? (
-            <div className={styles.castGrid}>
-              {cast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
-            </div>
-          ) : (
-            <div className="empty-state" role="status">
-              <strong>{t("title.noCast")}</strong>
-              <Link className="secondary" href="/characters">{t("character.title")}</Link>
-            </div>
-          )}
+          <section className={styles.block}>
+            <h2>{t("title.characters")}</h2>
+            {cast.length ? (
+              <div className={styles.castGrid}>
+                {cast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
+              </div>
+            ) : <p className="muted">{t("title.noCast")}</p>}
+          </section>
+          <section className={styles.block}>
+            <h2>{t("title.authors")}</h2>
+            {credits.length ? (
+              <div className={styles.creditGrid}>
+                {credits.map((credit) => (
+                  <div className={styles.creditCard} key={`${credit.role}-${credit.creator.slug}`}>
+                    <span className={styles.creditInitial} aria-hidden="true">{credit.creator.name.slice(0, 1)}</span>
+                    <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="muted">{t("title.noAuthors")}</p>}
+          </section>
         </div>
       )}
 

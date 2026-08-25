@@ -10,6 +10,40 @@ from common.metrics import increment
 logger = logging.getLogger("anicast.providers")
 
 
+@shared_task(soft_time_limit=520, time_limit=570)
+def sync_kodik_library(limit: int = 20) -> dict[str, int]:
+    """Continuously refresh a bounded slice of the local AniCast library."""
+    from django.core.cache import cache
+
+    from .kodik import KodikAPIError
+    from .kodik_sync import SHIKIMORI_SLUG, sync_title
+    from .models import Title
+
+    batch_limit = max(1, min(int(limit), 50))
+    cursor = int(cache.get("catalog:kodik-sync-cursor", 0) or 0)
+    titles = list(Title.objects.filter(id__gt=cursor).order_by("id")[:batch_limit])
+    if not titles:
+        cursor = 0
+        titles = list(Title.objects.order_by("id")[:batch_limit])
+    totals = {"titles": 0, "failed": 0, "persisted": 0, "scheduled": 0, "credits": 0}
+    for title in titles:
+        if not SHIKIMORI_SLUG.match(title.slug):
+            continue
+        try:
+            result = sync_title(title)
+        except (KodikAPIError, ValueError):
+            totals["failed"] += 1
+            logger.exception("Kodik title sync failed", extra={"event": "kodik_sync_failed", "title_id": title.id})
+            continue
+        totals["titles"] += 1
+        totals["persisted"] += result.persisted
+        totals["scheduled"] += result.scheduled
+        totals["credits"] += result.credits
+    cache.set("catalog:kodik-sync-cursor", titles[-1].id if titles else cursor, timeout=None)
+    logger.info("Kodik library slice synchronized", extra={"event": "kodik_sync_completed", **totals})
+    return totals
+
+
 @shared_task(soft_time_limit=1500, time_limit=1800)
 def refresh_title_posters(limit: int = 0) -> dict[str, int]:
     """Scheduled poster upgrade pass.

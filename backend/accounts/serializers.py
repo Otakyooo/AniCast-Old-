@@ -5,9 +5,15 @@ from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+
+    def get_avatar_url(self, obj):
+        identity = obj.external_identities.exclude(avatar_url="").order_by("id").first()
+        return identity.avatar_url if identity else ""
+
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "preferred_language"]
+        fields = ["id", "email", "display_name", "preferred_language", "date_joined", "avatar_url"]
 
 
 class UserPreferencesSerializer(serializers.ModelSerializer):

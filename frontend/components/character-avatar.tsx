@@ -12,5 +12,13 @@ export function CharacterAvatar({
   className?: string;
   sizes: string;
 }) {
-  return <Image className={className} src={characterImage(imageUrl)} alt={alt} fill sizes={sizes} referrerPolicy="no-referrer" />;
+  return <Image
+    className={className}
+    src={characterImage(imageUrl)}
+    alt={alt}
+    fill
+    sizes={sizes}
+    referrerPolicy="no-referrer"
+    style={{ objectFit: "cover", objectPosition: "50% 18%" }}
+  />;
 }

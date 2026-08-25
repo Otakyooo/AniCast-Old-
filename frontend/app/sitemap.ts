@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getCatalog, getCharacters, getFranchises } from "../lib/api";
+import { getCatalog, getCharacters } from "../lib/api";
 import { SITE_URL } from "../lib/site";
 
 // Sitemap must reflect the live catalog on every request, not the state at
@@ -61,15 +61,12 @@ async function buildSitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/`, changeFrequency: "daily", priority: 1 },
     { url: `${SITE_URL}/catalog`, changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE_URL}/schedule`, changeFrequency: "daily", priority: 0.8 },
-    { url: `${SITE_URL}/franchises`, changeFrequency: "weekly", priority: 0.6 },
-    { url: `${SITE_URL}/characters`, changeFrequency: "weekly", priority: 0.6 },
     { url: `${SITE_URL}/media`, changeFrequency: "weekly", priority: 0.4 },
     { url: `${SITE_URL}/community`, changeFrequency: "daily", priority: 0.5 },
   ];
 
-  const [titles, franchises, characters] = await Promise.all([
+  const [titles, characters] = await Promise.all([
     collectAll((page) => getCatalog({ page, pageSize: 100 })),
-    collectAll((page) => getFranchises(page)),
     collectAll((page) => getCharacters("", page)),
   ]);
 
@@ -79,11 +76,6 @@ async function buildSitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${SITE_URL}/titles/${title.slug}`,
       changeFrequency: "weekly" as const,
       priority: 0.8,
-    })),
-    ...franchises.map((franchise) => ({
-      url: `${SITE_URL}/franchises/${franchise.slug}`,
-      changeFrequency: "weekly" as const,
-      priority: 0.5,
     })),
     ...characters.map((character) => ({
       url: `${SITE_URL}/characters/${character.slug}`,

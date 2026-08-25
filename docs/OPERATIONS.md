@@ -165,7 +165,34 @@ The import is idempotent (`update_or_create` by slug, titles are prefixed with t
 
 Importer v2 also fills franchises and characters: franchise records are grouped by the Shikimori franchise slug from the anime detail (the head title is the earliest by year); characters come from the GraphQL `characterRoles` query (Main maps to `protagonist`, everything else to `supporting`) with biographies, japanese names and portraits from `/api/characters/<id>` (`--characters N` per title, default 8, `0` disables). A full 100-title run with characters takes roughly 15 minutes.
 
-Shikimori endpoint notes: `/api/animes/:id/episodes` and `/api/animes/:id/franchises` are gone (404) and episode air dates are not available through the API — the schedule and episode notifications wait for another data source. AniList remains globally disabled. The fetcher needs `--network host` and the `shikimori.io` API base (the `.one` domain answers 308 redirects that urllib does not follow).
+Shikimori endpoint notes: `/api/animes/:id/episodes` and `/api/animes/:id/franchises` are gone (404). AniList remains globally disabled. Episode scheduling now comes from Kodik `material_data.next_episode_at`; Shikimori remains the catalog/character source. The fetcher needs `--network host` and the `shikimori.io` API base (the `.one` domain answers 308 redirects that urllib does not follow).
+
+## Kodik library synchronization
+
+`sync_kodik` is dry-run first and accepts either a Shikimori-based title slug or
+`--all`. It imports players only for the local AniCast library; it does not bulk
+copy unrelated Kodik records. Each pass also:
+
+- creates newly discovered episode rows;
+- records `material_data.next_episode_at` on the next episode for `/schedule`;
+- imports duration and director/producer/writer/composer/designer credits;
+- marks disappeared sources unavailable only after a complete provider response.
+
+Initial production activation is explicit and auditable. The reference is not a
+password or API token; it describes the verified provider entitlement:
+
+```bash
+docker exec mainserver-backend-1 python manage.py sync_kodik --all
+docker exec mainserver-backend-1 python manage.py sync_kodik --all --apply --activate \
+  --rights-reference="Kodik account entitlement for anicast.online"
+```
+
+The API token stays in `KODIK_API_TOKEN`. Never place the portal password in a
+command, commit or deployment manifest. After activation, Celery Beat runs
+`catalog.tasks.sync_kodik_library` hourly in bounded 20-title slices and stores
+its cursor in Redis. Revoke playback without deleting metadata by disabling the
+Kodik provider in `/staff/`; sources and schedule data remain available for
+audit and a later reactivation.
 
 Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`maximum_image_url`, falling back to `large_image_url`; Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively.
 

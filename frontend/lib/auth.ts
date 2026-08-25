@@ -6,6 +6,8 @@ export interface SessionUser {
   email: string | null;
   display_name: string;
   preferred_language: Locale;
+  date_joined: string;
+  avatar_url: string;
 }
 
 export function setLanguageCookie(language: Locale) {
@@ -124,6 +126,7 @@ export interface AccountSummary {
   collections: number;
   ratings: number;
   reviews: number;
+  activity: Array<{ month: string; episodes: number }>;
 }
 
 export async function fetchAccountSummary(): Promise<AccountSummary> {

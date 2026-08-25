@@ -4,7 +4,7 @@ import pytest
 from django.core.management import call_command
 
 from catalog.kodik import KodikSearchResult, normalize_player_url, player_url_allowed
-from catalog.models import Episode, Provider, RightsGrant, Source, Title
+from catalog.models import Creator, Episode, Provider, RightsGrant, Source, Title, TitleCredit
 
 
 def kodik_result():
@@ -50,7 +50,7 @@ def test_sync_kodik_is_dry_run_first_and_keeps_rights_manual(monkeypatch):
     Episode.objects.create(title=title, number=1)
     Episode.objects.create(title=title, number=2)
     monkeypatch.setattr(
-        "catalog.management.commands.sync_kodik.search_by_shikimori",
+        "catalog.kodik_sync.search_by_shikimori",
         lambda shikimori_id, **kwargs: KodikSearchResult(total=1, results=[kodik_result()]),
     )
 
@@ -77,7 +77,7 @@ def test_sync_kodik_is_dry_run_first_and_keeps_rights_manual(monkeypatch):
     renamed["translation"] = {"id": 610, "title": "AniLibria Renamed", "type": "voice"}
     renamed["seasons"]["1"]["episodes"].pop("2")
     monkeypatch.setattr(
-        "catalog.management.commands.sync_kodik.search_by_shikimori",
+        "catalog.kodik_sync.search_by_shikimori",
         lambda shikimori_id, **kwargs: KodikSearchResult(total=1, results=[renamed]),
     )
     call_command("sync_kodik", title.slug, apply=True, stdout=StringIO())
@@ -91,7 +91,7 @@ def test_sync_kodik_is_dry_run_first_and_keeps_rights_manual(monkeypatch):
     sources[1].availability = "available"
     sources[1].save(update_fields=["availability"])
     monkeypatch.setattr(
-        "catalog.management.commands.sync_kodik.search_by_shikimori",
+        "catalog.kodik_sync.search_by_shikimori",
         lambda shikimori_id, **kwargs: KodikSearchResult(total=2, results=[renamed]),
     )
     call_command("sync_kodik", title.slug, apply=True, limit=1, stdout=StringIO())
@@ -99,8 +99,39 @@ def test_sync_kodik_is_dry_run_first_and_keeps_rights_manual(monkeypatch):
     assert sources[1].availability == "available"
 
     monkeypatch.setattr(
-        "catalog.management.commands.sync_kodik.search_by_shikimori",
+        "catalog.kodik_sync.search_by_shikimori",
         lambda shikimori_id, **kwargs: KodikSearchResult(total=0, results=[]),
     )
     call_command("sync_kodik", title.slug, apply=True, stdout=StringIO())
     assert not Source.objects.filter(episode__title=title, availability="available").exists()
+
+
+@pytest.mark.django_db
+def test_sync_kodik_imports_schedule_credits_and_domain_authorization(monkeypatch):
+    title = Title.objects.create(name="Ongoing", slug="21-one-piece", status="ongoing")
+    payload = kodik_result()
+    payload["material_data"] = {
+        "duration": 24,
+        "episodes_aired": 2,
+        "next_episode_at": "2026-08-30T14:15:00Z",
+        "directors": ["Мэгуми Иситани"],
+        "writers": ["Эйитиро Ода"],
+    }
+    monkeypatch.setattr(
+        "catalog.kodik_sync.search_by_shikimori",
+        lambda shikimori_id, **kwargs: KodikSearchResult(total=1, results=[payload]),
+    )
+
+    call_command(
+        "sync_kodik", title.slug, apply=True, activate=True,
+        rights_reference="Kodik account entitlement for anicast.online", stdout=StringIO(),
+    )
+
+    title.refresh_from_db()
+    provider = Provider.objects.get(slug="kodik")
+    assert title.duration_minutes == 24
+    assert provider.is_enabled is True
+    assert provider.rights_verified_at is not None
+    assert Episode.objects.get(title=title, number=3).air_at.isoformat() == "2026-08-30T14:15:00+00:00"
+    assert set(Creator.objects.values_list("name", flat=True)) == {"Мэгуми Иситани", "Эйитиро Ода"}
+    assert set(TitleCredit.objects.values_list("role", flat=True)) == {"director", "writer"}

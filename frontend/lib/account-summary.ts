@@ -22,6 +22,7 @@ export function summaryWith(partial: Partial<AccountSummary>): AccountSummary {
     collections: 0,
     ratings: 0,
     reviews: 0,
+    activity: [],
     ...partial,
   };
 }

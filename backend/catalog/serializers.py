@@ -91,9 +91,11 @@ class TitleDetailSerializer(TitleSerializer):
     episodes = serializers.SerializerMethodField()
     episodes_count = serializers.SerializerMethodField()
     characters = serializers.SerializerMethodField()
+    credits = serializers.SerializerMethodField()
+    related_titles = serializers.SerializerMethodField()
 
     class Meta(TitleSerializer.Meta):
-        fields = TitleSerializer.Meta.fields + ["episodes", "episodes_count", "characters"]
+        fields = TitleSerializer.Meta.fields + ["duration_minutes", "episodes", "episodes_count", "characters", "credits", "related_titles"]
 
     def get_episodes(self, obj):
         from .playback import playback_sources_prefetch
@@ -115,6 +117,38 @@ class TitleDetailSerializer(TitleSerializer):
 
     def get_characters(self, obj):
         return TitleCharacterSerializer(obj.character_links.all(), many=True, context=self.context).data
+
+    def get_credits(self, obj):
+        return [
+            {
+                "role": credit.role,
+                "sort_order": credit.sort_order,
+                "creator": {"name": credit.creator.name, "slug": credit.creator.slug},
+            }
+            for credit in obj.credits.all()
+        ]
+
+    def get_related_titles(self, obj):
+        if obj.franchise_id is None:
+            return []
+        prefetched = getattr(obj.franchise, "related_titles_prefetched", None)
+        if prefetched is None:
+            prefetched = list(obj.franchise.titles.prefetch_related("translations"))
+        related = sorted(
+            (title for title in prefetched if title.pk != obj.pk),
+            key=lambda title: (title.year is None, title.year or 0, title.name, title.id),
+        )
+        return [
+            {
+                "name": translated_value(title, "name", self.context),
+                "slug": title.slug,
+                "poster_url": title.poster_url,
+                "title_type": title.title_type,
+                "status": title.status,
+                "year": title.year,
+            }
+            for title in related
+        ]
 
 
 class ScheduleTitleSerializer(serializers.ModelSerializer):

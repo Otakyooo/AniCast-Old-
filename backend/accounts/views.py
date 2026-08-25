@@ -91,6 +91,7 @@ def current_user(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def account_summary(request):
+    from datetime import date
     from catalog.i18n import translated_value_for_language
     from community.models import TitleRating, TitleReview
     from django.db.models import Avg, Count
@@ -101,7 +102,11 @@ def account_summary(request):
         row["status"]: row["total"]
         for row in LibraryEntry.objects.filter(user=user).values("status").annotate(total=Count("id"))
     }
-    watched_episodes = EpisodeProgress.objects.filter(user=user, is_watched=True).count()
+    watched = EpisodeProgress.objects.filter(user=user, is_watched=True)
+    watched_episodes = watched.count()
+    watched_minutes = sum(value or 0 for value in watched.values_list("episode__title__duration_minutes", flat=True).iterator())
+    missing_duration = watched.filter(episode__title__duration_minutes__isnull=True).count()
+    watched_minutes += missing_duration * 24
     average_rating = TitleRating.objects.filter(user=user).aggregate(value=Avg("value"))["value"]
 
     # Favorite genres per design spec §5.3: top-5 horizontal bars derived
@@ -115,14 +120,28 @@ def account_summary(request):
     top_genres = sorted(genre_counts.items(), key=lambda pair: (-pair[1], pair[0].slug))[:5]
     max_genre_count = top_genres[0][1] if top_genres else 0
     language = getattr(user, "preferred_language", None) or "ru"
+    today = timezone.localdate()
+    months = []
+    year, month = today.year, today.month
+    for offset in range(11, -1, -1):
+        index = year * 12 + month - 1 - offset
+        months.append(date(index // 12, index % 12 + 1, 1))
+    activity_counts = {month: 0 for month in months}
+    for watched_at in watched.exclude(watched_at=None).values_list("watched_at", flat=True):
+        local = timezone.localtime(watched_at)
+        key = date(local.year, local.month, 1)
+        if key in activity_counts:
+            activity_counts[key] += 1
 
     return Response({
         "library": {choice: status_counts.get(choice, 0) for choice, _ in LibraryEntry.Status.choices},
         "favorites": LibraryEntry.objects.filter(user=user, is_favorite=True).count(),
         "watched_episodes": watched_episodes,
-        # No episode runtime data yet: estimate from the standard 24-minute
-        # anime episode length until durations are imported.
-        "watched_hours": round(watched_episodes * 24 / 60),
+        "watched_hours": round(watched_minutes / 60),
+        "activity": [
+            {"month": month.isoformat()[:7], "episodes": activity_counts[month]}
+            for month in months
+        ],
         "average_rating": round(average_rating, 1) if average_rating is not None else None,
         "top_genres": [
             {

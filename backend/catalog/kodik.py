@@ -65,6 +65,7 @@ def search_by_shikimori(
     *,
     limit: int = 100,
     season: int | None = None,
+    with_material_data: bool = False,
 ) -> KodikSearchResult:
     if type(shikimori_id) is not int or shikimori_id < 1:
         raise ValueError("shikimori_id must be a positive integer")
@@ -78,6 +79,8 @@ def search_by_shikimori(
     }
     if season is not None:
         params["season"] = season
+    if with_material_data:
+        params["with_material_data"] = "true"
     payload = _post_json("/search", params)
     total = payload.get("total")
     results = payload["results"]

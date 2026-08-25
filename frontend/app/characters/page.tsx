@@ -1,39 +1,5 @@
-import Link from "next/link";
-import { CharacterAvatar } from "../../components/character-avatar";
-import { PageShell } from "../../components/page-shell";
-import { getI18n } from "../../i18n/server";
-import { emptyPage, getCharacters, type CharacterResponse } from "../../lib/api";
-import styles from "../discovery.module.css";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function CharactersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const query = (await searchParams).q?.trim() ?? "";
-  const [data, { t }] = await Promise.all([getCharacters(query).catch((): CharacterResponse => emptyPage()), getI18n()]);
-
-  return <PageShell active="characters" heading={{ eyebrow: t("character.title"), title: t("character.title"), subtitle: t("character.subtitle") }}>
-    <form className={styles.searchRow} action="/characters" role="search">
-      <input name="q" defaultValue={query} aria-label={t("character.search")} placeholder={t("character.search")} />
-      <button type="submit">{t("common.search")}</button>
-    </form>
-    {data.results.length ? (
-      <div className={styles.grid}>
-        {data.results.map(character => (
-          <Link className={styles.card} href={`/characters/${character.slug}`} key={character.slug}>
-            <div className={styles.avatarWrap}>
-              <CharacterAvatar imageUrl={character.image_url} sizes="220px" />
-            </div>
-            <h2>{character.name}</h2>
-            <p>{character.description || t("character.descriptionMissing")}</p>
-            <small>{t("franchise.count", { count: character.title_count })}</small>
-          </Link>
-        ))}
-      </div>
-    ) : (
-      <div className="empty-state" role="status">
-        <strong>{query ? t("catalog.notFound") : t("character.empty")}</strong>
-        {query && <Link className="secondary" href="/characters">{t("catalog.resetFilters")}</Link>}
-      </div>
-    )}
-  </PageShell>;
+export default function CharactersPage() {
+  redirect("/catalog");
 }

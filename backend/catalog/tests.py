@@ -127,7 +127,9 @@ def test_title_detail_batches_playback_availability_queries(django_assert_max_nu
             approved_at=now,
         )
 
-    with django_assert_max_num_queries(12):
+    # Characters, creator credits and related works are all included in one
+    # bounded detail payload; the budget protects the endpoint from N+1s.
+    with django_assert_max_num_queries(14):
         response = APIClient().get("/api/v1/titles/long-series/?episodes_page_size=20")
 
     assert response.status_code == 200
@@ -290,7 +292,9 @@ def test_title_detail_exposes_cast_without_extra_queries(catalog_data, django_as
     TitleCharacter.objects.create(title=catalog_data, character=hero, role="protagonist", sort_order=0)
     TitleCharacter.objects.create(title=catalog_data, character=rival, role="antagonist", sort_order=1)
     CharacterTranslation.objects.create(character=hero, language="ru", name="Герой")
-    with django_assert_max_num_queries(12):
+    # Creator credits and related works extend the payload with a fixed number
+    # of prefetches; this remains bounded regardless of cast size.
+    with django_assert_max_num_queries(14):
         body = APIClient().get("/api/v1/titles/sky-test/").json()
     assert [entry["character"]["slug"] for entry in body["characters"]] == ["hero", "rival"]
     assert body["characters"][0]["role"] == "protagonist"
@@ -413,6 +417,21 @@ def test_iframe_playback_uses_signed_resolver_and_rechecks_rights(authorized_sou
     grant.status = RightsGrant.Status.REVOKED
     grant.save(update_fields=["status"])
     assert APIClient().get(issued.json()["url"]).status_code == 404
+
+
+@pytest.mark.django_db
+def test_provider_level_rights_reference_authorizes_sources(catalog_data):
+    source = Source.objects.get(episode__title=catalog_data)
+    provider = Provider.objects.create(
+        name="Kodik", slug="kodik", is_enabled=True,
+        allowed_hosts=["kodikplayer.com"], playback_adapter="iframe_embed",
+        rights_reference="Kodik account entitlement for anicast.online",
+        rights_verified_at=timezone.now(),
+    )
+    source.provider = provider
+    source.url = "https://kodikplayer.com/seria/1/redacted/720p"
+    source.save(update_fields=["provider", "url"])
+    assert APIClient().get(f"/api/v1/sources/{source.id}/playback/").status_code == 200
 
 
 @pytest.fixture

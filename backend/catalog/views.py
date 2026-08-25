@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 
 from . import posters
-from .models import Character, Episode, Franchise, Genre, MediaAsset, SourceReport, Title
+from .models import Character, Episode, Franchise, Genre, MediaAsset, SourceReport, Title, TitleCharacter, TitleCredit
 from .playback import issue_playback, playback_sources_prefetch, resolve_playback
 from .serializers import (
     EpisodeDetailSerializer,
@@ -94,7 +94,16 @@ class TitleDetailView(RetrieveAPIView):
         "franchise"
     ).prefetch_related(
         "translations", "franchise__translations", "genres", "genres__translations",
-        "character_links__character__translations",
+        Prefetch(
+            "character_links",
+            queryset=TitleCharacter.objects.select_related("character").prefetch_related("character__translations"),
+        ),
+        Prefetch("credits", queryset=TitleCredit.objects.select_related("creator")),
+        Prefetch(
+            "franchise__titles",
+            queryset=Title.objects.prefetch_related("translations"),
+            to_attr="related_titles_prefetched",
+        ),
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"

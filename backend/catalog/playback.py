@@ -152,11 +152,18 @@ def playback_available(source: Source) -> bool:
     prefetched_grants = getattr(source, "active_rights_grants", None)
     if prefetched_grants is None:
         return authorized_playback_source(source.id) is not None
+    provider = source.provider
+    provider_authorized = bool(
+        provider
+        and provider.rights_reference
+        and provider.rights_verified_at
+        and (provider.rights_valid_until is None or provider.rights_valid_until > timezone.now())
+    )
     return (
         source.availability == "available"
-        and source.provider is not None
-        and source.provider.is_enabled
-        and bool(prefetched_grants)
+        and provider is not None
+        and provider.is_enabled
+        and (provider_authorized or bool(prefetched_grants))
         and source_url_allowed(source)
     )
 
@@ -189,7 +196,13 @@ def authorized_playback_source(source_id: int, *, now=None) -> Source | None:
     ).first()
     if source is None or not source_url_allowed(source):
         return None
-    has_grant = RightsGrant.objects.filter(
+    provider_authorized = bool(
+        source.provider
+        and source.provider.rights_reference
+        and source.provider.rights_verified_at
+        and (source.provider.rights_valid_until is None or source.provider.rights_valid_until > moment)
+    )
+    has_grant = provider_authorized or RightsGrant.objects.filter(
         source=source,
         status=RightsGrant.Status.ACTIVE,
         valid_from__lte=moment,

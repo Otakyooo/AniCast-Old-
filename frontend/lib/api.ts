@@ -47,6 +47,12 @@ export interface TitleCastEntry {
   character: { name: string; slug: string; original_name: string; image_url: string };
 }
 
+export interface TitleCreditEntry {
+  role: "director" | "producer" | "writer" | "composer" | "designer" | string;
+  sort_order: number;
+  creator: { name: string; slug: string };
+}
+
 export interface CatalogItem {
   id?: number | string;
   slug: string;
@@ -62,6 +68,9 @@ export interface CatalogItem {
   episodes?: Episode[];
   episodes_count?: number;
   characters?: TitleCastEntry[];
+  credits?: TitleCreditEntry[];
+  related_titles?: CatalogItem[];
+  duration_minutes?: number | null;
 }
 
 export interface CatalogResponse {

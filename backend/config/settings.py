@@ -99,6 +99,7 @@ CELERY_TASK_ROUTES = {
     "push.tasks.send_schedule_digest": {"queue": "notifications"},
     "catalog.tasks.check_provider_sources": {"queue": "providers"},
     "catalog.tasks.refresh_title_posters": {"queue": "posters"},
+    "catalog.tasks.sync_kodik_library": {"queue": "providers"},
     "common.tasks.probe_site_availability": {"queue": "default"},
 }
 CELERY_TASK_SOFT_TIME_LIMIT = 540
@@ -127,6 +128,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "catalog.tasks.refresh_title_posters",
         "schedule": 21600.0,
         "options": {"soft_time_limit": 1500, "time_limit": 1800},
+    },
+    "sync-kodik-library": {
+        "task": "catalog.tasks.sync_kodik_library",
+        "schedule": 3600.0,
     },
     "probe-site-availability": {
         "task": "common.tasks.probe_site_availability",

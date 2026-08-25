@@ -10,6 +10,7 @@ from . import posters
 from .models import (
     Character,
     CharacterTranslation,
+    Creator,
     Episode,
     EpisodeTranslation,
     Franchise,
@@ -25,6 +26,7 @@ from .models import (
     SourceReport,
     Title,
     TitleCharacter,
+    TitleCredit,
     TitleTranslation,
 )
 from .playback import source_url_allowed, validate_provider_configuration
@@ -120,6 +122,12 @@ class TitleCharacterInline(admin.TabularInline):
     autocomplete_fields = ["character"]
 
 
+class TitleCreditInline(admin.TabularInline):
+    model = TitleCredit
+    extra = 0
+    autocomplete_fields = ["creator"]
+
+
 class CharacterTitleInline(admin.TabularInline):
     model = TitleCharacter
     fk_name = "character"
@@ -192,7 +200,7 @@ class TitleAdmin(admin.ModelAdmin):
         ("Классификация", {"fields": ["title_type", "status", "year", "genres", "franchise"]}),
         ("Постер", {"fields": ["poster_preview", "poster_url"], "description": "Локальное зеркало пополняется автоматически; ручная правка URL — только для восстановления источников."}),
     ]
-    inlines = [TitleTranslationInline, EpisodeInline, TitleCharacterInline, TitleMediaInline]
+    inlines = [TitleTranslationInline, EpisodeInline, TitleCharacterInline, TitleCreditInline, TitleMediaInline]
 
     @admin.display(description="Постер")
     def poster_thumb(self, obj: Title):
@@ -247,6 +255,13 @@ class CharacterAdmin(admin.ModelAdmin):
     search_fields = ["name", "original_name", "slug", "translations__name"]
     prepopulated_fields = {"slug": ("name",)}
     inlines = [CharacterTranslationInline, CharacterTitleInline, CharacterMediaInline]
+
+
+@admin.register(Creator)
+class CreatorAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug"]
+    search_fields = ["name", "slug"]
+    prepopulated_fields = {"slug": ("name",)}
 
 
 @admin.register(MediaAsset)
