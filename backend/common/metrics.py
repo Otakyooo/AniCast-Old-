@@ -105,6 +105,16 @@ def render_metrics() -> str:
     poster_samples = [_sample("anicast_poster_refresh_total", {"result": result}, value("poster_refresh", result)) for result in POSTER_RESULTS]
     lines += _family("anicast_poster_refresh_total", "Poster refresh outcomes.", "counter", poster_samples)
 
+    try:
+        from common.availability import availability_samples
+
+        up_samples, uptime_samples = availability_samples()
+        lines += _family("anicast_availability_up", "Latest availability probe outcome per target (1 = up).", "gauge", up_samples)
+        lines += _family("anicast_availability_uptime_percent", "Uptime percentage per target over the last 24 hours.", "gauge", uptime_samples)
+    except Exception:
+        # Telemetry must never affect the application path it observes.
+        pass
+
     from catalog.models import Provider, Source
 
     provider_samples = [_sample("anicast_providers", {"enabled": str(enabled).lower()}, Provider.objects.filter(is_enabled=enabled).count()) for enabled in (True, False)]

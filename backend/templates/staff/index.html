@@ -33,5 +33,22 @@
       {% endfor %}
     </div>
   {% endif %}
+
+  {% if availability %}
+    <h2 style="margin: 8px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em;">Доступность</h2>
+    <div class="staff-dash" role="region" aria-label="Доступность сайта">
+      {% for item in availability %}
+        <div class="staff-dash-card staff-dash-card--{{ item.tone }}">
+          <span class="staff-dash-value">{{ item.status_label }}</span>
+          <span class="staff-dash-label">{{ item.label }}</span>
+          <span class="staff-dash-hint">
+            24ч: {{ item.uptime_24h }} · 7д: {{ item.uptime_7d }}
+            {% if item.detail_line %}· {{ item.detail_line }}{% endif %}
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   {{ block.super }}
 {% endblock %}

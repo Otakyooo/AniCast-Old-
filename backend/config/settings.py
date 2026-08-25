@@ -98,6 +98,7 @@ CELERY_TASK_ROUTES = {
     "push.tasks.send_schedule_digest": {"queue": "notifications"},
     "catalog.tasks.check_provider_sources": {"queue": "providers"},
     "catalog.tasks.refresh_title_posters": {"queue": "posters"},
+    "common.tasks.probe_site_availability": {"queue": "default"},
 }
 CELERY_TASK_SOFT_TIME_LIMIT = 540
 CELERY_TASK_TIME_LIMIT = 570
@@ -125,6 +126,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "catalog.tasks.refresh_title_posters",
         "schedule": 21600.0,
         "options": {"soft_time_limit": 1500, "time_limit": 1800},
+    },
+    "probe-site-availability": {
+        "task": "common.tasks.probe_site_availability",
+        # Minute resolution like public status pages: three bounded HTTP GETs
+        # per run, and honest bounds for the uptime streaks on /staff/.
+        "schedule": 60.0,
     },
 }
 ANICAST_SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://anicast.online").rstrip("/")

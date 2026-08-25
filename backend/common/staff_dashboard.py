@@ -18,6 +18,16 @@ from catalog.models import Episode, Source, SourceReport, Title
 from community.models import TitleReview
 
 
+def _availability_section() -> list[dict[str, Any]]:
+    """Status-page rows; failures here must never break the admin index."""
+    try:
+        from common.availability import build_availability_dashboard
+
+        return build_availability_dashboard()
+    except Exception:
+        return []
+
+
 def _changelist(route: str, query: str = "") -> str:
     url = reverse(route)
     return f"{url}?{query}" if query else url
@@ -96,7 +106,10 @@ def build_dashboard() -> list[dict[str, Any]]:
 
 def staff_index(request: HttpRequest) -> HttpResponse:
     """Shadow of ``admin.site.index`` that adds the summary context."""
-    return admin.site.index(request, extra_context={"dashboard": build_dashboard()})
+    return admin.site.index(
+        request,
+        extra_context={"dashboard": build_dashboard(), "availability": _availability_section()},
+    )
 
 
 def shadowed_admin_urls() -> tuple[list[Any], str, str]:
