@@ -38,6 +38,21 @@ a { color: inherit; text-decoration: none }
 button, input, select, textarea { font: inherit }
 button:disabled { cursor: not-allowed; opacity: .65 }
 
+::selection {
+  background: #7c5cff;
+  color: #fff;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px }
+::-webkit-scrollbar-track { background: transparent }
+::-webkit-scrollbar-thumb {
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border); background-clip: content-box }
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
