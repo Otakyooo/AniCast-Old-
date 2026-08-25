@@ -1,12 +1,13 @@
-import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { BreadcrumbsJsonLd } from "../../../components/breadcrumbs-jsonld";
 import { CatalogCard } from "../../../components/catalog-card";
+import { CharacterAvatar } from "../../../components/character-avatar";
 import { PageShell } from "../../../components/page-shell";
 import { getI18n } from "../../../i18n/server";
 import { apiErrorStatus, getCharacter } from "../../../lib/api";
+import { hasCharacterArt } from "../../../lib/character-image";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import styles from "../../discovery.module.css";
 
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         url: `/characters/${character.slug}`,
         title: character.name,
         description,
-        ...(character.image_url ? { images: [{ url: absoluteUrl(character.image_url), alt: character.name }] } : {}),
+        ...(hasCharacterArt(character.image_url) ? { images: [{ url: absoluteUrl(character.image_url), alt: character.name }] } : {}),
       },
     };
   } catch (error) {
@@ -61,16 +62,14 @@ export default async function CharacterPage({ params }: { params: Promise<{ slug
           name: character.name,
           ...(character.original_name ? { alternateName: character.original_name } : {}),
           ...(character.description ? { description: character.description } : {}),
-          ...(character.image_url ? { image: absoluteUrl(character.image_url) } : {}),
+          ...(hasCharacterArt(character.image_url) ? { image: absoluteUrl(character.image_url) } : {}),
           url: absoluteUrl(`/characters/${character.slug}`),
         }),
       }}
     />
     <div className={styles.hero}>
       <div className={styles.portraitWrap}>
-        {character.image_url
-          ? <Image className="poster-image" src={character.image_url} alt={character.name} fill sizes="220px" referrerPolicy="no-referrer" />
-          : <div>{character.name.slice(0, 1)}</div>}
+        <CharacterAvatar imageUrl={character.image_url} alt={character.name} sizes="220px" />
       </div>
       <div className={styles.copy}>
         <p className="eyebrow">{t("character.title")}</p>

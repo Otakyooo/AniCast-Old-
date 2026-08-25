@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { CharacterAvatar } from "../../components/character-avatar";
 import { PageShell } from "../../components/page-shell";
 import { getI18n } from "../../i18n/server";
 import { emptyPage, getCharacters, type CharacterResponse } from "../../lib/api";
@@ -21,9 +21,7 @@ export default async function CharactersPage({ searchParams }: { searchParams: P
         {data.results.map(character => (
           <Link className={styles.card} href={`/characters/${character.slug}`} key={character.slug}>
             <div className={styles.avatarWrap}>
-              {character.image_url
-                ? <Image className="poster-image" src={character.image_url} alt="" fill sizes="220px" referrerPolicy="no-referrer" />
-                : <div>{character.name.slice(0, 1)}</div>}
+              <CharacterAvatar imageUrl={character.image_url} sizes="220px" />
             </div>
             <h2>{character.name}</h2>
             <p>{character.description || t("character.descriptionMissing")}</p>

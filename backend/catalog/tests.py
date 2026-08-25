@@ -729,6 +729,9 @@ def test_fetch_shikimori_character_and_franchise_helpers():
     assert character["image_url"].startswith("https://shikimori.io/system/")
     assert character["translations"]["en"]["name"] == "Eren Yeager"
 
+    missing_art = build_character(role_entry, {**detail, "image": {"original": "/assets/globals/missing_original.jpg"}})
+    assert missing_art["image_url"] == ""
+
     assert map_role(["Main"]) == "protagonist"
     assert map_role(["Supporting"]) == "supporting"
     assert map_role([]) == "supporting"
@@ -825,3 +828,30 @@ def test_import_catalog_applies_characters_and_links():
     payload["titles"][0]["characters"] = [{"character": "missing", "role": "supporting"}]
     with pytest.raises(Exception, match="не найден"):
         apply_payload(payload)
+
+
+@pytest.mark.django_db
+def test_import_catalog_drops_shikimori_placeholder_images():
+    from catalog.management.commands.import_catalog import apply_payload
+
+    payload = {
+        "characters": [
+            {
+                "slug": "no-art",
+                "name": "Нет арта",
+                "image_url": "https://shikimori.io/assets/globals/missing_original.jpg",
+                "translations": {"en": {"name": "No Art"}},
+            }
+        ],
+        "titles": [
+            {
+                "slug": "no-poster",
+                "name": "Без постера",
+                "poster_url": "https://shikimori.io/assets/globals/missing_original.jpg?1711947446",
+                "translations": {"en": {"name": "No Poster"}},
+            }
+        ],
+    }
+    apply_payload(payload)
+    assert Character.objects.get(slug="no-art").image_url == ""
+    assert Title.objects.get(slug="no-poster").poster_url == ""

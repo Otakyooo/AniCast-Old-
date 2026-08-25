@@ -26,6 +26,11 @@ from catalog.playback import source_url_allowed, validate_provider_configuration
 SUPPORTED_LANGUAGES = {code for code, _ in LANGUAGE_CHOICES}
 
 
+def external_image_url(value) -> str:
+    url = str(value or "")
+    return "" if "missing_original" in url else url
+
+
 def require_string(value, path):
     if not isinstance(value, str) or not value.strip():
         raise CommandError(f"{path}: ожидается непустая строка")
@@ -150,7 +155,7 @@ def apply_payload(payload):
                 "name": require_string(item.get("name"), "characters.name"),
                 "original_name": str(item.get("original_name", "")),
                 "description": str(item.get("description", "")),
-                "image_url": str(item.get("image_url", "")),
+                "image_url": external_image_url(item.get("image_url")),
             },
         )[0]
         values = {"en": {"name": item["name"]}, **item.get("translations", {})}
@@ -190,7 +195,7 @@ def apply_payload(payload):
         defaults = {
             "name": item["name"], "original_name": str(item.get("original_name", "")),
             "synopsis": str(item.get("synopsis", "")), "title_type": item.get("title_type", "anime"),
-            "status": item.get("status", "planned"), "year": item.get("year"), "poster_url": str(item.get("poster_url", "")),
+            "status": item.get("status", "planned"), "year": item.get("year"), "poster_url": external_image_url(item.get("poster_url")),
             "franchise": franchise,
         }
         title, _ = Title.objects.update_or_create(slug=item["slug"], defaults=defaults)

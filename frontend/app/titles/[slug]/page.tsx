@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageShell } from "../../../components/page-shell";
+import { CharacterAvatar } from "../../../components/character-avatar";
 import { TitleActions } from "../../../components/title-actions";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
@@ -139,18 +140,7 @@ function CastCard({ entry, t }: { entry: TitleCastEntry; t: Translator }) {
   return (
     <Link className={styles.castCard} href={`/characters/${character.slug}`}>
       <span className={styles.castAvatar}>
-        {character.image_url ? (
-          <Image
-            className={styles.castImage}
-            src={character.image_url}
-            alt=""
-            fill
-            sizes="96px"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span aria-hidden="true">{character.name.slice(0, 1).toUpperCase()}</span>
-        )}
+        <CharacterAvatar imageUrl={character.image_url} sizes="96px" />
       </span>
       <span className={styles.castBody}>
         <strong>{character.name}</strong>

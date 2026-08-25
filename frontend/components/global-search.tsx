@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { CharacterAvatar } from "./character-avatar";
 import { globalSearch, SEARCH_MIN_LENGTH, type GlobalSearchResponse } from "../lib/api";
 import { OPEN_SEARCH_EVENT } from "./mobile-search-link";
 import { useI18n } from "./i18n-provider";
@@ -210,18 +211,7 @@ export function GlobalSearch() {
                         onClick={close}
                       >
                         <span className={`${styles.thumb} ${styles.thumbRound}`}>
-                          {character.image_url ? (
-                            <Image
-                              className={styles.thumbImage}
-                              src={character.image_url}
-                              alt=""
-                              fill
-                              sizes="40px"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <span aria-hidden="true">{character.name.slice(0, 1).toUpperCase()}</span>
-                          )}
+                          <CharacterAvatar imageUrl={character.image_url} sizes="40px" />
                         </span>
                         <span className={styles.rowBody}>
                           <strong>{character.name}</strong>

@@ -101,6 +101,8 @@ def map_role(roles: list) -> str:
 def build_character(role_entry: dict, detail: dict) -> dict:
     character = role_entry.get("character") or {}
     image = (detail.get("image") or {}).get("original") or ""
+    if "missing_original" in image:
+        image = ""
     japanese = detail.get("japanese") or ""
     return {
         "slug": character_slug(character),
