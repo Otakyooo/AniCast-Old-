@@ -3,8 +3,14 @@ import { getCatalog, getCharacters, getFranchises } from "../lib/api";
 import { SITE_URL } from "../lib/site";
 
 // Sitemap must reflect the live catalog on every request, not the state at
-// build time.
+// build time; a short TTL cache bounds the upstream crawl cost.
 export const dynamic = "force-dynamic";
+
+// The catalog changes rarely, but every uncached sitemap request used to
+// crawl up to MAX_PAGES API endpoints (~5s). A short in-process TTL keeps the
+// document fresh enough for crawlers while making repeat requests instant.
+const SITEMAP_TTL_MS = 10 * 60 * 1000;
+let sitemapCache: { at: number; entries: MetadataRoute.Sitemap } | null = null;
 
 const MAX_PAGES = 25;
 
@@ -39,6 +45,18 @@ async function collectAll<T>(fetchPage: (page: number) => Promise<Paged<T>>): Pr
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const now = Date.now();
+  if (sitemapCache && now - sitemapCache.at < SITEMAP_TTL_MS) {
+    return sitemapCache.entries;
+  }
+  const entries = await buildSitemap();
+  // A failed upstream crawl degrades to static routes inside buildSitemap;
+  // the stale snapshot is still strictly better, so only cache successes.
+  sitemapCache = { at: now, entries };
+  return entries;
+}
+
+async function buildSitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, changeFrequency: "daily", priority: 1 },
     { url: `${SITE_URL}/catalog`, changeFrequency: "daily", priority: 0.9 },

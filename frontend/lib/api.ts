@@ -115,6 +115,18 @@ export interface MediaAsset { id: number; kind: string; url: string; thumbnail_u
 export interface MediaResponse { count: number; next: string | null; previous: string | null; results: MediaAsset[] }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
+// Server-side renders reach the backend directly across the private tunnel
+// instead of looping through the public edge (VPS -> internet -> Caddy ->
+// tunnel). Plain runtime variable, not NEXT_PUBLIC_*, so the internal origin
+// never reaches the client bundle.
+const INTERNAL_API_BASE_URL = process.env.INTERNAL_API_BASE_URL ?? "";
+
+function apiBase(): { url: string; internal: boolean } {
+  if (INTERNAL_API_BASE_URL && typeof window === "undefined") {
+    return { url: INTERNAL_API_BASE_URL, internal: true };
+  }
+  return { url: API_BASE_URL, internal: false };
+}
 
 export function emptyPage<T>(): { count: number; next: string | null; previous: string | null; results: T[] } {
   return { count: 0, next: null, previous: null, results: [] };
@@ -147,9 +159,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // state instead of hanging the render indefinitely.
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
-  const response = await fetch(`${API_BASE_URL}${path}${separator}lang=${encodeURIComponent(language)}`, {
+  const base = apiBase();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Accept-Language": language,
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (base.internal) {
+    // The tunnel hop is plain HTTP inside the encrypted AWG link — the same
+    // trust domain as Caddy's upstream leg. The header marks it secure for
+    // SECURE_SSL_REDIRECT / SECURE_PROXY_SSL_HEADER without touching settings.
+    headers["X-Forwarded-Proto"] = "https";
+  }
+  const response = await fetch(`${base.url}${path}${separator}lang=${encodeURIComponent(language)}`, {
     ...init,
-    headers: { Accept: "application/json", "Accept-Language": language, ...init?.headers },
+    headers,
     signal,
   });
 
@@ -160,6 +184,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+/** Fetch options for hot public payloads that tolerate short staleness. */
+function revalidated(seconds: number): RequestInit {
+  return { next: { revalidate: seconds } };
 }
 
 function normalizeCatalog(payload: CatalogResponse | CatalogItem[]): CatalogResponse {
@@ -179,12 +208,12 @@ export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogR
   if (filters.page && filters.page > 1) query.set("page", String(filters.page));
   if (filters.pageSize) query.set("page_size", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
-  const payload = await request<CatalogResponse | CatalogItem[]>(`/titles/${suffix}`, { cache: "no-store" });
+  const payload = await request<CatalogResponse | CatalogItem[]>(`/titles/${suffix}`, revalidated(60));
   return normalizeCatalog(payload);
 }
 
 export async function getCatalogItem(slug: string): Promise<CatalogItem> {
-  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, revalidated(60));
 }
 
 export async function getCatalogItemEpisodes(
@@ -193,7 +222,7 @@ export async function getCatalogItemEpisodes(
   pageSize = 20
 ): Promise<CatalogItem> {
   const query = new URLSearchParams({ episodes_page: String(page), episodes_page_size: String(pageSize) });
-  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, { cache: "no-store" });
+  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, revalidated(60));
 }
 
 /**
@@ -217,7 +246,7 @@ export async function getEpisode(slug: string, number: number): Promise<EpisodeD
 
 export async function getSimilarTitles(slug: string): Promise<CatalogItem[]> {
   try {
-    return await request<CatalogItem[]>(`/titles/${encodeURIComponent(slug)}/similar/`);
+    return await request<CatalogItem[]>(`/titles/${encodeURIComponent(slug)}/similar/`, revalidated(300));
   } catch {
     return [];
   }
@@ -225,7 +254,7 @@ export async function getSimilarTitles(slug: string): Promise<CatalogItem[]> {
 
 export async function getSchedule(from: string, to: string): Promise<ScheduleResponse> {
   const query = new URLSearchParams({ from, to, page_size: "200" });
-  return request<ScheduleResponse>(`/schedule/?${query}`, { cache: "no-store" });
+  return request<ScheduleResponse>(`/schedule/?${query}`, revalidated(60));
 }
 
 /** Minimum length accepted by the backend search endpoint. */
@@ -240,27 +269,27 @@ export async function getFranchises(page = 1, search = ""): Promise<FranchiseRes
   if (search.trim()) query.set("q", search.trim());
   if (page > 1) query.set("page", String(page));
   const suffix = query.size ? `?${query.toString()}` : "";
-  return request<FranchiseResponse>(`/franchises/${suffix}`, { cache: "no-store" });
+  return request<FranchiseResponse>(`/franchises/${suffix}`, revalidated(300));
 }
 
 export async function getFranchise(slug: string): Promise<FranchiseDetail> {
-  return request<FranchiseDetail>(`/franchises/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+  return request<FranchiseDetail>(`/franchises/${encodeURIComponent(slug)}/`, revalidated(300));
 }
 
 export async function getCharacters(search = "", page = 1): Promise<CharacterResponse> {
   const query = new URLSearchParams();
   if (search.trim()) query.set("q", search.trim());
   if (page > 1) query.set("page", String(page));
-  return request<CharacterResponse>(`/characters/${query.size ? `?${query}` : ""}`, { cache: "no-store" });
+  return request<CharacterResponse>(`/characters/${query.size ? `?${query}` : ""}`, revalidated(300));
 }
 
 export async function getCharacter(slug: string): Promise<CharacterDetail> {
-  return request<CharacterDetail>(`/characters/${encodeURIComponent(slug)}/`, { cache: "no-store" });
+  return request<CharacterDetail>(`/characters/${encodeURIComponent(slug)}/`, revalidated(300));
 }
 
 export async function getMedia(kind = ""): Promise<MediaResponse> {
   const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
-  return request<MediaResponse>(`/media/${query}`, { cache: "no-store" });
+  return request<MediaResponse>(`/media/${query}`, revalidated(300));
 }
 
 export async function getPlayback(sourceId: number): Promise<PlaybackResponse> {
