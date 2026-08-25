@@ -18,10 +18,15 @@ class SourceSerializer(serializers.ModelSerializer):
     is_available = serializers.BooleanField(read_only=True)
     playback_available = serializers.SerializerMethodField()
     playback_mode = serializers.SerializerMethodField()
+    provider_name = serializers.CharField(source="provider.name", read_only=True, default="")
+    selection_key = serializers.SerializerMethodField()
 
     class Meta:
         model = Source
-        fields = ["id", "name", "kind", "availability", "availability_reason", "is_available", "playback_available", "playback_mode"]
+        fields = [
+            "id", "name", "kind", "provider_name", "selection_key", "availability",
+            "availability_reason", "is_available", "playback_available", "playback_mode",
+        ]
 
     def get_playback_available(self, obj):
         from .playback import playback_available
@@ -34,6 +39,11 @@ class SourceSerializer(serializers.ModelSerializer):
         if obj.provider is None or playback_adapters.get(obj.provider.playback_adapter) is None:
             return None
         return obj.provider.playback_adapter
+
+    def get_selection_key(self, obj):
+        from .playback import source_selection_key
+
+        return source_selection_key(obj)
 
 
 class EpisodeSerializer(serializers.ModelSerializer):

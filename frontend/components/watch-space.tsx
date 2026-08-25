@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { EpisodeProgressControl } from "./episode-progress-control";
 import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer } from "./provider-player";
 import { SourceReportControl } from "./source-report-control";
-import type { Source } from "../lib/api";
+import type { Source, WatchSourceGroup } from "../lib/api";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
@@ -18,40 +19,108 @@ interface WatchEpisode {
   sources: Source[];
 }
 
+const EPISODES_PER_RANGE = 100;
+
+function cleanSourceName(name: string, providerName = "") {
+  const prefix = providerName ? `${providerName} · ` : "";
+  return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
+}
+
+function episodeHref(slug: string, number: number, sourceKey: string) {
+  const query = new URLSearchParams({ episode: String(number) });
+  if (sourceKey) query.set("voice", sourceKey);
+  return `/titles/${slug}/watch?${query}`;
+}
+
 export function WatchSpace({
   slug,
   titleName,
   episodesCount,
+  episodeNumbers,
+  sourceGroups,
+  requestedSourceKey,
   currentNumber,
   episode,
 }: {
   slug: string;
   titleName: string;
   episodesCount: number;
+  episodeNumbers: number[];
+  sourceGroups: WatchSourceGroup[];
+  requestedSourceKey?: string;
   currentNumber: number;
   episode: WatchEpisode;
 }) {
   const { t } = useI18n();
-  // Rail numbers are sequential (1..count) in this catalog; a window around
-  // the current episode keeps long shows manageable while 1 and the last
-  // episode stay reachable.
-  const windowSize = 6;
-  let railStart = Math.max(1, currentNumber - windowSize);
-  const railEnd = Math.min(episodesCount, currentNumber + windowSize);
-  railStart = Math.max(1, railEnd - windowSize * 2);
-  const railNumbers = new Set<number>([railStart, railEnd, 1, episodesCount, currentNumber]);
-  for (let value = railStart; value <= railEnd; value += 1) railNumbers.add(value);
-  const rail = [...railNumbers].sort((a, b) => a - b);
-
+  const router = useRouter();
   const playableSources = episode.sources.filter((source) => source.playback_available);
-  const [chosenSourceId, setChosenSourceId] = useState<number | null>(
-    playableSources[0]?.id ?? null,
-  );
+  const groups = useMemo(() => {
+    if (sourceGroups.length) return sourceGroups;
+    const fallback = new Map<string, WatchSourceGroup>();
+    for (const source of playableSources) {
+      if (!source.selection_key || fallback.has(source.selection_key)) continue;
+      fallback.set(source.selection_key, {
+        key: source.selection_key,
+        name: source.name,
+        kind: source.kind,
+        provider_name: source.provider_name ?? "",
+        episodes_count: episodesCount,
+        episode_numbers: episodeNumbers,
+      });
+    }
+    return [...fallback.values()];
+  }, [episodeNumbers, episodesCount, playableSources, sourceGroups]);
+  const preferredKey = groups.some((group) => group.key === requestedSourceKey)
+    ? requestedSourceKey ?? ""
+    : playableSources[0]?.selection_key ?? groups[0]?.key ?? "";
+  const [selectedGroupKey, setSelectedGroupKey] = useState(preferredKey);
   const [embedUrl, setEmbedUrl] = useState("");
-  const chosen = playableSources.find((source) => source.id === chosenSourceId) ?? null;
+
+  useEffect(() => {
+    setSelectedGroupKey(preferredKey);
+    setEmbedUrl("");
+  }, [currentNumber, preferredKey]);
+
+  const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? null;
+  const selectedSources = playableSources.filter((source) => source.selection_key === selectedGroupKey);
+  const chosen = selectedSources[0] ?? null;
+  const availableNumbers = useMemo(
+    () => new Set(selectedGroup?.episode_numbers ?? episodeNumbers),
+    [episodeNumbers, selectedGroup],
+  );
+  const episodeRanges = useMemo(() => {
+    const ranges: number[][] = [];
+    for (let index = 0; index < episodeNumbers.length; index += EPISODES_PER_RANGE) {
+      ranges.push(episodeNumbers.slice(index, index + EPISODES_PER_RANGE));
+    }
+    return ranges;
+  }, [episodeNumbers]);
+  const currentRangeIndex = Math.max(
+    0,
+    episodeRanges.findIndex((range) => range.includes(currentNumber)),
+  );
+  const [rangeIndex, setRangeIndex] = useState(currentRangeIndex);
+
+  useEffect(() => setRangeIndex(currentRangeIndex), [currentRangeIndex]);
+
+  const visibleEpisodes = episodeRanges[rangeIndex] ?? episodeNumbers;
+  const navigableNumbers = selectedGroup?.episode_numbers ?? episodeNumbers;
+  const previousNumber = [...navigableNumbers].reverse().find((number) => number < currentNumber);
+  const nextNumber = navigableNumbers.find((number) => number > currentNumber);
+  const currentIsAvailable = availableNumbers.has(currentNumber);
 
   const sourceLabel = (value: string) =>
     t(`source.${value === "geo_blocked" ? "geo" : value === "provider_error" ? "error" : value}`);
+  const kindLabel = (kind: string) => t(`watch.kind.${kind}`);
+  const selectedName = selectedGroup
+    ? cleanSourceName(selectedGroup.name, selectedGroup.provider_name)
+    : "";
+
+  function chooseGroup(key: string) {
+    setSelectedGroupKey(key);
+    setEmbedUrl("");
+    router.replace(episodeHref(slug, currentNumber, key), { scroll: false });
+  }
 
   return (
     <div className={styles.watchLayout}>
@@ -61,83 +130,140 @@ export function WatchSpace({
         {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
       </header>
 
-      <nav className={styles.watchNav} aria-label={t("title.episodes")}>
-        {currentNumber > 1 ? (
-          <Link className={styles.railLink} href={`/titles/${slug}/watch?episode=${currentNumber - 1}`}>
-            ← {t("watch.prev")}
-          </Link>
-        ) : <span />}
-        {currentNumber < episodesCount ? (
-          <Link className={styles.railLink} href={`/titles/${slug}/watch?episode=${currentNumber + 1}`}>
-            {t("watch.next")} →
-          </Link>
-        ) : <span />}
-      </nav>
-
-      <nav className={styles.rail} aria-label={t("episode.number", { number: currentNumber })}>
-        {rail.map((value, index) => (
-          <span key={value} className={styles.railGap}>
-            {index > 0 && value - rail[index - 1] > 1 && <span className={styles.railEllipsis}>…</span>}
-            <Link
-              className={`${styles.railLink} ${value === currentNumber ? styles.railActive : ""}`}
-              href={`/titles/${slug}/watch?episode=${value}`}
-              aria-current={value === currentNumber ? "page" : undefined}
+      <section className={styles.watchNavigator} aria-label={t("watch.navigation")}>
+        <div className={styles.watchSelectors}>
+          <label className={styles.watchField}>
+            <span>{t("watch.voice")}</span>
+            <select
+              value={selectedGroupKey}
+              disabled={!groups.length}
+              onChange={(event) => chooseGroup(event.target.value)}
             >
-              {value}
+              {!groups.length && <option value="">{t("watch.noVoice")}</option>}
+              {groups.map((group) => (
+                <option key={group.key} value={group.key}>
+                  {cleanSourceName(group.name, group.provider_name)} · {kindLabel(group.kind)} · {t("watch.episodeCount", { count: group.episodes_count })}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {episodeRanges.length > 1 && (
+            <label className={styles.watchField}>
+              <span>{t("watch.episodeRange")}</span>
+              <select value={rangeIndex} onChange={(event) => setRangeIndex(Number(event.target.value))}>
+                {episodeRanges.map((range, index) => (
+                  <option key={range[0]} value={index}>{range[0]}–{range[range.length - 1]}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <div className={styles.watchAvailability}>
+            <span>{t("watch.available")}</span>
+            <strong>{selectedGroup?.episodes_count ?? 0} / {episodeNumbers.length}</strong>
+          </div>
+        </div>
+
+        <nav className={styles.episodeGrid} aria-label={t("title.episodes")}>
+          {visibleEpisodes.map((number) => {
+            const available = availableNumbers.has(number);
+            const active = number === currentNumber;
+            const className = [
+              styles.episodeButton,
+              active ? styles.episodeButtonActive : "",
+              !available ? styles.episodeButtonUnavailable : "",
+            ].filter(Boolean).join(" ");
+            return available ? (
+              <Link
+                key={number}
+                className={className}
+                href={episodeHref(slug, number, selectedGroupKey)}
+                aria-current={active ? "page" : undefined}
+                aria-label={t("episode.number", { number })}
+              >
+                {number}
+              </Link>
+            ) : (
+              <span
+                key={number}
+                className={className}
+                aria-disabled="true"
+                title={t("watch.episodeUnavailable")}
+              >
+                {number}
+              </span>
+            );
+          })}
+        </nav>
+
+        {!currentIsAvailable && selectedGroup && (
+          <p className={styles.watchWarning} role="status">
+            {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
+          </p>
+        )}
+
+        <nav className={styles.watchNav} aria-label={t("watch.neighborEpisodes")}>
+          {previousNumber ? (
+            <Link className={styles.neighborLink} href={episodeHref(slug, previousNumber, selectedGroupKey)}>
+              ← {t("watch.prev")}
             </Link>
-          </span>
-        ))}
-      </nav>
+          ) : <span />}
+          {nextNumber ? (
+            <Link className={styles.neighborLink} href={episodeHref(slug, nextNumber, selectedGroupKey)}>
+              {t("watch.next")} →
+            </Link>
+          ) : <span />}
+        </nav>
+      </section>
 
       <EpisodeProgressControl slug={slug} number={episode.number} />
 
-      {embedUrl && chosen && (
+      {embedUrl && chosen ? (
         <ProviderPlayer src={embedUrl} title={chosen.name} onClose={() => setEmbedUrl("")} />
+      ) : chosen ? (
+        <section className={`${styles.playerShell} ${styles.playerPreview}`}>
+          <div className={styles.playerBar}>
+            <strong>{selectedName} · {t("episode.number", { number: currentNumber })}</strong>
+            <span>{kindLabel(chosen.kind)}</span>
+          </div>
+          <div className={styles.playerPreviewBody}>
+            <PlaybackLink
+              sourceId={chosen.id}
+              playbackMode={chosen.playback_mode}
+              onEmbed={setEmbedUrl}
+              label={t("watch.playEpisode", { number: currentNumber })}
+              className={styles.playerLaunch}
+            />
+          </div>
+        </section>
+      ) : (
+        <div className={styles.watchEmpty}>
+          <strong>{t("watch.noPlayer")}</strong>
+          <span>{t("watch.chooseAvailableEpisode")}</span>
+        </div>
       )}
 
-      <section className={styles.watchSources}>
-        <h2>{t("episode.sources")}</h2>
+      <details className={styles.watchDiagnostics}>
+        <summary>{t("watch.sourceDetails")}</summary>
         <p className="muted">{t("watch.sourcesHint")}</p>
-        {playableSources.length ? (
-          <>
-            <div className={styles.sourceRow}>
-              {chosen ? (
-                <PlaybackLink key={chosen.id} sourceId={chosen.id} playbackMode={chosen.playback_mode} onEmbed={setEmbedUrl} />
-              ) : null}
-              {playableSources.length > 1 && (
-                <select
-                  aria-label={t("episode.sources")}
-                  value={chosenSourceId ?? ""}
-                  onChange={(event) => {
-                    setChosenSourceId(Number(event.target.value));
-                    setEmbedUrl("");
-                  }}
-                >
-                  {playableSources.map((source) => (
-                    <option key={source.id} value={source.id}>
-                      {source.name} · {source.kind.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-            <ul className="source-list">
-              {episode.sources.map((source) => (
-                <li className={`source-status source-status-${source.availability}`} key={`${source.name}-${source.kind}`}>
-                  <span className="source-status-main">
-                    <strong>{source.name}</strong>
-                    <span>{source.kind.toUpperCase()}</span>
-                  </span>
-                  <span className="source-status-label">{sourceLabel(source.availability)}</span>
-                  <SourceReportControl sourceId={source.id} />
-                </li>
-              ))}
-            </ul>
-          </>
+        {episode.sources.length ? (
+          <ul className="source-list">
+            {episode.sources.map((source) => (
+              <li className={`source-status source-status-${source.availability}`} key={source.id}>
+                <span className="source-status-main">
+                  <strong>{source.name}</strong>
+                  <span>{source.kind.toUpperCase()}</span>
+                </span>
+                <span className="source-status-label">{sourceLabel(source.availability)}</span>
+                <SourceReportControl sourceId={source.id} />
+              </li>
+            ))}
+          </ul>
         ) : (
           <div className="empty-state"><strong>{t("episode.noSources")}</strong></div>
         )}
-      </section>
+      </details>
     </div>
   );
 }

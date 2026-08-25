@@ -98,6 +98,56 @@ def test_title_episode_detail_returns_single_episode(catalog_data):
 
 
 @pytest.mark.django_db
+def test_watch_navigation_groups_playable_sources_by_voice_over(authorized_source, django_assert_max_num_queries):
+    first_source, provider, _ = authorized_source
+    provider.rights_reference = "Provider catalogue entitlement"
+    provider.rights_verified_at = timezone.now()
+    provider.save(update_fields=["rights_reference", "rights_verified_at"])
+    second_episode = Episode.objects.create(title=first_source.episode.title, number=2)
+    Source.objects.create(
+        episode=second_episode,
+        provider=provider,
+        external_id="episode-2",
+        name=first_source.name,
+        kind=first_source.kind,
+        url="https://watch.example.com/episode/2",
+    )
+    Episode.objects.create(title=first_source.episode.title, number=4)
+    Source.objects.create(
+        episode=second_episode,
+        provider=provider,
+        external_id="unavailable-sub",
+        name="Subtitle team",
+        kind="sub",
+        availability="unavailable",
+        url="https://watch.example.com/subtitle/2",
+    )
+
+    with django_assert_max_num_queries(5):
+        response = APIClient().get("/api/v1/titles/playback-test/watch-navigation/")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["episode_numbers"] == [1, 2, 4]
+    assert len(body["source_groups"]) == 1
+    group = body["source_groups"][0]
+    assert group["name"] == "Playback Source"
+    assert group["kind"] == first_source.kind
+    assert group["provider_name"] == "Playback Provider"
+    assert group["episode_numbers"] == [1, 2]
+    assert group["episodes_count"] == 2
+    episode = APIClient().get("/api/v1/titles/playback-test/episodes/1/").json()
+    assert episode["sources"][0]["selection_key"] == group["key"]
+    assert episode["sources"][0]["provider_name"] == "Playback Provider"
+    assert "url" not in group
+
+
+@pytest.mark.django_db
+def test_watch_navigation_returns_404_for_missing_title():
+    assert APIClient().get("/api/v1/titles/missing/watch-navigation/").status_code == 404
+
+
+@pytest.mark.django_db
 def test_title_detail_batches_playback_availability_queries(django_assert_max_num_queries):
     title = Title.objects.create(name="Long Series", slug="long-series")
     provider = Provider.objects.create(

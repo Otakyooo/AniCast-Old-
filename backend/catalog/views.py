@@ -18,7 +18,14 @@ from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 
 from . import posters
 from .models import Character, Episode, Franchise, Genre, MediaAsset, SourceReport, Title, TitleCharacter, TitleCredit
-from .playback import issue_playback, playback_sources_prefetch, resolve_playback
+from .playback import (
+    issue_playback,
+    playback_available,
+    playback_source_queryset,
+    playback_sources_prefetch,
+    resolve_playback,
+    source_selection_key,
+)
 from .serializers import (
     EpisodeDetailSerializer,
     FranchiseDetailSerializer,
@@ -128,6 +135,56 @@ class EpisodeDetailView(APIView):
             number=number,
         )
         return Response(EpisodeDetailSerializer(episode, context={"request": request}).data)
+
+
+class WatchNavigationView(APIView):
+    """Compact episode/voice-over matrix for the unified watch screen.
+
+    The response contains no provider URL. Playback remains available only via
+    the short-lived signed resolver used by the episode detail endpoint.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        title = get_object_or_404(Title, slug=slug)
+        episode_numbers = list(
+            Episode.objects.filter(title=title).order_by("number").values_list("number", flat=True)
+        )
+        groups = {}
+        sources = playback_source_queryset().filter(episode__title=title).order_by(
+            "kind", "name", "provider_id", "episode__number", "id"
+        )
+        for source in sources:
+            if not playback_available(source):
+                continue
+            key = source_selection_key(source)
+            group = groups.setdefault(
+                key,
+                {
+                    "key": key,
+                    "name": source.name,
+                    "kind": source.kind,
+                    "provider_name": source.provider.name if source.provider else "",
+                    "episode_numbers": set(),
+                },
+            )
+            group["episode_numbers"].add(source.episode.number)
+
+        kind_order = {"dub": 0, "sub": 1, "raw": 2}
+        source_groups = []
+        for group in groups.values():
+            numbers = sorted(group["episode_numbers"])
+            source_groups.append({**group, "episode_numbers": numbers, "episodes_count": len(numbers)})
+        source_groups.sort(
+            key=lambda group: (
+                kind_order.get(group["kind"], 9),
+                -group["episodes_count"],
+                group["name"].casefold(),
+                group["key"],
+            )
+        )
+        return Response({"episode_numbers": episode_numbers, "source_groups": source_groups})
 
 
 class SimilarTitleListView(ListAPIView):

@@ -1,5 +1,6 @@
 import ipaddress
 import re
+from hashlib import blake2s
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -168,22 +169,36 @@ def playback_available(source: Source) -> bool:
     )
 
 
+def source_selection_key(source: Source) -> str:
+    """Stable, opaque key used to keep a voice-over selected between episodes."""
+
+    provider_slug = source.provider.slug if source.provider else "manual"
+    value = f"{provider_slug}\0{source.kind}\0{source.name}".encode()
+    return blake2s(value, digest_size=8).hexdigest()
+
+
+def playback_source_queryset():
+    """Sources with everything required to evaluate playback in bounded queries."""
+
+    return Source.objects.select_related("provider", "episode").prefetch_related(
+        Prefetch(
+            "rights_grants",
+            queryset=RightsGrant.objects.filter(
+                status=RightsGrant.Status.ACTIVE,
+                valid_from__lte=Now(),
+                valid_until__gt=Now(),
+                approved_by__isnull=False,
+                approved_at__isnull=False,
+            ),
+            to_attr="active_rights_grants",
+        )
+    )
+
+
 def playback_sources_prefetch(lookup: str = "sources") -> Prefetch:
     return Prefetch(
         lookup,
-        queryset=Source.objects.select_related("provider").prefetch_related(
-            Prefetch(
-                "rights_grants",
-                queryset=RightsGrant.objects.filter(
-                    status=RightsGrant.Status.ACTIVE,
-                    valid_from__lte=Now(),
-                    valid_until__gt=Now(),
-                    approved_by__isnull=False,
-                    approved_at__isnull=False,
-                ),
-                to_attr="active_rights_grants",
-            )
-        ),
+        queryset=playback_source_queryset(),
     )
 
 

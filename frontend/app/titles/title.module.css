@@ -408,67 +408,150 @@
 
 .watchLayout {
   display: grid;
-  gap: 20px;
+  gap: 18px;
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding-bottom: 28px;
 }
 
-.watchHead h1 {
-  margin: 4px 0 8px;
+.watchHead { padding-top: 8px }
+.watchHead h1 { margin: 6px 0 8px; font-size: clamp(28px, 4vw, 44px) }
+.watchHead p:last-child { max-width: 820px; margin-bottom: 0 }
+
+.watchNavigator {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
+
+.watchSelectors {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(150px, 220px) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.watchField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.watchField > span,
+.watchAvailability > span {
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.watchField select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 38px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 140ms ease;
+}
+
+.watchField select:hover { border-color: var(--primary) }
+.watchField select:disabled { color: var(--muted-2); cursor: not-allowed }
+
+.watchAvailability {
+  display: grid;
+  align-self: end;
+  min-width: 112px;
+  min-height: 44px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #0e1219;
+}
+
+.watchAvailability strong {
+  color: var(--success);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.episodeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 7px;
+}
+
+.episodeButton {
+  display: grid;
+  min-width: 42px;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid #303746;
+  border-radius: 8px;
+  background: #202632;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+a.episodeButton:hover {
+  border-color: var(--primary);
+  background: #292f3d;
+  transform: translateY(-1px);
+}
+
+.episodeButtonActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, .2);
+  color: #fff;
+}
+
+a.episodeButtonActive:hover { background: var(--primary-hover) }
+
+.episodeButtonUnavailable {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted-2);
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.watchWarning {
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(242, 184, 75, .35);
+  border-radius: 9px;
+  background: rgba(242, 184, 75, .08);
+  color: var(--warning);
+  font-size: 13px;
 }
 
 .watchNav {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.rail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.railGap {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.railEllipsis {
+.neighborLink {
+  padding: 8px 0;
   color: var(--muted);
-}
-
-.railLink {
-  min-width: 38px;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
   font-size: 13px;
-  text-align: center;
-  transition: border-color 140ms ease, background 140ms ease;
+  transition: color 140ms ease;
 }
 
-a.railLink:hover {
-  border-color: var(--primary);
-}
-
-.railActive {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-}
-
-.watchSources h2 {
-  margin-bottom: 4px;
-}
-
-.sourceRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-}
+.neighborLink:hover { color: var(--text) }
 
 .playerShell {
   overflow: hidden;
@@ -485,6 +568,9 @@ a.railLink:hover {
   padding: 10px 12px;
   background: var(--surface-1);
 }
+
+.playerBar > strong { overflow-wrap: anywhere }
+.playerBar > span { color: var(--muted); font-size: 12px; text-transform: uppercase }
 
 .playerFrameWrap {
   position: relative;
@@ -510,6 +596,75 @@ a.railLink:hover {
   color: var(--muted);
 }
 
+.playerPreviewBody {
+  display: grid;
+  min-height: 280px;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  padding: 24px;
+  background: #080b12;
+}
+
+.playerLaunch {
+  min-height: 50px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.playerLaunch:hover { background: var(--primary-hover) }
+.playerLaunch:active { transform: scale(.985) }
+
+.watchEmpty {
+  display: grid;
+  min-height: 220px;
+  place-content: center;
+  gap: 7px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #080b12;
+  color: var(--muted);
+  text-align: center;
+}
+
+.watchEmpty strong { color: var(--text) }
+
+.watchDiagnostics {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-1);
+}
+
+.watchDiagnostics summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.watchDiagnostics[open] summary { color: var(--text) }
+.watchDiagnostics > p { margin: 12px 0 }
+
 @media (max-width: 640px) {
+  .watchLayout { gap: 14px }
+  .watchNavigator { padding: 12px; gap: 13px }
+  .watchSelectors { grid-template-columns: 1fr }
+  .watchAvailability { align-self: auto }
+  .episodeGrid {
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    max-height: 282px;
+    overflow-y: auto;
+    padding-right: 3px;
+  }
+  .episodeButton { min-width: 38px; min-height: 40px }
+  .neighborLink { max-width: 45%; line-height: 1.35 }
+  .playerPreviewBody { min-height: 190px }
   .playerFrameWrap { min-height: 180px }
 }

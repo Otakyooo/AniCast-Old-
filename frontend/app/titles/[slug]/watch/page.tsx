@@ -3,7 +3,14 @@ import type { Metadata } from "next";
 import { WatchSpace } from "../../../../components/watch-space";
 import { ApiUnavailableState } from "../../../../components/api-unavailable";
 import { PageShell } from "../../../../components/page-shell";
-import { apiErrorStatus, getCatalogItem, getEpisode, getFirstEpisodeNumber } from "../../../../lib/api";
+import {
+  apiErrorStatus,
+  getCatalogItem,
+  getEpisode,
+  getFirstEpisodeNumber,
+  getWatchNavigation,
+  type WatchNavigation,
+} from "../../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +30,10 @@ export default async function WatchPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ episode?: string }>;
+  searchParams: Promise<{ episode?: string; voice?: string }>;
 }) {
   const { slug } = await params;
-  const { episode: rawEpisodeParam } = await searchParams;
+  const { episode: rawEpisodeParam, voice: requestedSourceKey } = await searchParams;
   let item;
   try {
     item = await getCatalogItem(slug);
@@ -37,13 +44,27 @@ export default async function WatchPage({
   const episodesCount = item.episodes_count ?? 0;
   if (!episodesCount) notFound();
 
-  // Without an explicit ?episode= the watch space resumes from the first
-  // episode; numbers are sequential in this catalog, so clamping to the count
-  // keeps stale deep links inside the real range.
+  let navigation: WatchNavigation;
+  try {
+    navigation = await getWatchNavigation(slug);
+  } catch {
+    // Keep the watch route usable during a rolling backend/frontend deploy.
+    navigation = {
+      episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
+      source_groups: [],
+    };
+  }
+  const episodeNumbers = navigation.episode_numbers.length
+    ? navigation.episode_numbers
+    : Array.from({ length: episodesCount }, (_, index) => index + 1);
+
+  // Navigation uses actual episode numbers rather than assuming every title is
+  // sequential, so stale links cannot silently land on another episode.
   const rawRequested = Number(rawEpisodeParam);
-  const fallbackNumber = Number((await getFirstEpisodeNumber(slug).catch(() => null)) ?? 1);
-  let number = Number.isInteger(rawRequested) && rawRequested >= 1 ? rawRequested : fallbackNumber || 1;
-  number = Math.min(number, episodesCount);
+  const fallbackNumber = Number(episodeNumbers[0] ?? (await getFirstEpisodeNumber(slug).catch(() => null)) ?? 1);
+  let number = Number.isInteger(rawRequested) && episodeNumbers.includes(rawRequested)
+    ? rawRequested
+    : fallbackNumber || 1;
 
   let episode;
   try {
@@ -65,6 +86,9 @@ export default async function WatchPage({
         slug={slug}
         titleName={item.name}
         episodesCount={episodesCount}
+        episodeNumbers={episodeNumbers}
+        sourceGroups={navigation.source_groups}
+        requestedSourceKey={requestedSourceKey}
         currentNumber={number}
         episode={{
           number: episode.number,
