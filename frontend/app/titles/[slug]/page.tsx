@@ -115,6 +115,7 @@ function EpisodeCard({ episode, slug, t }: { episode: Episode; slug: string; t: 
         {episode.air_date && <time dateTime={episode.air_at ?? episode.air_date}>{episode.air_date}</time>}
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
+      <Link className="secondary" href={`/titles/${slug}/watch?episode=${episode.number}`}>{t("watch.title")}</Link>
       <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
       <div className="episode-sources">
         <h3>{t("episode.sources")}</h3>
@@ -195,6 +196,12 @@ export default async function CatalogDetailPage({
   const pageCount = Math.max(1, Math.ceil(episodesCount / 20));
   const genres = item.genres ?? [];
   const cast = item.characters ?? [];
+  // Main cast for the overview: heroes and antagonists only — supporting and
+  // cameo entries stay on the characters tab. Voice actors are not part of
+  // the dataset at all.
+  const mainCast = cast
+    .filter((entry) => entry.role === "protagonist" || entry.role === "antagonist")
+    .slice(0, 8);
   const [similar, firstEpisode] = await Promise.all([
     tab === "overview" ? getSimilarTitles(slug) : Promise.resolve([]),
     // The hero action must point at the real first episode regardless of which
@@ -287,6 +294,19 @@ export default async function CatalogDetailPage({
               <div><dt>{t("title.genres")}</dt><dd>{genres.length ? genres.map((genre) => genre.name).join(", ") : t("title.noGenres")}</dd></div>
             </dl>
           </section>
+          {mainCast.length > 0 && (
+            <section className={styles.block}>
+              <div className="section-heading">
+                <h2>{t("title.castMain")}</h2>
+                {cast.length > mainCast.length && (
+                  <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.castAll")} ({cast.length})</Link>
+                )}
+              </div>
+              <div className={styles.castGrid}>
+                {mainCast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
+              </div>
+            </section>
+          )}
           {item.franchise && (
             <Link className="franchise-panel" href={`/franchises/${item.franchise.slug}`}>
               <p className="eyebrow">{t("franchise.label")}</p>
