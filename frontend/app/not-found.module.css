@@ -1,0 +1,53 @@
+.notFoundPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(60% 50% at 50% 40%, rgb(124 92 255 / 0.12), transparent 70%);
+}
+
+.panel {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 48px 16px;
+}
+
+.mascot {
+  width: min(70vw, 380px);
+  height: auto;
+  filter: drop-shadow(0 18px 40px rgb(124 92 255 / 0.25));
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: clamp(26px, 6vw, 40px);
+  background: linear-gradient(120deg, #8d73ff, #7c5cff 55%, #b9a8ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.panel .muted {
+  max-width: 46ch;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mascot {
+    animation: mascotFloat 6s ease-in-out infinite;
+  }
+
+  @keyframes mascotFloat {
+    0%, 100% { transform: translateY(0) }
+    50% { transform: translateY(-8px) }
+  }
+}
