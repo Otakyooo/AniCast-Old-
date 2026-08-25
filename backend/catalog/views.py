@@ -17,8 +17,28 @@ from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 
 from . import posters
-from .models import Character, Episode, Franchise, Genre, MediaAsset, SourceReport, Title, TitleCharacter, TitleCredit
-from .playback import issue_playback, playback_sources_prefetch, resolve_playback
+from .models import (
+    Character,
+    Episode,
+    Franchise,
+    Genre,
+    MediaAsset,
+    Provider,
+    RightsGrant,
+    Source,
+    SourceReport,
+    Title,
+    TitleCharacter,
+    TitleCredit,
+)
+from .playback import (
+    issue_playback,
+    playback_sources_prefetch,
+    playback_url_allowed,
+    resolve_playback,
+    source_selection_key_parts,
+    validate_provider_configuration,
+)
 from .serializers import (
     EpisodeDetailSerializer,
     FranchiseDetailSerializer,
@@ -128,6 +148,96 @@ class EpisodeDetailView(APIView):
             number=number,
         )
         return Response(EpisodeDetailSerializer(episode, context={"request": request}).data)
+
+
+class WatchNavigationView(APIView):
+    """Compact episode/voice-over matrix for the unified watch screen.
+
+    The response contains no provider URL. Playback remains available only via
+    the short-lived signed resolver used by the episode detail endpoint.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        title = get_object_or_404(Title, slug=slug)
+        episode_numbers = list(
+            Episode.objects.filter(title=title).order_by("number").values_list("number", flat=True)
+        )
+        now = timezone.now()
+        provider_context = {}
+        entitled_provider_ids = []
+        providers = Provider.objects.filter(
+            sources__episode__title=title,
+            is_enabled=True,
+        ).distinct()
+        for provider in providers:
+            try:
+                _, _, allowed_hosts = validate_provider_configuration(
+                    provider.playback_adapter,
+                    provider.playback_config,
+                    provider.allowed_hosts,
+                )
+            except (TypeError, ValueError):
+                continue
+            provider_context[provider.id] = (provider.slug, provider.name, allowed_hosts)
+            if (
+                provider.rights_reference
+                and provider.rights_verified_at
+                and (provider.rights_valid_until is None or provider.rights_valid_until > now)
+            ):
+                entitled_provider_ids.append(provider.id)
+
+        rights_filter = Q(provider_id__in=entitled_provider_ids) | Q(
+            rights_grants__status=RightsGrant.Status.ACTIVE,
+            rights_grants__valid_from__lte=now,
+            rights_grants__valid_until__gt=now,
+            rights_grants__approved_by__isnull=False,
+            rights_grants__approved_at__isnull=False,
+        )
+        rows = (
+            Source.objects.filter(
+                episode__title=title,
+                availability="available",
+                provider_id__in=provider_context,
+            )
+            .filter(rights_filter)
+            .values_list("provider_id", "episode__number", "name", "kind", "url")
+            .distinct()
+            .order_by("kind", "name", "provider_id", "episode__number")
+        )
+        groups = {}
+        for provider_id, episode_number, name, kind, url in rows:
+            provider_slug, provider_name, allowed_hosts = provider_context[provider_id]
+            if not playback_url_allowed(url, allowed_hosts):
+                continue
+            key = source_selection_key_parts(provider_slug, kind, name)
+            group = groups.setdefault(
+                key,
+                {
+                    "key": key,
+                    "name": name,
+                    "kind": kind,
+                    "provider_name": provider_name,
+                    "episode_numbers": set(),
+                },
+            )
+            group["episode_numbers"].add(episode_number)
+
+        kind_order = {"dub": 0, "sub": 1, "raw": 2}
+        source_groups = []
+        for group in groups.values():
+            numbers = sorted(group["episode_numbers"])
+            source_groups.append({**group, "episode_numbers": numbers, "episodes_count": len(numbers)})
+        source_groups.sort(
+            key=lambda group: (
+                kind_order.get(group["kind"], 9),
+                -group["episodes_count"],
+                group["name"].casefold(),
+                group["key"],
+            )
+        )
+        return Response({"episode_numbers": episode_numbers, "source_groups": source_groups})
 
 
 class SimilarTitleListView(ListAPIView):

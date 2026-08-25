@@ -1,5 +1,6 @@
 import ipaddress
 import re
+from hashlib import blake2s
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -123,16 +124,11 @@ def validate_provider_configuration(
     return adapter_name, config, normalized_hosts
 
 
-def source_url_allowed(source: Source) -> bool:
-    if source.provider is None:
-        return False
+def playback_url_allowed(url: str, allowed_hosts: list[str]) -> bool:
+    """Validate a provider URL against an already-normalized host allowlist."""
+
     try:
-        _, _, allowed_hosts = validate_provider_configuration(
-            source.provider.playback_adapter,
-            source.provider.playback_config,
-            source.provider.allowed_hosts,
-        )
-        parsed = urlsplit(source.url)
+        parsed = urlsplit(url)
         hostname = normalize_hostname(parsed.hostname or "")
         port = parsed.port
     except (TypeError, ValueError):
@@ -146,6 +142,20 @@ def source_url_allowed(source: Source) -> bool:
         and not parsed.fragment
         and hostname in allowed_hosts
     )
+
+
+def source_url_allowed(source: Source) -> bool:
+    if source.provider is None:
+        return False
+    try:
+        _, _, allowed_hosts = validate_provider_configuration(
+            source.provider.playback_adapter,
+            source.provider.playback_config,
+            source.provider.allowed_hosts,
+        )
+    except (TypeError, ValueError):
+        return False
+    return playback_url_allowed(source.url, allowed_hosts)
 
 
 def playback_available(source: Source) -> bool:
@@ -168,22 +178,40 @@ def playback_available(source: Source) -> bool:
     )
 
 
+def source_selection_key_parts(provider_slug: str, kind: str, name: str) -> str:
+    value = f"{provider_slug}\0{kind}\0{name}".encode()
+    return blake2s(value, digest_size=8).hexdigest()
+
+
+def source_selection_key(source: Source) -> str:
+    """Stable, opaque key used to keep a voice-over selected between episodes."""
+
+    provider_slug = source.provider.slug if source.provider else "manual"
+    return source_selection_key_parts(provider_slug, source.kind, source.name)
+
+
+def playback_source_queryset():
+    """Sources with everything required to evaluate playback in bounded queries."""
+
+    return Source.objects.select_related("provider", "episode").prefetch_related(
+        Prefetch(
+            "rights_grants",
+            queryset=RightsGrant.objects.filter(
+                status=RightsGrant.Status.ACTIVE,
+                valid_from__lte=Now(),
+                valid_until__gt=Now(),
+                approved_by__isnull=False,
+                approved_at__isnull=False,
+            ),
+            to_attr="active_rights_grants",
+        )
+    )
+
+
 def playback_sources_prefetch(lookup: str = "sources") -> Prefetch:
     return Prefetch(
         lookup,
-        queryset=Source.objects.select_related("provider").prefetch_related(
-            Prefetch(
-                "rights_grants",
-                queryset=RightsGrant.objects.filter(
-                    status=RightsGrant.Status.ACTIVE,
-                    valid_from__lte=Now(),
-                    valid_until__gt=Now(),
-                    approved_by__isnull=False,
-                    approved_at__isnull=False,
-                ),
-                to_attr="active_rights_grants",
-            )
-        ),
+        queryset=playback_source_queryset(),
     )
 
 

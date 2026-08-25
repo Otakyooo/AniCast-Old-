@@ -13,6 +13,7 @@ from .views import (
     ScheduleView,
     SimilarTitleListView,
     EpisodeDetailView,
+    WatchNavigationView,
     SourceReportView,
     TitleDetailView,
     TitleListView,
@@ -22,6 +23,7 @@ from .views import (
 urlpatterns = [
     path("titles/", TitleListView.as_view(), name="title-list"),
     path("titles/<slug:slug>/similar/", SimilarTitleListView.as_view(), name="title-similar"),
+    path("titles/<slug:slug>/watch-navigation/", WatchNavigationView.as_view(), name="watch-navigation"),
     path("titles/<slug:slug>/episodes/<int:number>/", EpisodeDetailView.as_view(), name="episode-detail"),
     path("titles/<slug:slug>/", TitleDetailView.as_view(), name="title-detail"),
     path("schedule/", ScheduleView.as_view(), name="schedule"),

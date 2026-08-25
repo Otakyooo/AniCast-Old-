@@ -9,6 +9,8 @@ export interface Source {
   id: number;
   name: string;
   kind: string;
+  provider_name?: string;
+  selection_key: string;
   availability: "available" | "unavailable" | "geo_blocked" | "expired" | "provider_error" | string;
   availability_reason?: string;
   is_available: boolean;
@@ -37,6 +39,20 @@ export interface Episode {
 
 export interface EpisodeDetail extends Episode {
   title: Pick<CatalogItem, "name" | "slug" | "title_type" | "status"> & { poster_url?: string };
+}
+
+export interface WatchSourceGroup {
+  key: string;
+  name: string;
+  kind: string;
+  provider_name: string;
+  episodes_count: number;
+  episode_numbers: number[];
+}
+
+export interface WatchNavigation {
+  episode_numbers: number[];
+  source_groups: WatchSourceGroup[];
 }
 
 export type CharacterRole = "protagonist" | "supporting" | "antagonist" | "cameo" | string;
@@ -261,6 +277,10 @@ export async function getFirstEpisodeNumber(slug: string): Promise<number | null
 
 export async function getEpisode(slug: string, number: number): Promise<EpisodeDetail> {
   return request<EpisodeDetail>(`/titles/${encodeURIComponent(slug)}/episodes/${number}/`, { cache: "no-store" });
+}
+
+export async function getWatchNavigation(slug: string): Promise<WatchNavigation> {
+  return request<WatchNavigation>(`/titles/${encodeURIComponent(slug)}/watch-navigation/`, revalidated(60));
 }
 
 export async function getSimilarTitles(slug: string): Promise<CatalogItem[]> {

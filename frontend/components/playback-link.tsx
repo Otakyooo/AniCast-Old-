@@ -9,10 +9,14 @@ export function PlaybackLink({
   sourceId,
   playbackMode,
   onEmbed,
+  label,
+  className,
 }: {
   sourceId: number;
   playbackMode?: PlaybackMode | null;
   onEmbed?: (url: string) => void;
+  label?: string;
+  className?: string;
 }) {
   const { t } = useI18n();
   const [error, setError] = useState("");
@@ -37,5 +41,5 @@ export function PlaybackLink({
       setError(t("source.gone"));
     }
   }
-  return <><button className="primary inline-button" type="button" onClick={open}>{t("source.open")}</button>{error && <small>{error}</small>}</>;
+  return <><button className={className ?? "primary inline-button"} type="button" onClick={open}>{label ?? t("source.open")}</button>{error && <small role="alert">{error}</small>}</>;
 }

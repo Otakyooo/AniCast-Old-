@@ -106,6 +106,13 @@ Object.assign(ru, {
   "settings.title":"Настройки","settings.subtitle":"Уведомления и язык интерфейса.","settings.languageHint":"Язык переключается кнопкой в шапке сайта и сохраняется в аккаунте.",
   // Представления внутри вкладки «Библиотека».
   "library.viewTitles":"Тайтлы","library.viewCollections":"Коллекции",
+  // Единый сценарий просмотра: озвучка, доступные серии и плеер.
+  "watch.navigation":"Выбор озвучки и серии","watch.voice":"Озвучка или субтитры","watch.noVoice":"Доступных озвучек пока нет",
+  "watch.episodeCount":"{count} эп.","watch.episodeRange":"Диапазон серий","watch.available":"Доступно серий",
+  "watch.episodeUnavailable":"Этой серии нет в выбранной озвучке","watch.voiceUnavailable":"Серии {number} нет в варианте «{name}». Выберите доступную серию.",
+  "watch.neighborEpisodes":"Соседние доступные серии","watch.playEpisode":"Смотреть серию {number}","watch.noPlayer":"Для этой серии нет доступного плеера",
+  "watch.chooseAvailableEpisode":"Выберите активную кнопку серии или другую озвучку.","watch.sourceDetails":"Все источники и диагностика",
+  "watch.kind.dub":"озвучка","watch.kind.sub":"субтитры","watch.kind.raw":"оригинал",
 });
 
 Object.assign(en, {
@@ -121,6 +128,12 @@ Object.assign(en, {
   "profile.guest":"Guest",
   "settings.title":"Settings","settings.subtitle":"Notifications and interface language.","settings.languageHint":"Switch the language with the header control; the choice is stored in your account.",
   "library.viewTitles":"Titles","library.viewCollections":"Collections",
+  "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.noVoice":"No playable voice-overs yet",
+  "watch.episodeCount":"{count} eps.","watch.episodeRange":"Episode range","watch.available":"Episodes available",
+  "watch.episodeUnavailable":"This episode is not available in the selected voice-over","watch.voiceUnavailable":"Episode {number} is not available in “{name}”. Choose an available episode.",
+  "watch.neighborEpisodes":"Adjacent available episodes","watch.playEpisode":"Watch episode {number}","watch.noPlayer":"No playable source for this episode",
+  "watch.chooseAvailableEpisode":"Choose an active episode button or another voice-over.","watch.sourceDetails":"All sources and diagnostics",
+  "watch.kind.dub":"dub","watch.kind.sub":"subtitles","watch.kind.raw":"original",
 });
 
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };
