@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 
 from . import posters
-from .models import Character, Episode, Franchise, MediaAsset, SourceReport, Title
+from .models import Character, Episode, Franchise, Genre, MediaAsset, SourceReport, Title
 from .playback import issue_playback, playback_sources_prefetch, resolve_playback
 from .serializers import (
     EpisodeDetailSerializer,
@@ -25,6 +25,7 @@ from .serializers import (
     FranchiseSummarySerializer,
     CharacterDetailSerializer,
     CharacterSummarySerializer,
+    GenreOptionSerializer,
     MediaAssetSerializer,
     ScheduleEpisodeSerializer,
     SourceReportSerializer,
@@ -259,6 +260,22 @@ class FranchiseListView(ListAPIView):
                 Q(name__icontains=query) | Q(translations__name__icontains=query)
             ).distinct()
         return queryset
+
+
+class GenreListView(ListAPIView):
+    """Public genre list for the catalog filter bar, most used first. Genres
+    without titles are useless as filters, so they are excluded."""
+
+    serializer_class = GenreOptionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            Genre.objects.annotate(titles_count=Count("titles", distinct=True))
+            .filter(titles_count__gt=0)
+            .prefetch_related("translations")
+            .order_by("-titles_count", "name")
+        )
 
 
 class GlobalSearchView(APIView):

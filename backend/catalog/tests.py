@@ -556,6 +556,28 @@ def test_language_cookie_and_unsupported_language_fallback(catalog_data):
 
 
 @pytest.mark.django_db
+def test_genres_endpoint_localized_sorted_and_nonempty(catalog_data):
+    second = Title.objects.create(name="Second Test", slug="second-test", status="finished", title_type="anime")
+    second.genres.add(Genre.objects.get(slug="drama"))
+    empty_genre = Genre.objects.create(name="Unused", slug="unused")
+    GenreTranslation.objects.create(genre=empty_genre, language="ru", name="Неиспользуемый")
+    GenreTranslation.objects.create(genre=Genre.objects.get(slug="action"), language="ru", name="Экшен")
+
+    payload = APIClient().get("/api/v1/genres/", {"lang": "en"}).json()
+    # Genres without titles are excluded entirely.
+    assert [row["slug"] for row in payload] == ["drama", "action"]
+    drama = payload[0]
+    assert drama["name"] == "Drama"
+    assert drama["titles_count"] == 2
+    assert payload[1]["titles_count"] == 1
+
+    russian = APIClient().get("/api/v1/genres/", {"lang": "ru"}).json()
+    assert next(row for row in russian if row["slug"] == "action")["name"] == "Экшен"
+    # Base name is the English fallback when no translation exists.
+    assert next(row for row in russian if row["slug"] == "drama")["name"] == "Drama"
+
+
+@pytest.mark.django_db
 def test_character_list_detail_and_translations(catalog_data):
     character = Character.objects.create(name="Hero", slug="hero", original_name="ヒーロー")
     CharacterTranslation.objects.create(character=character, language="ru", name="Герой", description="Главный герой")

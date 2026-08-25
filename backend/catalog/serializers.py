@@ -288,3 +288,15 @@ class ShelfEpisodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Episode
         fields = ["id", "number", "name", "air_date", "air_at"]
+
+
+class GenreOptionSerializer(serializers.Serializer):
+    """Compact genre entry for the catalog filter bar, localized like every
+    other public payload via the request language."""
+
+    slug = serializers.CharField()
+    name = serializers.SerializerMethodField()
+    titles_count = serializers.IntegerField()
+
+    def get_name(self, obj) -> str:
+        return translated_value(obj, "name", self.context)
