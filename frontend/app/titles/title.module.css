@@ -370,3 +370,69 @@
   }
   .heroPoster { max-width: 200px }
 }
+
+/* ---------- Unified watch space (/titles/<slug>/watch) ---------- */
+
+.watchLayout {
+  display: grid;
+  gap: 20px;
+}
+
+.watchHead h1 {
+  margin: 4px 0 8px;
+}
+
+.watchNav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.railGap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.railEllipsis {
+  color: var(--muted);
+}
+
+.railLink {
+  min-width: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+a.railLink:hover {
+  border-color: var(--primary);
+}
+
+.railActive {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.watchSources h2 {
+  margin-bottom: 4px;
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
