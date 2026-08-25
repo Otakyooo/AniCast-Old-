@@ -1,0 +1,56 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+AniCast admin theme: the frontend brand accent (--primary #7c5cff), a
+branded header gradient, softer surfaces and modern control radii. The
+DIRS template lookup applies this to every /staff/ page while Django's
+own light/dark palettes keep handling surfaces — only brand hues are
+overridden, so both schemes stay intact.
+{% endcomment %}
+
+{% block bodyclass %}{{ block.super }} anicast-theme{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    :root {
+      --primary: #7c5cff;
+      --secondary: #6a4be0;
+      --accent: #8d73ff;
+      --link-fg: #6a4be0;
+      --link-hover-color: #5537c9;
+      --button-hover-bg: #8d73ff;
+    }
+
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    #header {
+      background: linear-gradient(135deg, #5537c9 0%, #7c5cff 100%);
+    }
+    #header .branding strong { font-weight: 700; letter-spacing: .01em }
+    #user-tools a { border-bottom-color: rgb(255 255 255 / .45) }
+
+    .module, .inline-group, fieldset.module {
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .button, a.button, input[type="submit"], input[type="button"], button,
+    .object-tools a, .submit-row input {
+      border-radius: 8px;
+    }
+
+    #result_list tbody tr:hover { background: rgb(124 92 255 / .06) }
+
+    body.login #container {
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      #result_list tbody tr:hover { background: rgb(124 92 255 / .14) }
+    }
+  </style>
+{% endblock %}

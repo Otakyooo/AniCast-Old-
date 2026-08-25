@@ -292,3 +292,6 @@ def test_staff_index_renders_availability_section():
     assert "Доступность" in body
     assert "Работает" in body or "Нет данных" in body
     assert "Сводка редактора" in body
+    # Admin theme is applied on every /staff/ page via base_site override.
+    assert "anicast-theme" in body
+    assert "--primary: #7c5cff" in body
