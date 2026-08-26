@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { CharacterAvatar } from "./character-avatar";
 import { globalSearch, SEARCH_MIN_LENGTH, type GlobalSearchResponse } from "../lib/api";
 import { OPEN_SEARCH_EVENT } from "./mobile-search-link";
@@ -15,6 +17,12 @@ type SearchState =
   | { kind: "ready"; data: GlobalSearchResponse }
   | { kind: "error" };
 
+/** One navigable entry of the suggestion panel: a row id plus its target. */
+interface SearchOption {
+  id: string;
+  href: string;
+}
+
 const DEBOUNCE_MS = 250;
 
 function hasResults(data: GlobalSearchResponse) {
@@ -26,26 +34,35 @@ function hasResults(data: GlobalSearchResponse) {
  *
  * The form submits to `/catalog`, so search still works without JavaScript and
  * existing `/catalog?q=` links keep their meaning. On narrow viewports the field
- * collapses into a trigger that opens a full-width sheet.
+ * collapses into a trigger that opens a full-width sheet. Arrow keys walk the
+ * flat option list behind the grouped markup, Enter follows the active row and
+ * the plain form submit remains the fallback for "all results".
  */
 export function GlobalSearch() {
   const { t } = useI18n();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [state, setState] = useState<SearchState>({ kind: "idle" });
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const panelId = useId();
+  const titlesHeadingId = `${panelId}-titles`;
+  const charactersHeadingId = `${panelId}-characters`;
+  const franchisesHeadingId = `${panelId}-franchises`;
   const trimmed = query.trim();
 
   useEffect(() => {
     if (trimmed.length < SEARCH_MIN_LENGTH) {
       setState({ kind: "idle" });
+      setActiveIndex(-1);
       return;
     }
     const controller = new AbortController();
     setState({ kind: "loading" });
+    setActiveIndex(-1);
     const timer = window.setTimeout(() => {
       globalSearch(trimmed, controller.signal)
         .then((data) => setState({ kind: "ready", data }))
@@ -60,9 +77,28 @@ export function GlobalSearch() {
     };
   }, [trimmed]);
 
+  // The panel shows groups, but keyboard navigation walks one flat list in the
+  // same visual order, including the trailing "all results" entry.
+  const options = useMemo<SearchOption[]>(() => {
+    if (state.kind !== "ready" || !hasResults(state.data)) return [];
+    return [
+      ...state.data.titles.map((item) => ({ id: `${panelId}-title-${item.slug}`, href: `/titles/${item.slug}` })),
+      ...state.data.characters.map((item) => ({ id: `${panelId}-character-${item.slug}`, href: `/characters/${item.slug}` })),
+      ...state.data.franchises.map((item) => ({ id: `${panelId}-franchise-${item.slug}`, href: `/franchises/${item.slug}` })),
+      { id: `${panelId}-all`, href: `/catalog?q=${encodeURIComponent(trimmed)}` },
+    ];
+  }, [state, trimmed, panelId]);
+
+  useEffect(() => {
+    if (!open || activeIndex < 0) return;
+    const option = options[activeIndex];
+    if (option) document.getElementById(option.id)?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, open, options]);
+
   const close = useCallback(() => {
     setOpen(false);
     setExpanded(false);
+    setActiveIndex(-1);
   }, []);
 
   useEffect(() => {
@@ -113,6 +149,41 @@ export function GlobalSearch() {
     };
   }, []);
 
+  function onInputKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (options.length === 0) return;
+      setActiveIndex((current) => {
+        if (current < 0) return event.key === "ArrowDown" ? 0 : options.length - 1;
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        return (current + step + options.length) % options.length;
+      });
+      return;
+    }
+    if ((event.key === "Home" || event.key === "End") && options.length > 0) {
+      event.preventDefault();
+      setActiveIndex(event.key === "Home" ? 0 : options.length - 1);
+      return;
+    }
+    if (event.key === "Enter") {
+      const option = open && activeIndex >= 0 ? options[activeIndex] : undefined;
+      if (option) {
+        event.preventDefault();
+        close();
+        router.push(option.href);
+      }
+      return;
+    }
+    if (event.key === "Tab") close();
+  }
+
+  const optionProps = (index: number) => ({
+    id: options[index]?.id,
+    role: "option" as const,
+    "aria-selected": index === activeIndex,
+    onMouseMove: () => setActiveIndex(index),
+  });
+
   return (
     <div className={`${styles.wrap} ${expanded ? styles.wrapExpanded : ""}`} ref={containerRef}>
       <button
@@ -138,6 +209,9 @@ export function GlobalSearch() {
             aria-autocomplete="list"
             aria-expanded={open}
             aria-controls={panelId}
+            aria-activedescendant={
+              open && activeIndex >= 0 ? options[activeIndex]?.id : undefined
+            }
             placeholder={t("search.placeholder")}
             value={query}
             onChange={(event) => {
@@ -145,6 +219,7 @@ export function GlobalSearch() {
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
+            onKeyDown={onInputKeyDown}
           />
         </form>
 
@@ -171,10 +246,16 @@ export function GlobalSearch() {
             {state.kind === "ready" && hasResults(state.data) && (
               <>
                 {state.data.titles.length > 0 && (
-                  <section className={styles.group}>
-                    <h3>{t("search.titles")}</h3>
-                    {state.data.titles.map((item) => (
-                      <Link className={styles.row} href={`/titles/${item.slug}`} key={item.slug} onClick={close}>
+                  <section className={styles.group} role="group" aria-labelledby={titlesHeadingId}>
+                    <h3 id={titlesHeadingId}>{t("search.titles")}</h3>
+                    {state.data.titles.map((item, index) => (
+                      <Link
+                        className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
+                        href={`/titles/${item.slug}`}
+                        key={item.slug}
+                        onClick={close}
+                        {...optionProps(index)}
+                      >
                         <span className={styles.thumb}>
                           {item.poster_url ? (
                             <Image
@@ -201,14 +282,15 @@ export function GlobalSearch() {
                   </section>
                 )}
                 {state.data.characters.length > 0 && (
-                  <section className={styles.group}>
-                    <h3>{t("search.characters")}</h3>
-                    {state.data.characters.map((character) => (
+                  <section className={styles.group} role="group" aria-labelledby={charactersHeadingId}>
+                    <h3 id={charactersHeadingId}>{t("search.characters")}</h3>
+                    {state.data.characters.map((character, index) => (
                       <Link
-                        className={styles.row}
+                        className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
                         href={`/characters/${character.slug}`}
                         key={character.slug}
                         onClick={close}
+                        {...optionProps(index)}
                       >
                         <span className={`${styles.thumb} ${styles.thumbRound}`}>
                           <CharacterAvatar imageUrl={character.image_url} sizes="40px" />
@@ -222,14 +304,15 @@ export function GlobalSearch() {
                   </section>
                 )}
                 {state.data.franchises.length > 0 && (
-                  <section className={styles.group}>
-                    <h3>{t("search.franchises")}</h3>
-                    {state.data.franchises.map((franchise) => (
+                  <section className={styles.group} role="group" aria-labelledby={franchisesHeadingId}>
+                    <h3 id={franchisesHeadingId}>{t("search.franchises")}</h3>
+                    {state.data.franchises.map((franchise, index) => (
                       <Link
-                        className={styles.row}
+                        className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
                         href={`/franchises/${franchise.slug}`}
                         key={franchise.slug}
                         onClick={close}
+                        {...optionProps(index)}
                       >
                         <span className={`${styles.thumb} ${styles.thumbFlat}`} aria-hidden="true">
                           {franchise.name.slice(0, 1).toUpperCase()}
@@ -242,7 +325,14 @@ export function GlobalSearch() {
                     ))}
                   </section>
                 )}
-                <Link className={styles.allResults} href={`/catalog?q=${encodeURIComponent(trimmed)}`} onClick={close}>
+                <Link
+                  className={`${styles.allResults} ${
+                    activeIndex === options.length - 1 ? styles.rowActive : ""
+                  }`}
+                  href={`/catalog?q=${encodeURIComponent(trimmed)}`}
+                  onClick={close}
+                  {...optionProps(options.length - 1)}
+                >
                   {t("search.allResults")}
                 </Link>
               </>

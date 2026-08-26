@@ -62,26 +62,28 @@ class EpisodeSerializer(serializers.ModelSerializer):
         fields = ["id", "number", "name", "synopsis", "air_date", "air_at", "sources"]
 
 
-class FranchiseSerializer(serializers.ModelSerializer):
+class FranchiseRefSerializer(serializers.ModelSerializer):
+    """Compact franchise reference embedded in title payloads. The long
+    localized description belongs to the franchise endpoints; carrying it on
+    every catalog card only inflates list responses."""
+
     name = serializers.SerializerMethodField()
-    description = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
 
-    def get_description(self, obj):
-        return translated_value(obj, "description", self.context)
-
     class Meta:
         model = Franchise
-        fields = ["name", "slug", "description"]
+        fields = ["name", "slug"]
 
 
 class TitleSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True, read_only=True)
-    franchise = FranchiseSerializer(read_only=True)
+    franchise = FranchiseRefSerializer(read_only=True)
     name = serializers.SerializerMethodField()
     synopsis = serializers.SerializerMethodField()
+    rating_average = serializers.SerializerMethodField()
+    rating_count = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
@@ -89,11 +91,21 @@ class TitleSerializer(serializers.ModelSerializer):
     def get_synopsis(self, obj):
         return translated_value(obj, "synopsis", self.context)
 
+    def get_rating_average(self, obj):
+        # Present only when the queryset annotated the aggregate; unannotated
+        # callers stay at null instead of triggering per-object queries.
+        average = getattr(obj, "rating_avg", None)
+        return round(average, 1) if average is not None else None
+
+    def get_rating_count(self, obj):
+        return getattr(obj, "rating_count", None)
+
     class Meta:
         model = Title
         fields = [
             "name", "slug", "original_name", "synopsis", "title_type", "status",
             "year", "poster_url", "genres", "franchise",
+            "rating_average", "rating_count",
         ]
 
 

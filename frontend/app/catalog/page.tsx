@@ -95,7 +95,12 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       }}
       genres={genres}
     />
-    {catalog.count > 0 && <RandomTitleButton count={catalog.count} />}
+    {catalog.count > 0 && (
+      <div className={styles.toolbar}>
+        <p className={styles.resultCount}>{t("catalog.found", { count: catalog.count })}</p>
+        <RandomTitleButton count={catalog.count} />
+      </div>
+    )}
     {catalog.results.length ? (
       <div className="catalog-grid">{catalog.results.map(item => <CatalogCard item={item} key={item.slug} />)}</div>
     ) : (

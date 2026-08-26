@@ -37,7 +37,7 @@ function CatalogShelf({
         <Link href={href}>{linkLabel}</Link>
       </div>
       {items.length ? (
-        <div className="catalog-grid">{items.map((item) => <CatalogCard item={item} key={item.slug} />)}</div>
+        <div className={styles.shelfGrid}>{items.map((item) => <CatalogCard item={item} key={item.slug} />)}</div>
       ) : (
         <div className="empty-state" role="status"><strong>{emptyLabel}</strong></div>
       )}
@@ -59,7 +59,7 @@ export default async function HomePage() {
   ]);
 
   return <PageShell active="home">
-    <ContinueWatchingBlock />
+    <ContinueWatchingBlock catalogCount={popular.count} />
 
     {schedule.results.length > 0 && (
       <section className="section">

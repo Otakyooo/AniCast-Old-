@@ -68,7 +68,7 @@
   transition: background 120ms ease;
 }
 
-.row:hover, .row:focus-visible { background: var(--surface-1) }
+.row:hover, .row:focus-visible, .row.rowActive { background: var(--surface-1) }
 .row:active { background: var(--background) }
 
 .thumb {
@@ -112,11 +112,13 @@
   margin-top: 4px;
   padding: 11px 8px;
   border-top: 1px solid var(--border);
+  border-radius: 0 0 9px 9px;
   color: var(--primary);
   font-size: 13px;
   text-align: center;
 }
 
+.allResults:hover, .allResults.rowActive { background: var(--surface-1) }
 .allResults:hover { color: var(--primary-hover) }
 
 @media (max-width: 1199px) {

@@ -57,6 +57,7 @@ def test_title_detail_includes_nested_relations(catalog_data):
     body = response.json()
     assert response.status_code == 200
     assert body["franchise"]["slug"] == "test-franchise"
+    assert body["franchise"] == {"name": "Test Franchise", "slug": "test-franchise"}
     assert body["genres"][0]["slug"] == "action"
     assert body["episodes_count"] == 1
     assert body["episodes"][0]["sources"][0]["availability"] == "available"
@@ -300,6 +301,42 @@ def test_title_list_ordering_is_opt_in_and_validated(catalog_data):
     assert client.get("/api/v1/titles/?ordering=popular").json()["results"][0]["slug"] == "zeta-popular"
     assert client.get("/api/v1/titles/?ordering=recent").json()["results"][0]["slug"] == "alpha-recent"
     assert client.get("/api/v1/titles/?ordering=unknown").status_code == 400
+
+
+@pytest.mark.django_db
+def test_title_list_exposes_rating_aggregates_without_per_row_queries(catalog_data):
+    client = APIClient()
+    unrated = {item["slug"]: item for item in client.get("/api/v1/titles/").json()["results"]}
+    assert unrated["sky-test"]["rating_average"] is None
+    assert unrated["sky-test"]["rating_count"] == 0
+
+    viewer = User.objects.create_user(email="rater-one@example.com", password="A-strong-passphrase-2042")
+    second = User.objects.create_user(email="rater-two@example.com", password="A-strong-passphrase-2042")
+    TitleRating.objects.create(user=viewer, title=catalog_data, value=8)
+    TitleRating.objects.create(user=second, title=catalog_data, value=9)
+
+    for ordering in ("", "popular", "recent"):
+        body = client.get(f"/api/v1/titles/?ordering={ordering}").json()["results"][0]
+        assert body["rating_count"] == 2
+        assert body["rating_average"] == 8.5
+
+    detail = client.get("/api/v1/titles/sky-test/").json()
+    assert detail["rating_count"] == 2
+    assert detail["rating_average"] == 8.5
+
+
+@pytest.mark.django_db
+def test_search_and_similar_titles_expose_rating_aggregates(catalog_data):
+    viewer = User.objects.create_user(email="rater@example.com", password="A-strong-passphrase-2042")
+    TitleRating.objects.create(user=viewer, title=catalog_data, value=7)
+    searched = APIClient().get("/api/v1/search/?q=sky").json()["titles"][0]
+    assert searched["rating_average"] == 7 and searched["rating_count"] == 1
+
+    other = Title.objects.create(name="Sky Neighbor", slug="sky-neighbor", year=2020)
+    other.genres.add(*catalog_data.genres.all())
+    related = APIClient().get("/api/v1/titles/sky-test/similar/").json()
+    entry = next(item for item in related if item["slug"] == "sky-neighbor")
+    assert entry["rating_average"] is None and entry["rating_count"] == 0
 
 
 @pytest.mark.django_db

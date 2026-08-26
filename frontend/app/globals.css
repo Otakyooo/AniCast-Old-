@@ -376,6 +376,20 @@ summary:focus-visible {
 .poster-image { border-radius: inherit; object-fit: cover }
 .catalog-card .poster-image { position: absolute; inset: 0 }
 
+/* Community score badge: only rendered when real votes exist. */
+.card-rating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(9, 11, 16, .82);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .poster-placeholder {
   display: grid;
   aspect-ratio: 2 / 3;

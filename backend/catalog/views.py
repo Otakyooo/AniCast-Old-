@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponseBase, HttpResponseNotFound, HttpRequest, HttpResponseRedirect
-from django.db.models import Case, Count, F, FloatField, Prefetch, Q, Value, When
+from django.db.models import Avg, Case, Count, F, FloatField, Prefetch, Q, Value, When
 from django.db.models.functions import Cast
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -60,6 +60,16 @@ class CatalogPagination(PageNumberPagination):
     max_page_size = 50
 
 
+def annotate_rating_aggregates(queryset):
+    """Attach community rating aggregates for TitleSerializer. The annotation is
+    part of the list SELECT, so serialized cards never query ratings per row;
+    unannotated querysets simply serialize nulls."""
+    return queryset.annotate(
+        rating_count=Count("ratings", distinct=True),
+        rating_avg=Avg("ratings__value"),
+    )
+
+
 class TitleListView(ListAPIView):
     serializer_class = TitleSerializer
     pagination_class = CatalogPagination
@@ -90,14 +100,17 @@ class TitleListView(ListAPIView):
         if ordering == "popular":
             # Popularity is derived from real engagement only: library adds and
             # submitted ratings. Without engagement the fallback stays factual.
-            return queryset.annotate(
+            queryset = queryset.annotate(
                 popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True)
             ).order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")
+            return annotate_rating_aggregates(queryset)
         if ordering == "recent":
-            return queryset.order_by(F("year").desc(nulls_last=True), "name", "slug")
+            return annotate_rating_aggregates(queryset).order_by(
+                F("year").desc(nulls_last=True), "name", "slug"
+            )
         # Unique tiebreaker keeps LIMIT/OFFSET pagination deterministic on
         # Postgres when several titles share a name.
-        return queryset.order_by("name", "slug")
+        return annotate_rating_aggregates(queryset).order_by("name", "slug")
 
 
 class EpisodePagination(PageNumberPagination):
@@ -110,8 +123,10 @@ class EpisodePagination(PageNumberPagination):
 class TitleDetailView(RetrieveAPIView):
     # Episodes are fetched by the serializer as a paginated queryset, so the
     # detail view never loads the full episode list of a long-running series.
-    queryset = Title.objects.annotate(episodes_count=Count("episodes")).select_related(
-        "franchise"
+    queryset = annotate_rating_aggregates(
+        Title.objects.annotate(episodes_count=Count("episodes")).select_related(
+            "franchise"
+        )
     ).prefetch_related(
         "translations", "franchise__translations", "genres", "genres__translations",
         Prefetch(
@@ -257,7 +272,8 @@ class SimilarTitleListView(ListAPIView):
         )
         if not genre_ids:
             if title.franchise_id:
-                return queryset.filter(franchise_id=title.franchise_id).order_by("name", "slug")[: self.similar_limit]
+                scored = queryset.filter(franchise_id=title.franchise_id).order_by("name", "slug")
+                return annotate_rating_aggregates(scored)[: self.similar_limit]
             return queryset.none()
         score: object = Count("genres", filter=Q(genres__id__in=genre_ids), distinct=True)
         if title.franchise_id:
@@ -266,12 +282,13 @@ class SimilarTitleListView(ListAPIView):
                 default=Value(0.0),
                 output_field=FloatField(),
             )
-        return (
+        scored = (
             queryset.filter(genres__id__in=genre_ids)
             .annotate(similarity=score)
             .distinct()
-            .order_by("-similarity", "name", "slug")[: self.similar_limit]
+            .order_by("-similarity", "name", "slug")
         )
+        return annotate_rating_aggregates(scored)[: self.similar_limit]
 
 
 class SchedulePagination(PageNumberPagination):
@@ -414,17 +431,15 @@ class GlobalSearchView(APIView):
         # multi-table ILIKE scan.
         query = query[: self.max_query_length]
         context = {"request": request}
-        titles = (
+        titles = annotate_rating_aggregates(
             Title.objects.filter(
                 Q(name__icontains=query)
                 | Q(original_name__icontains=query)
                 | Q(translations__name__icontains=query)
             )
-            .select_related("franchise")
-            .prefetch_related("translations", "franchise__translations", "genres", "genres__translations")
-            .distinct()
-            .order_by("name", "slug")[: self.group_limit]
-        )
+        ).select_related("franchise").prefetch_related(
+            "translations", "franchise__translations", "genres", "genres__translations"
+        ).distinct().order_by("name", "slug")[: self.group_limit]
         characters = (
             Character.objects.filter(
                 Q(name__icontains=query)

@@ -31,9 +31,10 @@ function useContinueWatching(): State {
 /**
  * Home opening block per the design spec: a photo-first resume hero for the
  * freshest unfinished title, then up to five 16:9 resume cards. Guests and
- * viewers without progress see the static welcome hero instead.
+ * viewers without progress see the static welcome hero instead; the real
+ * catalog size grounds it with a fact instead of decoration.
  */
-export function ContinueWatchingBlock() {
+export function ContinueWatchingBlock({ catalogCount }: { catalogCount?: number }) {
   const { t } = useI18n();
   const state = useContinueWatching();
 
@@ -43,6 +44,9 @@ export function ContinueWatchingBlock() {
         <p className="eyebrow">{t("home.eyebrow")}</p>
         <h1>{t("home.title")}</h1>
         <p className="muted">{t("home.subtitle")}</p>
+        {typeof catalogCount === "number" && catalogCount > 0 && (
+          <p className={styles.heroCount}>{t("home.catalogCount", { count: catalogCount })}</p>
+        )}
         <Link className="primary inline-button" href="/catalog">{t("home.openCatalog")}</Link>
       </div>
     );

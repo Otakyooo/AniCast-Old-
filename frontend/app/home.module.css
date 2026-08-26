@@ -91,6 +91,20 @@
 
 .resumeHeroSecondary:hover { border-color: rgba(255, 255, 255, .7) }
 
+/* Real catalog size for the welcome hero: a quiet stat chip, not decoration. */
+.heroCount {
+  display: inline-block;
+  width: max-content;
+  margin-top: 2px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 .shelfHeading {
   display: grid;
   gap: 4px;
@@ -106,6 +120,45 @@
   margin: 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* Poster shelves: wide screens keep the catalog grid density, narrower ones
+   turn each shelf into a horizontal snap rail so three stacked shelves stop
+   becoming a dozen rows of scroll on phones and tablets. Column counts mirror
+   the shared .catalog-grid breakpoints. */
+.shelfGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (min-width: 1200px) {
+  .shelfGrid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .shelfGrid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .shelfGrid {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: clamp(150px, 40vw, 200px);
+    gap: 14px;
+    padding: 0 2px 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+  }
+
+  .shelfGrid > * { scroll-snap-align: start }
 }
 
 /* Horizontal shelves: scrollable on narrow screens instead of wrapping into a

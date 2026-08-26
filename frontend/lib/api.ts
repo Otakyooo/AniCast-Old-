@@ -87,6 +87,8 @@ export interface CatalogItem {
   credits?: TitleCreditEntry[];
   related_titles?: CatalogItem[];
   duration_minutes?: number | null;
+  rating_average?: number | null;
+  rating_count?: number | null;
 }
 
 export interface CatalogResponse {

@@ -95,6 +95,19 @@
   .pagination {
     flex-wrap: wrap;
   }
+
+  .toolbar {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .randomButton {
+    justify-content: center;
+  }
+
+  .resultCount {
+    text-align: center;
+  }
 }
 
 /* Interaction states for the catalog filter form. */
@@ -138,7 +151,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: -8px 0 24px;
+  margin: 0;
   padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -148,6 +161,24 @@
   font-size: 14px;
   cursor: pointer;
   transition: border-color 140ms ease, transform 140ms ease;
+}
+
+/* Result counter and the random-title dice share one quiet toolbar row so the
+   filter form, feedback and grid stay visually connected. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: -4px 0 20px;
+}
+
+.resultCount {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 .randomButton:hover {
