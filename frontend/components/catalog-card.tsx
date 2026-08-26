@@ -3,19 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { CatalogItem } from "../lib/api";
+import { titleRating } from "../lib/rating";
 import { useI18n } from "./i18n-provider";
-
-/** Fewer votes than this read as noise rather than a trustworthy average. */
-const MIN_RATING_VOTES = 3;
 
 export function CatalogCard({ item }: { item: CatalogItem }) {
   const { t } = useI18n();
   const status = item.status ? t(`status.${item.status}`) : t("type.anime");
-  const rating =
-    typeof item.rating_average === "number" &&
-    (item.rating_count ?? 0) >= MIN_RATING_VOTES
-      ? item.rating_average.toFixed(1)
-      : null;
+  const rating = titleRating(item);
 
   return (
     <Link className="catalog-card" href={`/titles/${item.slug}`}>
@@ -40,8 +34,8 @@ export function CatalogCard({ item }: { item: CatalogItem }) {
         )}
         {rating && (
           // Numeric-only tooltip keeps every locale free of plural forms.
-          <span className="card-rating" title={`${rating} / 10 · ${item.rating_count}`}>
-            ★ {rating}
+          <span className="card-rating" title={`${rating.average} / 10 · ${rating.count}`}>
+            ★ {rating.average}
           </span>
         )}
       </div>

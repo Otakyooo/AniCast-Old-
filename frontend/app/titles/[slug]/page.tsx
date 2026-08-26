@@ -25,7 +25,9 @@ import {
   type TitleCastEntry,
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
+import { titleRating } from "../../../lib/rating";
 import { getI18n } from "../../../i18n/server";
+import { intlLocale } from "../../../i18n/config";
 import styles from "../title.module.css";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +97,11 @@ function isTab(value: string | undefined): value is Tab {
   return TABS.includes((value ?? "") as Tab);
 }
 
+/** Noon-UTC anchor so a plain YYYY-MM-DD renders the same day in every timezone. */
+function isoDay(value: string): Date {
+  return new Date(`${value}T12:00:00Z`);
+}
+
 function SourceStatus({ source, t }: { source: Source; t: Translator }) {
   return (
     <li className={`source-status source-status-${source.availability}`}>
@@ -108,7 +115,17 @@ function SourceStatus({ source, t }: { source: Source; t: Translator }) {
   );
 }
 
-function EpisodeCard({ episode, slug, t }: { episode: Episode; slug: string; t: Translator }) {
+function EpisodeCard({
+  episode,
+  slug,
+  dayFormatter,
+  t,
+}: {
+  episode: Episode;
+  slug: string;
+  dayFormatter: Intl.DateTimeFormat;
+  t: Translator;
+}) {
   const sources = episode.sources ?? [];
 
   return (
@@ -116,7 +133,11 @@ function EpisodeCard({ episode, slug, t }: { episode: Episode; slug: string; t: 
       <div className="episode-heading">
         <span className="episode-number">{t("episode.number", { number: episode.number })}</span>
         <strong>{episode.name || t("episode.untitled")}</strong>
-        {episode.air_date && <time dateTime={episode.air_at ?? episode.air_date}>{episode.air_date}</time>}
+        {episode.air_date && (
+          <time dateTime={episode.air_at ?? episode.air_date} title={episode.air_date}>
+            {dayFormatter.format(isoDay(episode.air_date))}
+          </time>
+        )}
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
       <Link className="secondary" href={`/titles/${slug}/watch?episode=${episode.number}`}>{t("watch.title")}</Link>
@@ -203,7 +224,13 @@ export default async function CatalogDetailPage({
       ? Promise.resolve(Math.min(...episodes.map((episode) => episode.number)))
       : getFirstEpisodeNumber(slug),
   ]);
-  const { t } = await getI18n();
+  const rating = titleRating(item);
+  const { t, locale } = await getI18n();
+  const dayFormatter = new Intl.DateTimeFormat(intlLocale[locale], {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   const tabHref = (value: Tab) => value === "overview" ? `/titles/${item.slug}` : `/titles/${item.slug}?tab=${value}`;
   const tabLabel: Record<Tab, string> = {
@@ -247,6 +274,16 @@ export default async function CatalogDetailPage({
           <h1 className={styles.heroTitle}>{item.name}</h1>
           {item.original_name && <p className={styles.heroOriginal}>{item.original_name}</p>}
           <div className={styles.heroMeta}>
+            {rating && (
+              <Link
+                className={styles.metaRating}
+                href={`/titles/${item.slug}?tab=community`}
+                // Numeric-only tooltip keeps every locale free of plural forms.
+                title={`${rating.average} / 10 · ${rating.count}`}
+              >
+                <span aria-hidden="true">★</span> {rating.average} · {rating.count}
+              </Link>
+            )}
             <span className={item.status === "ongoing" ? styles.metaOngoing : undefined}>
               {item.status ? t(`status.${item.status}`) : t("status.unknown")}
             </span>
@@ -288,11 +325,22 @@ export default async function CatalogDetailPage({
           </section>
           <section className={styles.block}>
             <h2>{t("title.details")}</h2>
+            {/* Only facts the hero chips do not already show: runtime, franchise
+                and the original spelling. Status/episodes/genres live above. */}
             <dl className={styles.detailsList}>
               <div><dt>{t("catalog.format")}</dt><dd>{t(`type.${item.title_type ?? "anime"}`)}</dd></div>
-              <div><dt>{t("catalog.status")}</dt><dd>{item.status ? t(`status.${item.status}`) : t("status.unknown")}</dd></div>
-              <div><dt>{t("title.episodes")}</dt><dd>{episodesCount || t("title.episodesUnknown")}</dd></div>
-              <div><dt>{t("title.genres")}</dt><dd>{genres.length ? genres.map((genre) => genre.name).join(", ") : t("title.noGenres")}</dd></div>
+              {item.duration_minutes ? (
+                <div><dt>{t("title.duration")}</dt><dd>{t("title.durationValue", { minutes: item.duration_minutes })}</dd></div>
+              ) : null}
+              {item.franchise && (
+                <div>
+                  <dt>{t("title.franchiseLabel")}</dt>
+                  <dd><Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link></dd>
+                </div>
+              )}
+              {item.original_name && (
+                <div><dt>{t("title.originalName")}</dt><dd>{item.original_name}</dd></div>
+              )}
             </dl>
           </section>
           {mainCast.length > 0 && (
@@ -316,7 +364,7 @@ export default async function CatalogDetailPage({
                   {item.franchise && <p className="muted">{item.franchise.name}</p>}
                 </div>
               </div>
-              <div className="catalog-grid">
+              <div className="catalog-shelf">
                 {relatedTitles.map((related) => <CatalogCard key={related.slug} item={related} />)}
               </div>
             </section>
@@ -329,7 +377,7 @@ export default async function CatalogDetailPage({
                 <h2>{t("similar.title")}</h2>
                 <Link href="/catalog">{t("home.allCatalog")}</Link>
               </div>
-              <div className="catalog-grid">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
+              <div className="catalog-shelf">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
             </section>
           )}
         </div>
@@ -339,7 +387,7 @@ export default async function CatalogDetailPage({
         <div className={styles.panel}>
           {episodes.length ? (
             <ol className="episode-list">
-              {episodes.map((episode) => <EpisodeCard key={episode.number} episode={episode} slug={item.slug} t={t} />)}
+              {episodes.map((episode) => <EpisodeCard episode={episode} slug={item.slug} dayFormatter={dayFormatter} t={t} key={episode.number} />)}
             </ol>
           ) : (
             <div className="empty-state" role="status">

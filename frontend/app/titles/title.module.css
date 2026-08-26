@@ -68,6 +68,23 @@
   font-size: 12px;
 }
 
+/* Community score chip: gold tone matches the favorite state, links to the
+   community tab where the vote breakdown lives. */
+.metaRating {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid rgba(182, 147, 51, .55);
+  border-radius: 999px;
+  color: #ffe29a;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.metaRating:hover { border-color: #b69333 }
+
 .metaOngoing {
   border-color: rgba(50, 196, 141, .45) !important;
   color: var(--success) !important;
@@ -284,6 +301,9 @@
   font-size: 14px;
   overflow-wrap: anywhere;
 }
+
+.detailsList dd a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border) }
+.detailsList dd a:hover { color: var(--primary); text-decoration-color: var(--primary) }
 
 /* ---------- Cast ---------- */
 

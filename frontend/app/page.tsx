@@ -37,7 +37,7 @@ function CatalogShelf({
         <Link href={href}>{linkLabel}</Link>
       </div>
       {items.length ? (
-        <div className={styles.shelfGrid}>{items.map((item) => <CatalogCard item={item} key={item.slug} />)}</div>
+        <div className="catalog-shelf">{items.map((item) => <CatalogCard item={item} key={item.slug} />)}</div>
       ) : (
         <div className="empty-state" role="status"><strong>{emptyLabel}</strong></div>
       )}

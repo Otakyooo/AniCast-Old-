@@ -122,45 +122,6 @@
   font-size: 13px;
 }
 
-/* Poster shelves: wide screens keep the catalog grid density, narrower ones
-   turn each shelf into a horizontal snap rail so three stacked shelves stop
-   becoming a dozen rows of scroll on phones and tablets. Column counts mirror
-   the shared .catalog-grid breakpoints. */
-.shelfGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-@media (min-width: 1200px) {
-  .shelfGrid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 20px;
-  }
-}
-
-@media (min-width: 1440px) {
-  .shelfGrid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 24px;
-  }
-}
-
-@media (max-width: 1023px) {
-  .shelfGrid {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: clamp(150px, 40vw, 200px);
-    gap: 14px;
-    padding: 0 2px 6px;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scroll-snap-type: x proximity;
-  }
-
-  .shelfGrid > * { scroll-snap-align: start }
-}
-
 /* Horizontal shelves: scrollable on narrow screens instead of wrapping into a
    tall grid that pushes the rest of the page down. 16:9 frames per spec §4.3:
    the frame is the artwork, not the library poster. */

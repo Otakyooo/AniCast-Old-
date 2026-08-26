@@ -327,6 +327,45 @@ summary:focus-visible {
   gap: 24px;
 }
 
+/* Poster shelves (home rows, related works, similar titles): wide screens keep
+   the catalog grid density, narrower ones turn each shelf into a horizontal
+   snap rail so stacked shelves stop becoming a dozen rows of scroll. Column
+   counts mirror the .catalog-grid breakpoints. */
+.catalog-shelf {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (min-width: 1200px) {
+  .catalog-shelf {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .catalog-shelf {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .catalog-shelf {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: clamp(150px, 40vw, 200px);
+    gap: 14px;
+    padding: 0 2px 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+  }
+
+  .catalog-shelf > * { scroll-snap-align: start }
+}
+
 .catalog-card {
   display: flex;
   min-width: 0;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import styles from "../app/collections/collections.module.css";
-import { CollectionsApiError, addCollectionItem, deleteCollectionItem, getCollection, getCollections, type CollectionSummary } from "../lib/collections";
+import { CollectionsApiError, addCollectionItem, deleteCollectionItem, getCollections, type CollectionSummary } from "../lib/collections";
 import { useI18n } from "./i18n-provider";
 
 export function TitleCollectionControl({ titleSlug }: { titleSlug: string }) {
@@ -16,10 +16,17 @@ export function TitleCollectionControl({ titleSlug }: { titleSlug: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    getCollections(controller.signal).then(async (result) => {
+    // The list endpoint already nests items, so membership is computed in one
+    // request instead of re-fetching every collection detail.
+    getCollections(controller.signal).then((result) => {
       setCollections(result);
-      const details = await Promise.all(result.map((collection) => getCollection(collection.slug, controller.signal)));
-      setIncluded(new Set(details.filter((collection) => collection.items.some((item) => item.title.slug === titleSlug)).map((collection) => collection.slug)));
+      setIncluded(
+        new Set(
+          result
+            .filter((collection) => collection.items.some((item) => item.title.slug === titleSlug))
+            .map((collection) => collection.slug),
+        ),
+      );
     }).catch((reason) => {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
       if (reason instanceof CollectionsApiError && [401, 403].includes(reason.status)) setGuest(true);
