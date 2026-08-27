@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { CatalogCard } from "../../components/catalog-card";
 import { CatalogFiltersForm } from "../../components/catalog-filters";
 import { RandomTitleButton } from "../../components/random-title-button";
 import { PageShell } from "../../components/page-shell";
 import {
   emptyPage,
+  apiErrorStatus,
   getCatalog,
   getGenres,
   type CatalogFilters,
@@ -13,6 +15,7 @@ import {
   type CatalogOrdering,
 } from "../../lib/api";
 import { getI18n } from "../../i18n/server";
+import { catalogPageExists, catalogSeoState, NO_INDEX_ROBOTS } from "../../lib/seo";
 import styles from "./catalog.module.css";
 
 export const dynamic = "force-dynamic";
@@ -36,12 +39,22 @@ export async function generateMetadata({
     ordering: ORDERINGS.includes(rawOrdering as CatalogOrdering) ? rawOrdering as CatalogOrdering : undefined,
     page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   };
+  let pageExists = true;
+  try {
+    const pageSnapshot = await getCatalog(filters);
+    pageExists = catalogPageExists(pageSnapshot.count, filters.page ?? 1);
+  } catch (error) {
+    // DRF answers 404 for a page beyond the paginator range. Preserve that
+    // knowledge in metadata even though Next may already have started a
+    // streamed response by the time the page component renders notFound().
+    pageExists = apiErrorStatus(error) !== 404;
+  }
+  const seo = catalogSeoState(filters, pageExists);
   return {
     title: t("catalog.title"),
-    description: t("meta.description"),
-    // Self-canonical per active view: paginated and filtered pages keep their
-    // own address instead of collapsing onto the bare catalog.
-    alternates: { canonical: catalogHref(filters, filters.page ?? 1) },
+    description: t("meta.catalogDescription"),
+    alternates: { canonical: seo.canonical },
+    ...(!seo.index ? { robots: NO_INDEX_ROBOTS } : {}),
   };
 }
 
@@ -81,6 +94,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   ]);
   const currentPage = filters.page ?? 1;
   const pageCount = Math.max(1, Math.ceil(catalog.count / 20));
+  if (currentPage > pageCount) notFound();
   const hasFilters = Boolean(filters.q || filters.type || filters.status || filters.genre || filters.ordering);
   const { t } = await getI18n();
 

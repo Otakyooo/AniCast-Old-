@@ -135,14 +135,14 @@ export function ScheduleBoard({
   return (
     <div className={styles.board}>
       <nav className={styles.weekNav} aria-label={t("schedule.weekdays")}>
-        <Link className={styles.weekLink} href={prevWeekHref}>{t("schedule.prevWeek")}</Link>
+        <Link rel="nofollow" className={styles.weekLink} href={prevWeekHref}>{t("schedule.prevWeek")}</Link>
         <span className={styles.weekRange}>
           {t("schedule.weekRange", {
             from: rangeFormatter.format(new Date(`${days[0]}T12:00:00Z`)),
             to: rangeFormatter.format(new Date(`${days[6]}T12:00:00Z`)),
           })}
         </span>
-        <Link className={styles.weekLink} href={nextWeekHref}>{t("schedule.nextWeek")}</Link>
+        <Link rel="nofollow" className={styles.weekLink} href={nextWeekHref}>{t("schedule.nextWeek")}</Link>
       </nav>
 
       <div
@@ -193,7 +193,7 @@ export function ScheduleBoard({
             </button>
           )}
           {!days.includes(todayKey) && (
-            <Link className={styles.todayButton} href={thisWeekHref}>{t("schedule.thisWeek")}</Link>
+            <Link rel="nofollow" className={styles.todayButton} href={thisWeekHref}>{t("schedule.thisWeek")}</Link>
           )}
         </div>
       </header>

@@ -14,8 +14,13 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     // Anchors relative canonical/OG URLs to the public origin.
     metadataBase: new URL(SITE_URL),
-    title: "AniCast",
-    description: t("meta.description"),
+    applicationName: "AniCast",
+    title: {
+      default: t("meta.homeTitle"),
+      template: "%s — AniCast",
+    },
+    description: t("meta.homeDescription"),
+    creator: "AniCast",
     openGraph: {
       type: "website",
       siteName: "AniCast",

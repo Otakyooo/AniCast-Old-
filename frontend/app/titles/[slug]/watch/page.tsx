@@ -10,6 +10,7 @@ import {
   getWatchNavigation,
   type WatchNavigation,
 } from "../../../../lib/api";
+import { getI18n } from "../../../../i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,9 @@ export const dynamic = "force-dynamic";
 // title and stay out of the index.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  const { t } = await getI18n();
   return {
-    title: "AniCast",
+    title: t("watch.title"),
     alternates: { canonical: `/titles/${slug}` },
     robots: { index: false, follow: true },
   };

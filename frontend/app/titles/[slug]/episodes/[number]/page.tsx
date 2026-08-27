@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { EpisodeProgressControl } from "../../../../../components/episode-progress-control";
 import { ApiUnavailableState } from "../../../../../components/api-unavailable";
 import { PageShell } from "../../../../../components/page-shell";
@@ -6,9 +7,20 @@ import { SourceReportControl } from "../../../../../components/source-report-con
 import { PlaybackLink } from "../../../../../components/playback-link";
 import { apiErrorStatus, getEpisode } from "../../../../../lib/api";
 import { getI18n } from "../../../../../i18n/server";
+import { NO_INDEX_ROBOTS } from "../../../../../lib/seo";
 import styles from "../../../../history.module.css";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string; number: string }> }): Promise<Metadata> {
+  const { slug, number } = await params;
+  const { t } = await getI18n();
+  return {
+    title: t("episode.number", { number }),
+    alternates: { canonical: `/titles/${slug}` },
+    robots: NO_INDEX_ROBOTS,
+  };
+}
 
 export default async function EpisodePage({ params }: { params: Promise<{ slug: string; number: string }> }) {
   const { slug, number: rawNumber } = await params;

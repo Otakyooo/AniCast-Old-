@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { PageShell } from "../../components/page-shell";
 import { getI18n } from "../../i18n/server";
 import { emptyPage, getMedia, type MediaResponse } from "../../lib/api";
@@ -7,6 +8,15 @@ import styles from "../discovery.module.css";
 export const dynamic = "force-dynamic";
 
 const KINDS = ["", "image", "trailer", "promo"] as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return {
+    title: t("media.title"),
+    description: t("meta.mediaDescription"),
+    alternates: { canonical: "/media" },
+  };
+}
 
 export default async function MediaPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
   const requested = (await searchParams).kind ?? "";

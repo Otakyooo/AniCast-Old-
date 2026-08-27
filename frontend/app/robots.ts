@@ -10,13 +10,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/api/",
           "/staff",
-          "/account",
-          "/library",
-          "/history",
-          "/notes",
-          "/settings",
-          "/collections/manage",
-          "/recommendations",
           "/auth",
         ],
       },

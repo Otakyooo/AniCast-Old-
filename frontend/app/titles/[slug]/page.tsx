@@ -26,6 +26,7 @@ import {
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { titleRating } from "../../../lib/rating";
+import { titleSchemaType } from "../../../lib/seo";
 import { getI18n } from "../../../i18n/server";
 import { intlLocale } from "../../../i18n/config";
 import styles from "../title.module.css";
@@ -80,7 +81,7 @@ export async function generateMetadata({
 function TitleJsonLd({ item }: { item: CatalogItem }) {
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": "TVSeries",
+    "@type": titleSchemaType(item.title_type),
     name: item.name,
     url: absoluteUrl(`/titles/${item.slug}`),
   };
@@ -90,6 +91,15 @@ function TitleJsonLd({ item }: { item: CatalogItem }) {
   if (item.year) data.datePublished = String(item.year);
   if (item.genres?.length) data.genre = item.genres.map((genre) => genre.name);
   if (item.episodes_count) data.numberOfEpisodes = item.episodes_count;
+  if (item.rating_average && item.rating_count) {
+    data.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: item.rating_average,
+      ratingCount: item.rating_count,
+      bestRating: 10,
+      worstRating: 1,
+    };
+  }
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
 }
 

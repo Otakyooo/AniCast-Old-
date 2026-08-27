@@ -5,16 +5,24 @@ import { PageShell } from "../../components/page-shell";
 import { emptyPage, getSchedule, type ScheduleResponse } from "../../lib/api";
 import { addDays, localDayKey, weekStart } from "../../lib/schedule";
 import { getI18n } from "../../i18n/server";
+import { NO_INDEX_ROBOTS } from "../../lib/seo";
 import styles from "./schedule.module.css";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string; range?: string }>;
+}): Promise<Metadata> {
   const { t } = await getI18n();
+  const params = await searchParams;
+  const isArchiveView = Boolean(params.week || params.range);
   return {
     title: t("schedule.title"),
     description: t("schedule.subtitle"),
     alternates: { canonical: "/schedule" },
+    ...(isArchiveView ? { robots: NO_INDEX_ROBOTS } : {}),
   };
 }
 
@@ -59,13 +67,13 @@ export default async function SchedulePage({
       ) : (
         <div className={styles.emptyWeek}>
           <nav className={styles.weekNav} aria-label={t("schedule.weekdays")}>
-            <Link className={styles.weekLink} href={`/schedule?week=${addDays(startKey, -7)}`}>
+            <Link rel="nofollow" className={styles.weekLink} href={`/schedule?week=${addDays(startKey, -7)}`}>
               {t("schedule.prevWeek")}
             </Link>
             {startKey !== weekStart(todayKey) && (
-              <Link className={styles.weekLink} href="/schedule">{t("schedule.thisWeek")}</Link>
+              <Link rel="nofollow" className={styles.weekLink} href="/schedule">{t("schedule.thisWeek")}</Link>
             )}
-            <Link className={styles.weekLink} href={`/schedule?week=${addDays(startKey, 7)}`}>
+            <Link rel="nofollow" className={styles.weekLink} href={`/schedule?week=${addDays(startKey, 7)}`}>
               {t("schedule.nextWeek")}
             </Link>
           </nav>
