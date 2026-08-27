@@ -56,7 +56,7 @@
 .submit {
   border-color: var(--primary);
   background: var(--primary);
-  color: white;
+  color: var(--on-primary);
   cursor: pointer;
 }
 

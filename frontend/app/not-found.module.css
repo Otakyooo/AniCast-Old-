@@ -2,35 +2,46 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: radial-gradient(60% 50% at 50% 40%, rgb(124 92 255 / 0.12), transparent 70%);
+  background: radial-gradient(60% 50% at 45% 40%, rgb(224 79 62 / 0.13), transparent 70%);
 }
 
 .panel {
   display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 12px;
-  padding: 48px 16px;
+  grid-template-columns: minmax(280px, 420px) minmax(280px, 460px);
+  align-items: center;
+  gap: clamp(28px, 6vw, 72px);
+  width: min(100%, 980px);
+  padding: 48px 24px;
 }
 
-.mascot {
-  width: min(70vw, 380px);
+.illustration {
+  width: 100%;
   height: auto;
-  filter: drop-shadow(0 18px 40px rgb(124 92 255 / 0.25));
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgb(0 0 0 / .28);
 }
 
-.panel h1 {
+.copy { display: grid; justify-items: start; gap: 12px }
+
+.copy h1 {
   margin: 0;
   font-size: clamp(26px, 6vw, 40px);
-  background: linear-gradient(120deg, #8d73ff, #7c5cff 55%, #b9a8ff);
+  background: linear-gradient(120deg, #ff6a4d, #e04f3e 55%, #ffb09f);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.panel .muted {
+.copy .muted {
   max-width: 46ch;
   margin: 0;
+}
+
+@media (max-width: 760px) {
+  .panel { grid-template-columns: 1fr; justify-items: center; padding: 24px 16px 48px }
+  .illustration { width: min(86vw, 420px); border-radius: 18px }
+  .copy { justify-items: center; text-align: center }
 }
 
 .actions {
@@ -41,8 +52,11 @@
   margin-top: 8px;
 }
 
+.actions :global(.primary),
+.actions :global(.secondary) { margin-top: 0 }
+
 @media (prefers-reduced-motion: no-preference) {
-  .mascot {
+  .illustration {
     animation: mascotFloat 6s ease-in-out infinite;
   }
 

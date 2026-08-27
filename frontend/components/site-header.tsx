@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { getI18n } from "../i18n/server";
+import { BrandLockup } from "./brand-lockup";
 import { GlobalSearch } from "./global-search";
 import { MobileSearchLink } from "./mobile-search-link";
 import { UserMenu } from "./user-menu";
@@ -23,9 +24,7 @@ export async function SiteHeader({ active }: { active: NavSection }) {
   return <>
     <header className="global-nav">
       <div className="global-nav-inner">
-        <Link className="global-brand" href="/" aria-label="AniCast">
-          <span className="brand-mark" aria-hidden="true">A</span><span>Ani<b>Cast</b></span>
-        </Link>
+        <BrandLockup className="global-brand" priority />
         <nav className="primary-nav" aria-label={t("nav.main")}>
           <Link className={linkClass("home")} href="/">{t("nav.home")}</Link>
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>

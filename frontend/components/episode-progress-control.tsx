@@ -6,7 +6,7 @@ import { HistoryApiError, recordEpisodeOpen, setEpisodeWatched, type EpisodeProg
 import styles from "../app/history.module.css";
 import { useI18n } from "./i18n-provider";
 
-export function EpisodeProgressControl({ slug, number }: { slug: string; number: number }) {
+export function EpisodeProgressControl({ slug, number, compact = false }: { slug: string; number: number; compact?: boolean }) {
   const { t } = useI18n();
   const recorded = useRef("");
   const [progress, setProgress] = useState<EpisodeProgress>();
@@ -32,6 +32,7 @@ export function EpisodeProgressControl({ slug, number }: { slug: string; number:
     finally { setPending(false); }
   }
 
-  if (guest) return <div className={styles.progress}><span>{t("history.guestText")}</span><Link href="/login">{t("common.login")}</Link></div>;
-  return <div className={styles.progress}>{progress ? <><span>{progress.is_watched ? t("episode.watched") : t("episode.inHistory")}</span><button type="button" disabled={pending} onClick={toggle}>{progress.is_watched ? t("episode.unmark") : t("episode.mark")}</button></> : <span>{t("episode.saving")}</span>}{error && <span className={styles.error} role="alert">{error}</span>}</div>;
+  const className = `${styles.progress} ${compact ? styles.progressCompact : ""}`;
+  if (guest) return <div className={className}><span>{t("history.guestText")}</span><Link href="/login">{t("common.login")}</Link></div>;
+  return <div className={className}>{progress ? <><span>{progress.is_watched ? t("episode.watched") : t("episode.inHistory")}</span><button type="button" disabled={pending} onClick={toggle}>{progress.is_watched ? t("episode.unmark") : t("episode.mark")}</button></> : <span>{t("episode.saving")}</span>}{error && <span className={styles.error} role="alert">{error}</span>}</div>;
 }

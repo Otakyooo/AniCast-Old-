@@ -7,6 +7,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { CharacterAvatar } from "./character-avatar";
 import { globalSearch, SEARCH_MIN_LENGTH, type GlobalSearchResponse } from "../lib/api";
+import { buildSearchOptionModel } from "../lib/global-search";
 import { OPEN_SEARCH_EVENT } from "./mobile-search-link";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/search.module.css";
@@ -16,12 +17,6 @@ type SearchState =
   | { kind: "loading" }
   | { kind: "ready"; data: GlobalSearchResponse }
   | { kind: "error" };
-
-/** One navigable entry of the suggestion panel: a row id plus its target. */
-interface SearchOption {
-  id: string;
-  href: string;
-}
 
 const DEBOUNCE_MS = 250;
 
@@ -79,15 +74,13 @@ export function GlobalSearch() {
 
   // The panel shows groups, but keyboard navigation walks one flat list in the
   // same visual order, including the trailing "all results" entry.
-  const options = useMemo<SearchOption[]>(() => {
-    if (state.kind !== "ready" || !hasResults(state.data)) return [];
-    return [
-      ...state.data.titles.map((item) => ({ id: `${panelId}-title-${item.slug}`, href: `/titles/${item.slug}` })),
-      ...state.data.characters.map((item) => ({ id: `${panelId}-character-${item.slug}`, href: `/characters/${item.slug}` })),
-      ...state.data.franchises.map((item) => ({ id: `${panelId}-franchise-${item.slug}`, href: `/franchises/${item.slug}` })),
-      { id: `${panelId}-all`, href: `/catalog?q=${encodeURIComponent(trimmed)}` },
-    ];
+  const optionModel = useMemo(() => {
+    if (state.kind !== "ready" || !hasResults(state.data)) {
+      return { options: [], starts: { titles: 0, characters: 0, franchises: 0 } };
+    }
+    return buildSearchOptionModel(state.data, panelId, trimmed);
   }, [state, trimmed, panelId]);
+  const { options, starts } = optionModel;
 
   useEffect(() => {
     if (!open || activeIndex < 0) return;
@@ -248,81 +241,90 @@ export function GlobalSearch() {
                 {state.data.titles.length > 0 && (
                   <section className={styles.group} role="group" aria-labelledby={titlesHeadingId}>
                     <h3 id={titlesHeadingId}>{t("search.titles")}</h3>
-                    {state.data.titles.map((item, index) => (
-                      <Link
-                        className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
-                        href={`/titles/${item.slug}`}
-                        key={item.slug}
-                        onClick={close}
-                        {...optionProps(index)}
-                      >
-                        <span className={styles.thumb}>
-                          {item.poster_url ? (
-                            <Image
-                              className={styles.thumbImage}
-                              src={item.poster_url}
-                              alt=""
-                              fill
-                              sizes="40px"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <span aria-hidden="true">{item.name.slice(0, 1).toUpperCase()}</span>
-                          )}
-                        </span>
-                        <span className={styles.rowBody}>
-                          <strong>{item.name}</strong>
-                          <small>
-                            {item.year ?? t("year.unknown")}
-                            {item.title_type ? ` · ${t(`type.${item.title_type}`)}` : ""}
-                          </small>
-                        </span>
-                      </Link>
-                    ))}
+                    {state.data.titles.map((item, groupIndex) => {
+                      const index = starts.titles + groupIndex;
+                      return (
+                        <Link
+                          className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
+                          href={`/titles/${item.slug}`}
+                          key={item.slug}
+                          onClick={close}
+                          {...optionProps(index)}
+                        >
+                          <span className={styles.thumb}>
+                            {item.poster_url ? (
+                              <Image
+                                className={styles.thumbImage}
+                                src={item.poster_url}
+                                alt=""
+                                fill
+                                sizes="40px"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <span aria-hidden="true">{item.name.slice(0, 1).toUpperCase()}</span>
+                            )}
+                          </span>
+                          <span className={styles.rowBody}>
+                            <strong>{item.name}</strong>
+                            <small>
+                              {item.year ?? t("year.unknown")}
+                              {item.title_type ? ` · ${t(`type.${item.title_type}`)}` : ""}
+                            </small>
+                          </span>
+                        </Link>
+                      );
+                    })}
                   </section>
                 )}
                 {state.data.characters.length > 0 && (
                   <section className={styles.group} role="group" aria-labelledby={charactersHeadingId}>
                     <h3 id={charactersHeadingId}>{t("search.characters")}</h3>
-                    {state.data.characters.map((character, index) => (
-                      <Link
-                        className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
-                        href={`/characters/${character.slug}`}
-                        key={character.slug}
-                        onClick={close}
-                        {...optionProps(index)}
-                      >
-                        <span className={`${styles.thumb} ${styles.thumbRound}`}>
-                          <CharacterAvatar imageUrl={character.image_url} sizes="40px" />
-                        </span>
-                        <span className={styles.rowBody}>
-                          <strong>{character.name}</strong>
-                          <small>{t("franchise.count", { count: character.title_count })}</small>
-                        </span>
-                      </Link>
-                    ))}
+                    {state.data.characters.map((character, groupIndex) => {
+                      const index = starts.characters + groupIndex;
+                      return (
+                        <Link
+                          className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
+                          href={`/characters/${character.slug}`}
+                          key={character.slug}
+                          onClick={close}
+                          {...optionProps(index)}
+                        >
+                          <span className={`${styles.thumb} ${styles.thumbRound}`}>
+                            <CharacterAvatar imageUrl={character.image_url} sizes="40px" />
+                          </span>
+                          <span className={styles.rowBody}>
+                            <strong>{character.name}</strong>
+                            <small>{t("franchise.count", { count: character.title_count })}</small>
+                          </span>
+                        </Link>
+                      );
+                    })}
                   </section>
                 )}
                 {state.data.franchises.length > 0 && (
                   <section className={styles.group} role="group" aria-labelledby={franchisesHeadingId}>
                     <h3 id={franchisesHeadingId}>{t("search.franchises")}</h3>
-                    {state.data.franchises.map((franchise, index) => (
-                      <Link
-                        className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
-                        href={`/franchises/${franchise.slug}`}
-                        key={franchise.slug}
-                        onClick={close}
-                        {...optionProps(index)}
-                      >
-                        <span className={`${styles.thumb} ${styles.thumbFlat}`} aria-hidden="true">
-                          {franchise.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <span className={styles.rowBody}>
-                          <strong>{franchise.name}</strong>
-                          <small>{t("franchise.count", { count: franchise.title_count })}</small>
-                        </span>
-                      </Link>
-                    ))}
+                    {state.data.franchises.map((franchise, groupIndex) => {
+                      const index = starts.franchises + groupIndex;
+                      return (
+                        <Link
+                          className={`${styles.row} ${index === activeIndex ? styles.rowActive : ""}`}
+                          href={`/franchises/${franchise.slug}`}
+                          key={franchise.slug}
+                          onClick={close}
+                          {...optionProps(index)}
+                        >
+                          <span className={`${styles.thumb} ${styles.thumbFlat}`} aria-hidden="true">
+                            {franchise.name.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className={styles.rowBody}>
+                            <strong>{franchise.name}</strong>
+                            <small>{t("franchise.count", { count: franchise.title_count })}</small>
+                          </span>
+                        </Link>
+                      );
+                    })}
                   </section>
                 )}
                 <Link

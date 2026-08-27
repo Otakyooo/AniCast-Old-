@@ -1,4 +1,4 @@
-export const CHARACTER_FALLBACK_IMAGE = "/not-found-mascot.webp";
+export const CHARACTER_FALLBACK_IMAGE = "/brand-mark.png";
 
 const MISSING_ART_MARK = "missing_original";
 

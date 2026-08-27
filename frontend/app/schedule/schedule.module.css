@@ -58,7 +58,7 @@
 
 .dayTabActive {
   border-color: var(--primary);
-  background: rgba(124, 92, 255, .16);
+  background: rgba(224, 79, 62, .16);
   color: var(--text);
 }
 
@@ -160,7 +160,7 @@
   height: 78px;
   place-items: center;
   border-radius: 8px;
-  background: linear-gradient(145deg, #2a2260, #12161f 72%);
+  background: linear-gradient(145deg, #24303e, #141e2a 72%);
 }
 
 .posterImage { object-fit: cover }
@@ -247,7 +247,7 @@
 .statusReleased { border-color: rgba(164, 172, 185, .35); color: var(--muted) }
 .statusAiring { border-color: rgba(50, 196, 141, .5); background: rgba(50, 196, 141, .14); color: var(--success) }
 .statusSoon { border-color: rgba(242, 184, 75, .5); background: rgba(242, 184, 75, .12); color: var(--warning) }
-.statusUpcoming { border-color: rgba(124, 92, 255, .45); color: var(--primary) }
+.statusUpcoming { border-color: rgba(224, 79, 62, .45); color: var(--primary) }
 .statusUnknown { border-color: var(--border); color: var(--muted-2) }
 
 .emptyWeek { display: grid; gap: 16px }

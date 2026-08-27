@@ -64,6 +64,25 @@ class TitleNote(models.Model):
         return f"{self.user} / {self.title}"
 
 
+class RecommendationDismissal(models.Model):
+    """Titles a user explicitly hid from personal recommendations.
+
+    Dismissals are reversible through the API but never resurface on their
+    own; the unique constraint doubles as the user-prefixed lookup index.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="recommendation_dismissals", on_delete=models.CASCADE)
+    title = models.ForeignKey(Title, related_name="recommendation_dismissals", on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "title"], name="unique_user_dismissed_title")]
+
+    def __str__(self) -> str:
+        return f"{self.user} / {self.title}"
+
+
 class TitleCollection(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="title_collections", on_delete=models.CASCADE)
     name = models.CharField(max_length=120)

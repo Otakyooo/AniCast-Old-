@@ -1,4 +1,4 @@
-.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px}.filters a,.primary,.secondary,.favoriteActive,.danger,.pagination a{padding:10px 14px;border:1px solid var(--border);border-radius:9px;background:var(--surface-1);color:var(--text);cursor:pointer}.filters a:hover,.pagination a:hover{border-color:var(--primary)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:22px}.entry{position:relative}.entryMeta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.entryMeta span{padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted);font-size:12px}.control{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:22px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.control p{width:100%;margin:0;color:var(--muted)}.control label{display:grid;gap:6px}.control label span{color:var(--muted);font-size:12px}.control select{min-height:41px;padding:0 32px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}.primary{display:inline-block;border-color:var(--primary);background:var(--primary);color:#fff}.secondary{background:transparent}.favoriteActive{border-color:#b69333;background:#4a3812;color:#ffe29a}.danger{background:transparent;color:#ff9eac}.error{width:100%;color:#ff9eac;font-size:13px}.pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:30px;color:var(--muted)}@media(max-width:640px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.control>*{width:100%}.control button{text-align:center}}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px}.filters a,.primary,.secondary,.favoriteActive,.danger,.pagination a{padding:10px 14px;border:1px solid var(--border);border-radius:9px;background:var(--surface-1);color:var(--text);cursor:pointer}.filters a:hover,.pagination a:hover{border-color:var(--primary)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:22px}.entry{position:relative}.entryMeta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.entryMeta span{padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted);font-size:12px}.control{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:22px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.control p{width:100%;margin:0;color:var(--muted)}.control label{display:grid;gap:6px}.control label span{color:var(--muted);font-size:12px}.control select{min-height:41px;padding:0 32px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}.primary{display:inline-block;border-color:var(--primary);background:var(--primary);color:var(--on-primary)}.secondary{background:transparent}.favoriteActive{border-color:#b69333;background:#4a3812;color:#ffe29a}.danger{background:transparent;color:var(--danger)}.error{width:100%;color:var(--danger);font-size:13px}.pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:30px;color:var(--muted)}@media(max-width:640px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.control>*{width:100%}.control button{text-align:center}}
 
 /* Interaction states for library controls. */
 .primary:hover:not(:disabled) { background: var(--primary-hover) }
@@ -12,7 +12,7 @@
   cursor: not-allowed;
 }
 .filters a:active, .pagination a:active { background: var(--surface-2) }
-.filterActive { border-color: var(--primary); background: rgba(124, 92, 255, .16) }
+.filterActive { border-color: var(--primary); background: rgba(224, 79, 62, .16) }
 
 /* Sibling views of the profile library tab: titles vs collections. */
 .viewSwitch { display: flex; gap: 8px; margin-bottom: 16px }
@@ -27,4 +27,4 @@
   transition: color 140ms ease, border-color 140ms ease;
 }
 .viewSwitch a:hover { color: var(--text); border-color: var(--primary) }
-.viewActive { border-color: var(--primary); background: rgba(124, 92, 255, .16); color: var(--text) }
+.viewActive { border-color: var(--primary); background: rgba(224, 79, 62, .16); color: var(--text) }

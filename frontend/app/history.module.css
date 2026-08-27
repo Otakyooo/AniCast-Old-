@@ -1,4 +1,4 @@
-.progress{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:20px 0;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-1);color:var(--muted)}.progress button,.progress a{padding:9px 13px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:#fff;cursor:pointer}.error{width:100%;color:#ff9eac}.historyGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}.historyCard{display:grid;gap:8px;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.historyCard:hover{border-color:var(--primary)}.historyCard>span,.historyCard small{color:var(--muted)}.historyCard .number{color:var(--primary);font-size:12px;text-transform:uppercase}.episodePage{max-width:900px;padding:40px 0}.episodePage h1{font-size:clamp(36px,7vw,64px);margin:10px 0}.sources{display:grid;gap:10px;padding:0;list-style:none}.source{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-1)}.source small{width:100%;color:var(--muted)}
+.progress{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:20px 0;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-1);color:var(--muted)}.progress button,.progress a{padding:9px 13px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:var(--on-primary);cursor:pointer}.error{width:100%;color:var(--danger)}.historyGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}.historyCard{display:grid;gap:8px;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.historyCard:hover{border-color:var(--primary)}.historyCard>span,.historyCard small{color:var(--muted)}.historyCard .number{color:var(--primary);font-size:12px;text-transform:uppercase}.episodePage{max-width:900px;padding:40px 0}.episodePage h1{font-size:clamp(36px,7vw,64px);margin:10px 0}.sources{display:grid;gap:10px;padding:0;list-style:none}.source{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-1)}.source small{width:100%;color:var(--muted)}
 
 /* Interaction states and long-title handling for history cards. */
 .historyCard:active { background: var(--surface-2) }
@@ -17,6 +17,7 @@
   color: var(--muted-2);
   cursor: not-allowed;
 }
+.progressCompact { margin: 0 }
 .source:hover { border-color: var(--primary) }
 .episodePage h1 { overflow-wrap: anywhere }
 @media (max-width: 640px) {

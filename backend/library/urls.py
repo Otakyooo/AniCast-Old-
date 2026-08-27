@@ -11,6 +11,7 @@ from .views import (
     LibraryEntryView,
     LibraryListView,
     PublicCollectionDetailView,
+    RecommendationDismissalView,
     RecommendationListView,
     TitleNoteListView,
     TitleNoteView,
@@ -38,4 +39,9 @@ urlpatterns = [
     path("notes/", TitleNoteListView.as_view(), name="title-note-list"),
     path("notes/<slug:slug>/", TitleNoteView.as_view(), name="title-note"),
     path("recommendations/", RecommendationListView.as_view(), name="recommendations"),
+    path(
+        "recommendations/<slug:slug>/dismiss/",
+        RecommendationDismissalView.as_view(),
+        name="recommendation-dismissal",
+    ),
 ]

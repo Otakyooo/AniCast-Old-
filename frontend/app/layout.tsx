@@ -1,8 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { I18nProvider } from "../components/i18n-provider";
 import { SITE_URL } from "../lib/site";
 import { getI18n } from "../i18n/server";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#0B131C",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();

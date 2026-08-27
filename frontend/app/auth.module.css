@@ -1,7 +1,7 @@
-.page { display:grid; min-height:100vh; place-items:center; padding:24px; background:radial-gradient(circle at 20% 20%,#28205d 0,transparent 35%),var(--background) }
-.card { width:min(100%,460px); padding:clamp(28px,6vw,48px); border:1px solid var(--border); border-radius:18px; background:rgba(17,21,29,.94) }
-.brand { display:inline-block; margin-bottom:40px; font-size:24px; font-weight:800 }
-.brand span,.switch a,.accountState a { color:var(--primary) }
+.page { display:grid; min-height:100vh; place-items:center; padding:24px; background:radial-gradient(circle at 20% 20%,rgba(224,79,62,.14) 0,transparent 35%),var(--background) }
+.card { width:min(100%,460px); padding:clamp(28px,6vw,48px); border:1px solid var(--border); border-radius:18px; background:rgba(27,35,48,.96) }
+.brand { margin-bottom:40px; font-size:24px; font-weight:800 }
+.switch a,.accountState a { color:var(--primary) }
 .card h1 { margin:0 0 10px; font-size:clamp(32px,8vw,46px) }
 .intro { margin:0 0 30px; color:var(--muted); line-height:1.6 }
 .form,.form label { display:grid; gap:9px }
@@ -10,9 +10,9 @@
 .form input { width:100%; min-height:46px; padding:0 13px; border:1px solid var(--border); border-radius:9px; background:var(--surface-2); color:var(--text) }
 .form input:focus { border-color:var(--primary); outline:none }
 .hint,.switch { margin:0; color:var(--muted); font-size:13px; line-height:1.5 }
-.error { margin:0; padding:12px; border:1px solid #7f3543; border-radius:8px; background:#2b171c; color:#ffb4c0 }
+.error { margin:0; padding:12px; border:1px solid rgba(224,90,90,.55); border-radius:8px; background:rgba(224,90,90,.12); color:var(--danger) }
 .submit,.secondary { display:inline-block; padding:12px 18px; border-radius:9px; text-align:center; font:inherit; cursor:pointer }
-.submit { border:1px solid var(--primary); background:var(--primary); color:white!important }
+.submit { border:1px solid var(--primary); background:var(--primary); color:var(--on-primary)!important }
 .secondary { border:1px solid var(--border); background:transparent; color:var(--text) }
 .submit:disabled { cursor:wait }
 .accountState { display:grid; gap:16px }

@@ -1,34 +1,21 @@
-import Image from "next/image";
-import Link from "next/link";
 import type { Metadata } from "next";
+import { NotFoundState } from "../components/not-found-state";
 import { getI18n } from "../i18n/server";
-import styles from "./not-found.module.css";
 
 export const metadata: Metadata = { title: "404 — AniCast" };
 
 export default async function NotFound() {
   const { t } = await getI18n();
   return (
-    <main className={`shell ${styles.notFoundPage}`}>
-      <div className={styles.panel} role="status">
-        <Image
-          className={styles.mascot}
-          src="/not-found-mascot.webp"
-          alt={t("notFound.mascotAlt")}
-          width={800}
-          height={731}
-          priority
-          sizes="(max-width: 640px) 70vw, 380px"
-        />
-        <p className="eyebrow">404</p>
-        <h1>{t("notFound.title")}</h1>
-        <p className="muted">{t("notFound.text")}</p>
-        <div className={styles.actions}>
-          <Link className="primary inline-button" href="/">{t("account.home")}</Link>
-          <Link className="secondary" href="/catalog">{t("catalog.title")}</Link>
-          <Link className="secondary" href="/characters">{t("notFound.toCharacters")}</Link>
-        </div>
-      </div>
-    </main>
+    <NotFoundState
+      title={t("notFound.title")}
+      text={t("notFound.text")}
+      imageAlt={t("notFound.mascotAlt")}
+      actions={[
+        { href: "/", label: t("account.home"), primary: true },
+        { href: "/catalog", label: t("catalog.title") },
+        { href: "/characters", label: t("notFound.toCharacters") },
+      ]}
+    />
   );
 }

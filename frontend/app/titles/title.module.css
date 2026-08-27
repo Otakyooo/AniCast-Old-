@@ -21,7 +21,7 @@
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: linear-gradient(145deg, #2a2260, #12161f 72%);
+  background: linear-gradient(145deg, #24303e, #141e2a 72%);
 }
 
 .heroImage { object-fit: cover }
@@ -147,7 +147,7 @@
 .watch {
   border-color: var(--primary);
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 
 .watch:hover:not(:disabled) { background: var(--primary-hover) }
@@ -161,7 +161,7 @@
 
 .actionActive {
   border-color: var(--primary);
-  background: rgba(124, 92, 255, .16);
+  background: rgba(224, 79, 62, .16);
 }
 
 .favoriteActive {
@@ -336,7 +336,7 @@
   height: 64px;
   place-items: center;
   border-radius: 999px;
-  background: linear-gradient(145deg, #2a2260, #12161f 72%);
+  background: linear-gradient(145deg, #24303e, #141e2a 72%);
   color: #fff;
   font-size: 22px;
   font-weight: 800;
@@ -384,7 +384,7 @@
   height: 48px;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(145deg, rgba(124, 92, 255, .42), rgba(124, 92, 255, .08));
+  background: linear-gradient(145deg, rgba(224, 79, 62, .42), rgba(224, 79, 62, .08));
   color: #fff;
   font-size: 18px;
   font-weight: 800;
@@ -435,8 +435,15 @@
 }
 
 .watchHead { padding-top: 8px }
-.watchHead h1 { margin: 6px 0 8px; font-size: clamp(28px, 4vw, 44px) }
-.watchHead p:last-child { max-width: 820px; margin-bottom: 0 }
+.watchHead h1 { margin: 6px 0 0; font-size: clamp(28px, 4vw, 44px) }
+
+.watchSynopsis {
+  max-width: 820px;
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
 
 .watchNavigator {
   display: grid;
@@ -533,8 +540,8 @@ a.episodeButton:hover {
 .episodeButtonActive {
   border-color: var(--primary);
   background: var(--primary);
-  box-shadow: 0 0 0 2px rgba(124, 92, 255, .2);
-  color: #fff;
+  box-shadow: 0 0 0 2px rgba(224, 79, 62, .2);
+  color: var(--on-primary);
 }
 
 a.episodeButtonActive:hover { background: var(--primary-hover) }
@@ -611,9 +618,24 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
 }
 
 .playerLoading {
+  z-index: 1;
   display: grid;
   place-items: center;
+  background: #080b12;
   color: var(--muted);
+  pointer-events: none;
+}
+
+.playerError {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .playerPreviewBody {
@@ -631,7 +653,7 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
   border: 0;
   border-radius: 10px;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   font-weight: 800;
   cursor: pointer;
   transition: background 140ms ease, transform 140ms ease;

@@ -58,6 +58,19 @@ class TitleNoteWriteSerializer(serializers.Serializer):
 class RecommendationSerializer(serializers.Serializer):
     title = TitleSerializer(source="*", read_only=True)
     score = serializers.FloatField(read_only=True)
+    reasons = serializers.SerializerMethodField()
+
+    def get_reasons(self, obj):
+        # The view passes positive-weight genres ordered by weight and already
+        # localized; candidates only mention genres that actually matched.
+        ordered_names = self.context.get("recommendation_genre_names") or []
+        limit = self.context.get("recommendation_genre_limit") or 3
+        genre_ids = {genre.id for genre in obj.genres.all()}
+        franchise_ids = self.context.get("recommendation_franchise_ids") or set()
+        return {
+            "genres": [name for genre_id, name in ordered_names if genre_id in genre_ids][:limit],
+            "franchise": bool(obj.franchise_id and obj.franchise_id in franchise_ids),
+        }
 
 
 class CollectionItemSerializer(serializers.ModelSerializer):

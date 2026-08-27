@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHARACTER_FALLBACK_IMAGE, characterImage, hasCharacterArt } from "./character-image.ts";
 
-test("characterImage swaps the shikimori missing-art filler for our mascot", () => {
+test("characterImage swaps the shikimori missing-art filler for our brand mark", () => {
   assert.equal(characterImage("https://shikimori.io/assets/globals/missing_original.jpg"), CHARACTER_FALLBACK_IMAGE);
   assert.equal(characterImage("https://shikimori.io/assets/globals/missing_original.jpg?1711947446"), CHARACTER_FALLBACK_IMAGE);
   assert.equal(characterImage(""), CHARACTER_FALLBACK_IMAGE);

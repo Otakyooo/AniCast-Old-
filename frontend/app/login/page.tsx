@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { AuthForm } from "../../components/auth-form";
 import { TelegramLogin } from "../../components/telegram-login";
+import { BrandLockup } from "../../components/brand-lockup";
 import styles from "../auth.module.css";
 import { getI18n } from "../../i18n/server";
 
@@ -13,5 +13,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
   const returnTo = safeReturnTo((await searchParams).next);
   const { t } = await getI18n();
-  return <main className={styles.page}><section className={styles.card}><Link className={styles.brand} href="/">Ani<span>Cast</span></Link><h1>{t("auth.loginTitle")}</h1><p className={styles.intro}>{t("auth.loginText")}</p><AuthForm mode="login" returnTo={returnTo} /><div className={styles.divider}><span>{t("auth.or")}</span></div><TelegramLogin botUsername={botUsername} returnTo={returnTo} /></section></main>;
+  return <main className={styles.page}><section className={styles.card}><BrandLockup className={styles.brand} priority /><h1>{t("auth.loginTitle")}</h1><p className={styles.intro}>{t("auth.loginText")}</p><AuthForm mode="login" returnTo={returnTo} /><div className={styles.divider}><span>{t("auth.or")}</span></div><TelegramLogin botUsername={botUsername} returnTo={returnTo} /></section></main>;
 }

@@ -4,19 +4,22 @@
    styling lives in CSS modules next to the route. */
 
 :root {
-  --background: #0b0d12;
-  --surface-1: #12151d;
-  --surface-2: #171c26;
-  --primary: #7c5cff;
-  --primary-hover: #8d73ff;
-  --text: #f5f7fa;
-  --muted: #a4acb9;
-  --muted-2: #707989;
-  --border: #252b38;
-  --success: #32c48d;
-  --warning: #f2b84b;
-  --danger: #ef6875;
-  --focus-ring: #9d87ff;
+  --background: #0b131c;
+  --surface-elevated: #141e2a;
+  --surface-card: #1b2330;
+  --surface-1: var(--surface-card);
+  --surface-2: var(--surface-elevated);
+  --primary: #e04f3e;
+  --primary-hover: #ff6a4d;
+  --on-primary: #0b131c;
+  --text: #f3ede2;
+  --muted: #a8b1bd;
+  --muted-2: #6b7785;
+  --border: #2a3442;
+  --success: #3ba97c;
+  --warning: #e0a23a;
+  --danger: #e05a5a;
+  --focus-ring: #ff8a73;
   --content-width: 1600px;
   --gutter: 32px;
   --nav-height: 64px;
@@ -39,8 +42,8 @@ button, input, select, textarea { font: inherit }
 button:disabled { cursor: not-allowed; opacity: .65 }
 
 ::selection {
-  background: #7c5cff;
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px }
@@ -78,8 +81,8 @@ summary:focus-visible {
   top: 0;
   z-index: 50;
   height: var(--nav-height);
-  border-bottom: 1px solid rgba(37, 43, 56, .72);
-  background: rgba(7, 9, 14, .94);
+  border-bottom: 1px solid rgba(42, 52, 66, .8);
+  background: rgba(20, 30, 42, .96);
   backdrop-filter: blur(16px);
 }
 
@@ -94,29 +97,28 @@ summary:focus-visible {
   padding: 0 var(--gutter);
 }
 
-.global-brand {
+.brand-lockup {
   display: flex;
   align-items: center;
   gap: 9px;
+  width: max-content;
+}
+
+.global-brand {
   font-size: 18px;
   font-weight: 700;
   white-space: nowrap;
 }
 
-.global-brand b { color: var(--primary) }
-
-.brand-mark {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 2px solid var(--primary);
-  border-radius: 9px 4px 9px 4px;
-  color: var(--primary);
-  font-size: 17px;
-  font-weight: 900;
-  transform: rotate(-8deg);
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
+
+.brand-wordmark { display: inline-flex; letter-spacing: -.02em }
+.brand-wordmark strong { color: var(--primary); font-weight: inherit }
 
 .primary-nav {
   display: flex;
@@ -183,9 +185,9 @@ summary:focus-visible {
   min-width: 0;
   height: 38px;
   padding: 0 11px;
-  border: 1px solid #202633;
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: #0d1118;
+  background: var(--background);
   color: var(--muted-2);
   transition: border-color 140ms ease;
 }
@@ -244,11 +246,11 @@ summary:focus-visible {
   min-height: 340px;
   margin-top: 18px;
   padding: 72px 48px;
-  border: 1px solid rgba(124, 92, 255, .18);
+  border: 1px solid rgba(224, 79, 62, .24);
   border-radius: 16px;
   background:
-    radial-gradient(circle at 78% 40%, rgba(124, 92, 255, .22), transparent 32%),
-    linear-gradient(105deg, #17131f 0%, #10151e 56%, #0c1017 100%);
+    radial-gradient(circle at 78% 40%, rgba(224, 79, 62, .2), transparent 32%),
+    linear-gradient(105deg, #22191c 0%, #141e2a 56%, #0b131c 100%);
 }
 
 .hero h1 { max-width: 720px; margin: 18px 0; font-size: clamp(40px, 5vw, 64px); line-height: 1.04 }
@@ -277,7 +279,7 @@ summary:focus-visible {
   border: 0;
   border-radius: 9px;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   font-weight: 700;
   cursor: pointer;
 }
@@ -316,7 +318,7 @@ summary:focus-visible {
   padding: clamp(20px, 4vw, 36px);
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(124, 92, 255, .11), transparent 45%), var(--surface-1);
+  background: linear-gradient(135deg, rgba(224, 79, 62, .1), transparent 45%), var(--surface-1);
 }
 
 /* ---------- Catalog cards ---------- */
@@ -477,7 +479,7 @@ summary:focus-visible {
   background: var(--surface-1);
 }
 
-.episode-card:hover { border-color: rgba(124, 92, 255, .5) }
+.episode-card:hover { border-color: rgba(224, 79, 62, .55) }
 
 .episode-heading {
   display: flex;
@@ -593,7 +595,7 @@ summary:focus-visible {
   body { padding-bottom: 68px }
   .global-nav-inner { display: flex; gap: 10px }
   .global-brand { margin-right: auto }
-  .global-brand span:last-child { display: none }
+  .global-brand .brand-wordmark { display: none }
   .primary-nav { display: none }
   .global-actions .language-switcher { display: none }
   .content { padding-bottom: 40px }
@@ -614,7 +616,7 @@ summary:focus-visible {
     height: 64px;
     padding: 5px 8px max(5px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
-    background: rgba(10, 13, 18, .97);
+    background: rgba(20, 30, 42, .97);
     backdrop-filter: blur(16px);
   }
 

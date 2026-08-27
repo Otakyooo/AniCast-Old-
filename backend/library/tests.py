@@ -277,9 +277,206 @@ def test_recommendations_use_ratings_history_and_franchise_boost(users, titles):
     assert response.status_code == 200
     results = response.json()["results"]
     scores = {item["title"]["slug"]: item["score"] for item in results}
-    # drama weight: completed library entry (1.0) + rating 9 (0.5) + watched history (0.5)
-    assert scores["sequel"] == 2.0 + 3.0
+    # drama weight: completed library entry (1.0) + rating 9 (0.5) + watched history (0.5);
+    # franchise boost scales with engagement: one non-dropped entry -> 1 * 1.5
+    assert scores["sequel"] == 2.0 + 1.5
     assert results[0]["title"]["slug"] == "sequel"
+
+
+@pytest.mark.django_db
+def test_recommendations_franchise_boost_scales_with_engagement(users):
+    franchise = Franchise.objects.create(name="Saga", slug="saga")
+    genre = Genre.objects.create(name="Drama", slug="drama")
+    entries = [
+        Title.objects.create(name=f"Entry{index}", slug=f"entry{index}", franchise=franchise)
+        for index in range(3)
+    ]
+    candidate = Title.objects.create(name="Candidate", slug="candidate")
+    candidate.franchise = franchise
+    candidate.save()
+    candidate.genres.add(genre)
+    unrelated = Title.objects.create(name="Unrelated", slug="unrelated")
+    unrelated.genres.add(genre)
+    for entry in entries:
+        entry.genres.add(genre)
+        LibraryEntry.objects.create(user=users[0], title=entry, status="completed")
+    client = APIClient()
+    client.force_login(users[0])
+    scores = {
+        item["title"]["slug"]: item["score"]
+        for item in client.get("/api/v1/recommendations/").json()["results"]
+    }
+    # candidate absorbs the shared drama weight (3 x 1.0) plus the scaled boost (3 x 1.5)
+    assert scores["candidate"] == 3 * 1.0 + 3 * 1.5
+    assert scores["candidate"] > scores["unrelated"]
+
+
+@pytest.mark.django_db
+def test_recommendations_negative_signals_penalize_and_cold_fallback_survives(users, titles):
+    from community.models import TitleRating
+
+    hated = Genre.objects.create(name="Horror", slug="horror")
+    loved = Genre.objects.create(name="Comedy", slug="comedy")
+    pure = Title.objects.create(name="Pure", slug="pure")
+    pure.genres.add(loved)
+    mixed = Title.objects.create(name="Mixed", slug="mixed")
+    mixed.genres.add(loved)
+    mixed.genres.add(hated)
+    horror_source = Title.objects.create(name="HorrorSource", slug="horror-source")
+    horror_source.genres.add(hated)
+    comedy_source = Title.objects.create(name="ComedySource", slug="comedy-source")
+    comedy_source.genres.add(loved)
+    LibraryEntry.objects.create(user=users[0], title=comedy_source, status="planned")
+    LibraryEntry.objects.create(user=users[0], title=horror_source, status="dropped")
+    TitleRating.objects.create(user=users[0], title=titles[0], value=2)
+    titles[0].genres.add(hated)
+    client = APIClient()
+    client.force_login(users[0])
+    results = client.get("/api/v1/recommendations/").json()["results"]
+    scores = {item["title"]["slug"]: item["score"] for item in results}
+    # planned comedy (+0.5); mixed also absorbs the dropped-horror (-1.0) and low-rating (-0.5) penalties
+    assert scores["pure"] == 0.5
+    assert scores["mixed"] == -1.0
+    slugs = [item["title"]["slug"] for item in results]
+    assert slugs.index("pure") < slugs.index("mixed")
+
+
+@pytest.mark.django_db
+def test_recommendations_only_negative_signals_keep_recency_fallback(users, titles):
+    horror = Genre.objects.create(name="Horror", slug="horror")
+    titles[0].genres.add(horror)
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status="dropped")
+    old = Title.objects.create(name="Ancient", slug="ancient", year=1999)
+    fresh = Title.objects.create(name="Fresh", slug="fresh", year=2026)
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/recommendations/")
+    assert response.status_code == 200
+    payload = response.json()
+    slugs = [item["title"]["slug"] for item in payload["results"]]
+    assert "first" not in slugs
+    assert slugs.index(fresh.slug) < slugs.index(old.slug)
+    assert all(item["score"] == 0.0 for item in payload["results"])
+    assert all(item["reasons"]["genres"] == [] for item in payload["results"])
+
+
+@pytest.mark.django_db
+def test_recommendations_skip_fully_watched_titles_without_library_entry(users):
+    drama = Genre.objects.create(name="Drama", slug="drama")
+    source = Title.objects.create(name="Source", slug="source")
+    source.genres.add(drama)
+    LibraryEntry.objects.create(user=users[0], title=source, status="planned")
+    finished = Title.objects.create(name="Finished", slug="finished")
+    started = Title.objects.create(name="Started", slug="started")
+    for title in (finished, started):
+        title.genres.add(drama)
+        Episode.objects.create(title=title, number=1)
+        Episode.objects.create(title=title, number=2)
+    for number in (1, 2):
+        episode = Episode.objects.get(title=finished, number=number)
+        EpisodeProgress.objects.create(
+            user=users[0], episode=episode, is_watched=True, last_opened_at=timezone.now()
+        )
+    episode = Episode.objects.get(title=started, number=1)
+    EpisodeProgress.objects.create(user=users[0], episode=episode, is_watched=True, last_opened_at=timezone.now())
+    client = APIClient()
+    client.force_login(users[0])
+    slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
+    assert "finished" not in slugs
+    assert "started" in slugs
+
+
+@pytest.mark.django_db
+def test_recommendations_break_score_ties_with_community_rating(users):
+    drama = Genre.objects.create(name="Drama", slug="drama")
+    source = Title.objects.create(name="Source", slug="source")
+    source.genres.add(drama)
+    LibraryEntry.objects.create(user=users[0], title=source, status="watching")
+    weak = Title.objects.create(name="Weak", slug="weak", year=2026)
+    strong = Title.objects.create(name="Strong", slug="strong", year=1990)
+    for title in (weak, strong):
+        title.genres.add(drama)
+    from community.models import TitleRating
+
+    TitleRating.objects.create(user=users[1], title=weak, value=4)
+    TitleRating.objects.create(user=users[1], title=strong, value=9)
+    client = APIClient()
+    client.force_login(users[0])
+    slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
+    assert slugs.index("strong") < slugs.index("weak")
+
+
+@pytest.mark.django_db
+def test_recommendation_dismissal_hides_until_undone_and_requires_auth_csrf(users, titles):
+    from library.models import RecommendationDismissal
+
+    anonymous = APIClient()
+    assert anonymous.post("/api/v1/recommendations/first/dismiss/").status_code in {401, 403}
+    csrf_client = APIClient(enforce_csrf_checks=True)
+    csrf_client.force_login(users[0])
+    assert csrf_client.post("/api/v1/recommendations/first/dismiss/").status_code == 403
+
+    drama = Genre.objects.create(name="Drama", slug="drama")
+    titles[1].genres.add(drama)
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status="watching")
+    titles[0].genres.add(drama)
+
+    client = APIClient()
+    client.force_login(users[0])
+    created = client.post("/api/v1/recommendations/second/dismiss/")
+    assert created.status_code == 201
+    repeated = client.post("/api/v1/recommendations/second/dismiss/")
+    assert repeated.status_code == 200
+    assert RecommendationDismissal.objects.filter(user=users[0]).count() == 1
+
+    slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
+    assert "second" not in slugs
+    assert "second" not in [entry.title.slug for entry in RecommendationDismissal.objects.filter(user=users[1])]
+
+    assert client.delete("/api/v1/recommendations/missing/dismiss/").status_code == 404
+    undone = client.delete("/api/v1/recommendations/second/dismiss/")
+    assert undone.status_code == 204
+    assert client.delete("/api/v1/recommendations/second/dismiss/").status_code == 404
+    restored = [
+        item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]
+    ]
+    assert "second" in restored
+    assert RecommendationDismissal.objects.filter(user=users[0]).count() == 0
+
+
+@pytest.mark.django_db
+def test_recommendations_expose_localized_reasons_with_franchise_flag(users):
+    from catalog.models import GenreTranslation
+
+    franchise = Franchise.objects.create(name="Saga", slug="saga")
+    drama = Genre.objects.create(name="Drama", slug="drama")
+    comedy = Genre.objects.create(name="Comedy", slug="comedy")
+    thriller = Genre.objects.create(name="Thriller", slug="thriller")
+    GenreTranslation.objects.create(genre=drama, language="ru", name="Драма")
+    GenreTranslation.objects.create(genre=comedy, language="ru", name="Комедия")
+    GenreTranslation.objects.create(genre=thriller, language="ru", name="Триллер")
+
+    source = Title.objects.create(name="Source", slug="source", franchise=franchise)
+    source.genres.add(drama)
+    source.genres.add(comedy)
+    LibraryEntry.objects.create(user=users[0], title=source, status="watching")
+
+    candidate = Title.objects.create(name="Candidate", slug="candidate", year=2026)
+    candidate.franchise = franchise
+    candidate.save()
+    candidate.genres.add(comedy)
+    candidate.genres.add(thriller)
+
+    plain = Title.objects.create(name="Plain", slug="plain")
+    plain.genres.add(comedy)
+
+    client = APIClient()
+    client.force_login(users[0])
+    results = client.get("/api/v1/recommendations/", {"lang": "ru"}).json()["results"]
+    by_slug = {item["title"]["slug"]: item["reasons"] for item in results}
+    assert by_slug["candidate"] == {"genres": ["Комедия"], "franchise": True}
+    assert by_slug["plain"] == {"genres": ["Комедия"], "franchise": False}
+    assert "source" not in by_slug
 
 
 @pytest.mark.django_db

@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
+from .models import (
+    EpisodeProgress,
+    LibraryEntry,
+    RecommendationDismissal,
+    TitleCollection,
+    TitleCollectionItem,
+    TitleNote,
+)
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
@@ -36,6 +43,13 @@ class EpisodeProgressAdmin(ReadOnlyAdmin):
 @admin.register(TitleNote)
 class TitleNoteAdmin(ReadOnlyAdmin):
     list_display = ["user", "title", "updated_at"]
+    search_fields = ["user__email", "user__display_name", "title__name"]
+    list_select_related = ["user", "title"]
+
+
+@admin.register(RecommendationDismissal)
+class RecommendationDismissalAdmin(ReadOnlyAdmin):
+    list_display = ["user", "title", "created_at"]
     search_fields = ["user__email", "user__display_name", "title__name"]
     list_select_related = ["user", "title"]
 

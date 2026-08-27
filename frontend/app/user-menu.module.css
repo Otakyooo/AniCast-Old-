@@ -30,7 +30,7 @@
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: linear-gradient(140deg, rgba(124, 92, 255, .38), var(--surface-2));
+  background: linear-gradient(140deg, rgba(224, 79, 62, .38), var(--surface-2));
   color: var(--text);
   font-size: 13px;
   font-weight: 700;

@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import IntegrityError, transaction
-from django.db.models import Case, F, FloatField, Min, Q, Sum, Value, When
+from django.db.models import Avg, Case, Count, F, FloatField, IntegerField, Min, OuterRef, Q, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -14,12 +14,20 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from catalog.models import Episode, Title
+from catalog.i18n import translated_value
+from catalog.models import Episode, Genre, Title
 from catalog.playback import playback_sources_prefetch
 from catalog.serializers import ShelfEpisodeSerializer, TitleSerializer
 from community.models import TitleRating
 
-from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
+from .models import (
+    EpisodeProgress,
+    LibraryEntry,
+    RecommendationDismissal,
+    TitleCollection,
+    TitleCollectionItem,
+    TitleNote,
+)
 from .serializers import (
     EpisodeProgressSerializer,
     EpisodeProgressWriteSerializer,
@@ -306,6 +314,25 @@ class TitleNoteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def rating_subquery_annotations() -> dict[str, Subquery]:
+    """Community rating aggregates as correlated subqueries.
+
+    The recommendation queryset joins genres for scoring, so join-based
+    aggregates (catalog's annotate_rating_aggregates) would multiply the
+    score sum by the rating count; subqueries keep both independent.
+    """
+
+    stats = TitleRating.objects.filter(title=OuterRef("pk")).values("title")
+    return {
+        "rating_count": Subquery(
+            stats.annotate(total=Count("pk")).values("total")[:1], output_field=IntegerField()
+        ),
+        "rating_avg": Subquery(
+            stats.annotate(average=Avg("value")).values("average")[:1], output_field=FloatField()
+        ),
+    }
+
+
 class RecommendationListView(ListAPIView):
     serializer_class = RecommendationSerializer
     permission_classes = [IsAuthenticated]
@@ -316,78 +343,167 @@ class RecommendationListView(ListAPIView):
         LibraryEntry.Status.COMPLETED: 1.0,
         LibraryEntry.Status.ON_HOLD: 0.5,
         LibraryEntry.Status.PLANNED: 0.5,
-        LibraryEntry.Status.DROPPED: 0.0,
+        # Dropped entries actively push their genres away instead of being
+        # ignored; mixed titles can still surface on their positive genres.
+        LibraryEntry.Status.DROPPED: -1.0,
     }
+    liked_rating_threshold = 8
+    disliked_rating_threshold = 4
     rating_genre_weight = 0.5
     watched_genre_weight = 0.5
-    franchise_boost = 3.0
+    franchise_boost_per_entry = 1.5
+    franchise_engagement_cap = 4
+    reason_genre_limit = 3
+    _signals_cache: tuple[dict[int, float], dict[int, int]] | None = None
 
-    def genre_weights(self):
-        weights: dict[int, float] = {}
-        entries = (
-            LibraryEntry.objects.filter(user=self.request.user)
-            .exclude(status=LibraryEntry.Status.DROPPED)
-            .prefetch_related("title__genres")
-        )
-        for entry in entries:
-            weight = self.library_status_weights.get(entry.status, 0.0)
-            for genre in entry.title.genres.all():
-                weights[genre.id] = weights.get(genre.id, 0.0) + weight
-        high_ratings = TitleRating.objects.filter(user=self.request.user, value__gte=8).prefetch_related(
-            "title__genres"
-        )
-        for rating in high_ratings:
-            for genre in rating.title.genres.all():
-                weights[genre.id] = weights.get(genre.id, 0.0) + self.rating_genre_weight
-        watched_title_ids = list(
-            EpisodeProgress.objects.filter(user=self.request.user, is_watched=True).values_list(
-                "episode__title_id", flat=True
+    def _signals(self) -> tuple[dict[int, float], dict[int, int]]:
+        """Genre weights plus per-franchise engagement from real user data."""
+        if self._signals_cache is None:
+            weights: dict[int, float] = {}
+            entries = (
+                LibraryEntry.objects.filter(user=self.request.user).prefetch_related("title__genres")
             )
+            for entry in entries:
+                weight = self.library_status_weights.get(entry.status, 0.0)
+                if weight == 0.0:
+                    continue
+                for genre in entry.title.genres.all():
+                    weights[genre.id] = weights.get(genre.id, 0.0) + weight
+            liked = TitleRating.objects.filter(
+                user=self.request.user, value__gte=self.liked_rating_threshold
+            ).prefetch_related("title__genres")
+            for rating in liked:
+                for genre in rating.title.genres.all():
+                    weights[genre.id] = weights.get(genre.id, 0.0) + self.rating_genre_weight
+            disliked = TitleRating.objects.filter(
+                user=self.request.user, value__lte=self.disliked_rating_threshold
+            ).prefetch_related("title__genres")
+            for rating in disliked:
+                for genre in rating.title.genres.all():
+                    weights[genre.id] = weights.get(genre.id, 0.0) - self.rating_genre_weight
+            watched_title_ids = list(
+                EpisodeProgress.objects.filter(user=self.request.user, is_watched=True).values_list(
+                    "episode__title_id", flat=True
+                )
+            )
+            watched_titles = Title.objects.filter(id__in=watched_title_ids).prefetch_related("genres")
+            for title in watched_titles:
+                for genre in title.genres.all():
+                    weights[genre.id] = weights.get(genre.id, 0.0) + self.watched_genre_weight
+            engagement: dict[int, int] = {}
+            for franchise_id in (
+                LibraryEntry.objects.filter(user=self.request.user)
+                .exclude(status=LibraryEntry.Status.DROPPED)
+                .values_list("title__franchise_id", flat=True)
+            ):
+                if franchise_id is not None:
+                    engagement[franchise_id] = engagement.get(franchise_id, 0) + 1
+            self._signals_cache = (weights, engagement)
+        return self._signals_cache
+
+    def _fully_watched_title_ids(self) -> set[int]:
+        """Titles whose every existing episode the viewer marked watched.
+
+        Bounded to the user's own progress titles, so long-running series
+        stay cheap; such titles belong to Continue Watching, not here.
+        """
+        progress_counts = (
+            EpisodeProgress.objects.filter(user=self.request.user, is_watched=True)
+            .values("episode__title_id")
+            .annotate(watched=Count("id"))
         )
-        watched_titles = Title.objects.filter(id__in=watched_title_ids).prefetch_related("genres")
-        for title in watched_titles:
-            for genre in title.genres.all():
-                weights[genre.id] = weights.get(genre.id, 0.0) + self.watched_genre_weight
-        return weights
+        watched_by_title = {row["episode__title_id"]: row["watched"] for row in progress_counts}
+        if not watched_by_title:
+            return set()
+        episode_counts = (
+            Episode.objects.filter(title_id__in=watched_by_title).values("title_id").annotate(total=Count("id"))
+        )
+        return {
+            row["title_id"] for row in episode_counts if watched_by_title[row["title_id"]] >= row["total"]
+        }
 
     def get_queryset(self):
         user = self.request.user
-        library_title_ids = list(
-            LibraryEntry.objects.filter(user=user).values_list("title_id", flat=True)
+        excluded_ids = (
+            set(LibraryEntry.objects.filter(user=user).values_list("title_id", flat=True))
+            | self._fully_watched_title_ids()
+            | set(RecommendationDismissal.objects.filter(user=user).values_list("title_id", flat=True))
         )
-        queryset = Title.objects.exclude(id__in=library_title_ids).select_related("franchise").prefetch_related(
+        queryset = Title.objects.exclude(id__in=excluded_ids).select_related("franchise").prefetch_related(
             "translations", "franchise__translations", "genres", "genres__translations"
         )
-        weights = self.genre_weights()
-        if not weights:
+        weights, engagement = self._signals()
+        positive_genres = [genre_id for genre_id, weight in sorted(weights.items()) if weight > 0]
+        if not positive_genres:
+            # Cold start or only negative signals: an honest recency fallback.
             return queryset.annotate(score=Value(0.0, output_field=FloatField())).order_by(
                 F("year").desc(nulls_last=True), "name", "slug"
             )
-        franchise_ids = {
-            franchise_id
-            for franchise_id in LibraryEntry.objects.filter(user=user)
-            .exclude(status=LibraryEntry.Status.DROPPED)
-            .values_list("title__franchise_id", flat=True)
-            if franchise_id is not None
-        }
-        genre_whens = [When(genres__id=genre_id, then=Value(weight)) for genre_id, weight in weights.items()]
+        # Candidacy stays a subquery so the scoring join below sees every genre
+        # of a title and negative weights reach the sum without WHERE filtering.
+        candidates = Title.objects.filter(genres__id__in=positive_genres).values("id")
+        genre_whens = [
+            When(genres__id=genre_id, then=Value(weight))
+            for genre_id, weight in sorted(weights.items())
+        ]
         score: object = Coalesce(
             Sum(Case(*genre_whens, default=Value(0.0), output_field=FloatField()), output_field=FloatField()),
             Value(0.0),
             output_field=FloatField(),
         )
-        if franchise_ids:
-            score = score + Case(
-                When(franchise_id__in=franchise_ids, then=Value(self.franchise_boost)),
-                default=Value(0.0),
-                output_field=FloatField(),
-            )
+        if engagement:
+            franchise_whens = [
+                When(
+                    franchise_id=franchise_id,
+                    then=Value(min(count, self.franchise_engagement_cap) * self.franchise_boost_per_entry),
+                )
+                for franchise_id, count in sorted(engagement.items())
+            ]
+            score = score + Case(*franchise_whens, default=Value(0.0), output_field=FloatField())
         return (
-            queryset.filter(genres__id__in=weights.keys())
-            .annotate(score=score)
-            .distinct()
-            .order_by("-score", F("year").desc(nulls_last=True), "name", "slug")
+            queryset.filter(id__in=Subquery(candidates))
+            .annotate(**rating_subquery_annotations(), score=score)
+            .order_by(
+                "-score",
+                F("rating_avg").desc(nulls_last=True),
+                F("year").desc(nulls_last=True),
+                "name",
+                "slug",
+            )
         )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        weights, engagement = self._signals()
+        ordered_genres: list[tuple[int, str]] = []
+        positive_ids = [genre_id for genre_id, weight in sorted(weights.items(), key=lambda item: -item[1]) if weight > 0]
+        if positive_ids:
+            localized = Genre.objects.filter(id__in=positive_ids).prefetch_related("translations")
+            names = {genre.id: translated_value(genre, "name", {"request": self.request}) for genre in localized}
+            ordered_genres = [(genre_id, names[genre_id]) for genre_id in positive_ids if genre_id in names]
+        context.update(
+            recommendation_genre_names=ordered_genres,
+            recommendation_franchise_ids=set(engagement),
+            recommendation_genre_limit=self.reason_genre_limit,
+        )
+        return context
+
+
+class RecommendationDismissalView(APIView):
+    """Explicit opt-out from personal recommendations; undo restores them."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, slug):
+        title = get_object_or_404(Title, slug=slug)
+        _, created = RecommendationDismissal.objects.get_or_create(user=request.user, title=title)
+        return Response(status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request, slug):
+        deleted, _ = RecommendationDismissal.objects.filter(user=request.user, title__slug=slug).delete()
+        if not deleted:
+            raise Http404
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CollectionListView(APIView):
