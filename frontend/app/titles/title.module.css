@@ -461,7 +461,6 @@
 .watchStage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
-  height: min(680px, calc(100vh - 120px));
   min-height: 480px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -472,8 +471,7 @@
 .watchPlayer { min-width: 0 }
 .watchPlayer .playerShell,
 .watchPlayer .watchEmpty { height: 100%; border: 0; border-radius: 0 }
-.watchPlayer .playerFrameWrap,
-.watchPlayer .playerPreviewBody { height: calc(100% - 42px); min-height: 0; aspect-ratio: auto }
+.watchPlayer .playerBar { min-height: 48px; padding-block: 8px }
 
 .voiceRail {
   display: grid;
@@ -507,6 +505,15 @@
   scrollbar-color: var(--border) transparent;
   scrollbar-width: thin;
 }
+
+.voiceList::-webkit-scrollbar { width: 6px }
+.voiceList::-webkit-scrollbar-track { background: transparent }
+.voiceList::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.voiceList::-webkit-scrollbar-thumb:hover { background: var(--muted-2) }
 
 .voiceButton {
   display: grid;
@@ -788,9 +795,7 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
 }
 
 @media (max-width: 860px) {
-  .watchStage { grid-template-columns: 1fr; height: auto; min-height: 0 }
-  .watchPlayer .playerFrameWrap,
-  .watchPlayer .playerPreviewBody { height: auto; min-height: 180px; aspect-ratio: 16 / 9 }
+  .watchStage { grid-template-columns: 1fr; min-height: 0 }
   .voiceRail { border-top: 1px solid var(--border); border-left: 0 }
   .voiceList { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); max-height: 230px }
 }
