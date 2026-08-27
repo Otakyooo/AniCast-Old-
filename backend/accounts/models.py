@@ -14,6 +14,8 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, null=True, blank=True)  # type: ignore[assignment]
     display_name = models.CharField(max_length=80, blank=True)
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    bio = models.CharField("О себе", max_length=280, blank=True)
+    profile_is_public = models.BooleanField("Публичный профиль", default=False)
     preferred_language = models.CharField("Язык интерфейса", max_length=8, choices=LANGUAGE_CHOICES, default="ru")
 
     USERNAME_FIELD = "email"

@@ -84,6 +84,7 @@ class CollectionItemSerializer(serializers.ModelSerializer):
 class PublicCollectionOwnerSerializer(serializers.Serializer):
     public_id = serializers.UUIDField(read_only=True)
     display_name = serializers.CharField(read_only=True)
+    profile_is_public = serializers.BooleanField(read_only=True)
 
 
 class CollectionSerializer(serializers.ModelSerializer):

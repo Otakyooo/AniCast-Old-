@@ -19,18 +19,18 @@ class ExternalIdentityInline(admin.TabularInline):
 class UserAdmin(DjangoUserAdmin):
     model = User
     ordering = ["email", "id"]
-    list_display = ["email", "display_name", "preferred_language", "is_staff", "is_active", "date_joined"]
-    list_filter = ["is_staff", "is_active", "is_superuser", "date_joined"]
+    list_display = ["email", "display_name", "profile_is_public", "preferred_language", "is_staff", "is_active", "date_joined"]
+    list_filter = ["profile_is_public", "is_staff", "is_active", "is_superuser", "date_joined"]
     search_fields = ["email", "display_name", "external_identities__username", "external_identities__subject"]
     readonly_fields = ["public_id"]
     fieldsets = [
         (None, {"fields": ["email", "password"]}),
-        ("Профиль", {"fields": ["public_id", "display_name", "first_name", "last_name", "preferred_language"]}),
+        ("Профиль", {"fields": ["public_id", "display_name", "bio", "profile_is_public", "first_name", "last_name", "preferred_language"]}),
         ("Доступ", {"fields": ["is_active", "is_staff", "is_superuser", "groups", "user_permissions"]}),
         ("Даты", {"fields": ["last_login", "date_joined"]}),
     ]
     add_fieldsets = [
-        (None, {"classes": ["wide"], "fields": ["email", "display_name", "preferred_language", "password1", "password2", "is_staff", "is_active"]}),
+        (None, {"classes": ["wide"], "fields": ["email", "display_name", "bio", "profile_is_public", "preferred_language", "password1", "password2", "is_staff", "is_active"]}),
     ]
     filter_horizontal = ["groups", "user_permissions"]
     inlines = [ExternalIdentityInline]

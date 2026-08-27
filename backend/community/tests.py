@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from catalog.models import Title
 from community.models import TitleReview
+from library.models import TitleCollection, TitleCollectionItem
 
 
 @pytest.fixture
@@ -61,6 +62,74 @@ def test_reviews_stay_private_until_approved_and_edits_reset_status(community_da
     assert edited.status_code == 200
     assert edited.json()["status"] == "pending"
     assert APIClient().get("/api/v1/community/reviews/").json()["count"] == 0
+
+
+@pytest.mark.django_db
+def test_review_links_only_to_an_opted_in_public_profile(community_data):
+    first, _, title = community_data
+    review = TitleReview.objects.create(
+        user=first,
+        title=title,
+        body="An approved review that can identify its public author.",
+        status=TitleReview.Status.APPROVED,
+        published_at=timezone.now(),
+    )
+    response = APIClient().get("/api/v1/community/reviews/").json()["results"][0]
+    assert response["author_public_id"] is None
+
+    first.profile_is_public = True
+    first.save(update_fields=["profile_is_public"])
+    response = APIClient().get("/api/v1/community/reviews/").json()["results"][0]
+    assert response["author_public_id"] == str(first.public_id)
+    assert response["id"] == review.id
+
+
+@pytest.mark.django_db
+def test_public_profile_exposes_only_approved_and_explicitly_public_content(community_data):
+    first, _, title = community_data
+    assert APIClient().get(f"/api/v1/public/users/{first.public_id}/").status_code == 404
+    first.profile_is_public = True
+    first.bio = "Профиль для теста безопасной социальной витрины."
+    first.save(update_fields=["profile_is_public", "bio"])
+
+    public_collection = TitleCollection.objects.create(
+        owner=first, name="Public picks", slug="public-picks", description="Visible", is_public=True
+    )
+    private_collection = TitleCollection.objects.create(
+        owner=first, name="Private picks", slug="private-picks", is_public=False
+    )
+    TitleCollectionItem.objects.create(collection=public_collection, title=title, position=0)
+    TitleReview.objects.create(
+        user=first,
+        title=title,
+        body="An approved review that belongs on the public profile.",
+        status=TitleReview.Status.APPROVED,
+        published_at=timezone.now(),
+    )
+    TitleReview.objects.create(
+        user=first,
+        title=Title.objects.create(name="Pending title", slug="pending-profile-title"),
+        body="A pending review that must remain private from the profile.",
+    )
+
+    response = APIClient().get(f"/api/v1/public/users/{first.public_id}/")
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "no-store"
+    body = response.json()
+    assert body["profile"] == {
+        "public_id": str(first.public_id),
+        "display_name": "First",
+        "bio": "Профиль для теста безопасной социальной витрины.",
+    }
+    assert body["stats"] == {"collections": 1, "reviews": 1}
+    assert [collection["name"] for collection in body["collections"]] == ["Public picks"]
+    assert body["collections"][0]["item_count"] == 1
+    assert body["collections"][0]["preview_titles"][0]["slug"] == title.slug
+    assert len(body["reviews"]) == 1
+    serialized = str(body)
+    assert first.email not in serialized
+    assert private_collection.name not in serialized
+    assert "pending review" not in serialized
 
 
 @pytest.mark.django_db

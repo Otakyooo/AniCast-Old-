@@ -13,13 +13,30 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "preferred_language", "date_joined", "avatar_url"]
+        fields = [
+            "id", "public_id", "email", "display_name", "bio", "profile_is_public",
+            "preferred_language", "date_joined", "avatar_url",
+        ]
 
 
 class UserPreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["preferred_language"]
+
+
+class PublicProfileUpdateSerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(max_length=80, allow_blank=True, trim_whitespace=True)
+    bio = serializers.CharField(max_length=280, allow_blank=True, trim_whitespace=True)
+
+    class Meta:
+        model = User
+        fields = ["display_name", "bio", "profile_is_public"]
+
+    def validate(self, attrs):
+        if attrs.get("profile_is_public") and not attrs.get("display_name", "").strip():
+            raise serializers.ValidationError({"display_name": "Укажите имя перед публикацией профиля."})
+        return attrs
 
 
 class RegisterSerializer(serializers.Serializer):

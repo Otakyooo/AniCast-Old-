@@ -3,11 +3,20 @@ import { clientLanguage, clientMessage } from "../i18n/client";
 
 export interface SessionUser {
   id: number;
+  public_id: string;
   email: string | null;
   display_name: string;
+  bio: string;
+  profile_is_public: boolean;
   preferred_language: Locale;
   date_joined: string;
   avatar_url: string;
+}
+
+export interface PublicProfileInput {
+  display_name: string;
+  bio: string;
+  profile_is_public: boolean;
 }
 
 export function setLanguageCookie(language: Locale) {
@@ -103,6 +112,21 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
   if (!response.ok) throw new Error(clientMessage("Не удалось загрузить данные аккаунта.", "Could not load account data."));
+  const user = (await response.json()) as SessionUser;
+  writeCachedSession(user);
+  return user;
+}
+
+export async function updatePublicProfile(payload: PublicProfileInput): Promise<SessionUser> {
+  const csrf = await getCsrfToken();
+  const response = await fetch("/api/v1/account/profile/", {
+    method: "PUT",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await parseError(response));
   const user = (await response.json()) as SessionUser;
   writeCachedSession(user);
   return user;

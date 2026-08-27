@@ -105,7 +105,7 @@ Object.assign(ru, {
   "profile.activityTitle":"Активность просмотров","profile.activitySubtitle":"Отмеченные эпизоды за последние 12 месяцев","profile.activityLabel":"График активности просмотров по месяцам","profile.activityCount":"Эпизодов: {count}",
   "profile.guest":"Гость",
   // Настройки: отдельный приватный маршрут (design freeze §17).
-  "settings.title":"Настройки","settings.subtitle":"Уведомления и язык интерфейса.","settings.languageHint":"Язык переключается кнопкой в шапке сайта и сохраняется в аккаунте.",
+  "settings.title":"Настройки","settings.subtitle":"Публичный профиль, уведомления и язык интерфейса.","settings.languageHint":"Язык переключается кнопкой в шапке сайта и сохраняется в аккаунте.",
   // Представления внутри вкладки «Библиотека».
   "library.viewTitles":"Тайтлы","library.viewCollections":"Коллекции",
   // Единый сценарий просмотра: озвучка, доступные серии и плеер.
@@ -128,7 +128,7 @@ Object.assign(en, {
   "profile.favoriteGenres":"Favorite genres","profile.genreCount":"{count} titles",
   "profile.activityTitle":"Viewing activity","profile.activitySubtitle":"Episodes marked during the last 12 months","profile.activityLabel":"Monthly viewing activity chart","profile.activityCount":"Episodes: {count}",
   "profile.guest":"Guest",
-  "settings.title":"Settings","settings.subtitle":"Notifications and interface language.","settings.languageHint":"Switch the language with the header control; the choice is stored in your account.",
+  "settings.title":"Settings","settings.subtitle":"Public profile, notifications and interface language.","settings.languageHint":"Switch the language with the header control; the choice is stored in your account.",
   "library.viewTitles":"Titles","library.viewCollections":"Collections",
   "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.noVoice":"No playable voice-overs yet",
   "watch.episodeCount":"{count} eps.","watch.episodeRange":"Episode range","watch.available":"Episodes available",
@@ -144,6 +144,24 @@ Object.assign(ru, {
   "visits.label":"Статистика посещений сайта",
   "visits.total":"посещений",
   "visits.today":"сегодня",
+  "social.eyebrow":"СООБЩЕСТВО ANICAST",
+  "social.settingsTitle":"Публичный профиль",
+  "social.settingsDescription":"Настройте имя и краткое описание. Профиль появится в сообществе только после вашего явного согласия.",
+  "social.displayName":"Имя в сообществе",
+  "social.bio":"О себе",
+  "social.bioPlaceholder":"Например: любимые жанры, студии и истории, которые хочется обсуждать.",
+  "social.publicProfile":"Показывать публичный профиль",
+  "social.publicProfileHint":"Будут видны только имя, описание, одобренные рецензии и коллекции, которые вы сами сделали публичными.",
+  "social.profileSaved":"Профиль сохранён",
+  "social.openProfile":"Открыть профиль",
+  "social.publicBadge":"ПУБЛИЧНЫЙ ПРОФИЛЬ",
+  "social.collections":"Коллекции",
+  "social.reviews":"Рецензии",
+  "social.publicCollections":"Публичные коллекции",
+  "social.publishedReviews":"Опубликованные рецензии",
+  "social.noPublicCollections":"Публичных коллекций пока нет.",
+  "social.noPublishedReviews":"Опубликованных рецензий пока нет.",
+  "social.profileDescription":"Профиль {name} в сообществе AniCast: публичные коллекции и рецензии.",
 });
 
 Object.assign(en, {
@@ -152,6 +170,24 @@ Object.assign(en, {
   "visits.label":"Site visit statistics",
   "visits.total":"visits",
   "visits.today":"today",
+  "social.eyebrow":"ANICAST COMMUNITY",
+  "social.settingsTitle":"Public profile",
+  "social.settingsDescription":"Choose your community name and short bio. Your profile appears only after you explicitly make it public.",
+  "social.displayName":"Community name",
+  "social.bio":"About you",
+  "social.bioPlaceholder":"For example: favorite genres, studios and stories you enjoy discussing.",
+  "social.publicProfile":"Show my public profile",
+  "social.publicProfileHint":"Only your name, bio, approved reviews and collections you explicitly made public will be visible.",
+  "social.profileSaved":"Profile saved",
+  "social.openProfile":"Open profile",
+  "social.publicBadge":"PUBLIC PROFILE",
+  "social.collections":"Collections",
+  "social.reviews":"Reviews",
+  "social.publicCollections":"Public collections",
+  "social.publishedReviews":"Published reviews",
+  "social.noPublicCollections":"No public collections yet.",
+  "social.noPublishedReviews":"No published reviews yet.",
+  "social.profileDescription":"{name}'s AniCast community profile, public collections and reviews.",
 });
 
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };

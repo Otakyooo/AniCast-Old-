@@ -513,6 +513,7 @@ def test_collection_crud_is_authenticated_and_owner_scoped(users):
     assert created.json()["owner"] == {
         "public_id": str(users[0].public_id),
         "display_name": users[0].display_name,
+        "profile_is_public": False,
     }
     assert "email" not in created.json()["owner"]
     updated = owner.patch(
@@ -572,7 +573,11 @@ def test_public_collection_visibility_cache_and_payload_safety(users, titles):
     assert response.status_code == 200
     assert response["Cache-Control"] == "no-store"
     payload = response.json()
-    assert payload["owner"] == {"public_id": str(users[0].public_id), "display_name": "Collector"}
+    assert payload["owner"] == {
+        "public_id": str(users[0].public_id),
+        "display_name": "Collector",
+        "profile_is_public": False,
+    }
     assert "email" not in str(payload)
     assert set(payload["items"][0]["title"]) == {
         "name", "slug", "original_name", "synopsis", "title_type", "status", "year", "poster_url", "genres", "franchise",

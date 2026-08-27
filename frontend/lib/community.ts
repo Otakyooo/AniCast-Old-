@@ -1,6 +1,6 @@
 import { getCsrfToken } from "./auth";
 
-export interface Review { id:number; title:{name:string;slug:string}; author_name:string; body:string; contains_spoilers:boolean; published_at:string|null; updated_at:string; status?:string; moderation_note?:string }
+export interface Review { id:number; title:{name:string;slug:string}; author_name:string; author_public_id:string|null; body:string; contains_spoilers:boolean; published_at:string|null; updated_at:string; status?:string; moderation_note?:string }
 export interface CommunitySummary { average_rating:number|null; rating_count:number; reviews:Review[]; my_rating:{value:number}|null; my_review:Review|null }
 
 export async function getCommunitySummary(slug:string) {

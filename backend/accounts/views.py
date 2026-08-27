@@ -15,7 +15,13 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
 from .models import ExternalIdentity, TelegramLoginChallenge, User
-from .serializers import LoginSerializer, RegisterSerializer, UserPreferencesSerializer, UserSerializer
+from .serializers import (
+    LoginSerializer,
+    PublicProfileUpdateSerializer,
+    RegisterSerializer,
+    UserPreferencesSerializer,
+    UserSerializer,
+)
 from .telegram_bot import create_challenge_token, hash_secret, valid_challenge_token
 
 
@@ -163,6 +169,18 @@ def account_summary(request):
 @permission_classes([IsAuthenticated])
 def user_preferences(request):
     serializer = UserPreferencesSerializer(request.user, data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(UserSerializer(request.user).data)
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def profile_settings(request):
+    if request.method == "GET":
+        return Response(UserSerializer(request.user).data)
+    enforce_csrf(request)
+    serializer = PublicProfileUpdateSerializer(request.user, data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.save()
     return Response(UserSerializer(request.user).data)

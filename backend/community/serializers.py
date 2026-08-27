@@ -17,14 +17,21 @@ class RatingWriteSerializer(serializers.Serializer):
 
 class PublicReviewSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
+    author_public_id = serializers.SerializerMethodField()
     title = ScheduleTitleSerializer(read_only=True)
 
     def get_author_name(self, obj):
         return obj.user.display_name or f"AniCast #{obj.user_id}"
 
+    def get_author_public_id(self, obj):
+        return str(obj.user.public_id) if obj.user.profile_is_public else None
+
     class Meta:
         model = TitleReview
-        fields = ["id", "title", "author_name", "body", "contains_spoilers", "published_at", "updated_at"]
+        fields = [
+            "id", "title", "author_name", "author_public_id", "body",
+            "contains_spoilers", "published_at", "updated_at",
+        ]
 
 
 class PrivateReviewSerializer(PublicReviewSerializer):

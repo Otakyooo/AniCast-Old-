@@ -1,4 +1,4 @@
-from django.db.models import Avg
+from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -8,6 +8,9 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from catalog.models import Title
+from catalog.serializers import TitleSerializer
+from accounts.models import User
+from library.models import TitleCollection, TitleCollectionItem
 
 from .models import TitleRating, TitleReview
 from .serializers import (
@@ -59,6 +62,65 @@ class PublicReviewListView(ListAPIView):
         if slug := self.request.query_params.get("title", "").strip():
             queryset = queryset.filter(title__slug=slug)
         return queryset
+
+
+class PublicProfileView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    def get(self, request, public_id):
+        user = get_object_or_404(User, public_id=public_id, profile_is_public=True, is_active=True)
+        collections = list(
+            TitleCollection.objects.filter(owner=user, is_public=True)
+            .annotate(item_count=Count("items"))
+            .order_by("-updated_at", "-id")[:12]
+        )
+        collection_ids = [collection.id for collection in collections]
+        preview_items: dict[int, list[dict]] = {collection_id: [] for collection_id in collection_ids}
+        if collection_ids:
+            items = (
+                TitleCollectionItem.objects.filter(collection_id__in=collection_ids, position__lt=4)
+                .select_related("title", "title__franchise")
+                .prefetch_related("title__translations", "title__franchise__translations", "title__genres__translations")
+                .order_by("collection_id", "position", "id")
+            )
+            for item in items:
+                preview_items[item.collection_id].append(
+                    TitleSerializer(item.title, context={"request": request}).data
+                )
+        reviews = (
+            TitleReview.objects.filter(user=user, status=TitleReview.Status.APPROVED)
+            .select_related("user", "title")
+            .prefetch_related("title__translations")[:10]
+        )
+        return Response({
+            "profile": {
+                "public_id": str(user.public_id),
+                "display_name": user.display_name,
+                "bio": user.bio,
+            },
+            "stats": {
+                "collections": TitleCollection.objects.filter(owner=user, is_public=True).count(),
+                "reviews": TitleReview.objects.filter(user=user, status=TitleReview.Status.APPROVED).count(),
+            },
+            "collections": [
+                {
+                    "name": collection.name,
+                    "slug": collection.slug,
+                    "description": collection.description,
+                    "item_count": collection.item_count,
+                    "preview_titles": preview_items[collection.id],
+                    "updated_at": collection.updated_at,
+                }
+                for collection in collections
+            ],
+            "reviews": PublicReviewSerializer(reviews, many=True, context={"request": request}).data,
+        })
 
 
 class RatingView(APIView):

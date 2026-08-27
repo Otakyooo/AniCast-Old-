@@ -110,6 +110,45 @@ def test_user_public_ids_are_stable_unique_uuids():
 
 
 @pytest.mark.django_db
+def test_public_profile_settings_are_opt_in_and_csrf_protected():
+    user = User.objects.create_user(
+        email="social-profile@example.com",
+        password="A-strong-passphrase-2042",
+        display_name="Social Viewer",
+    )
+    checked = APIClient(enforce_csrf_checks=True)
+    checked.force_login(user)
+    payload = {
+        "display_name": "Social Viewer",
+        "bio": "Люблю научную фантастику и спокойные повседневные истории.",
+        "profile_is_public": True,
+    }
+    assert checked.put("/api/v1/account/profile/", payload, format="json").status_code == 403
+    token = checked.get("/api/v1/auth/csrf/").json()["csrfToken"]
+    response = checked.put("/api/v1/account/profile/", payload, format="json", HTTP_X_CSRFTOKEN=token)
+    assert response.status_code == 200
+    assert response.json()["profile_is_public"] is True
+    assert response.json()["bio"].startswith("Люблю")
+    assert response.json()["public_id"] == str(user.public_id)
+    user.refresh_from_db()
+    assert user.profile_is_public is True
+
+
+@pytest.mark.django_db
+def test_public_profile_requires_a_display_name():
+    user = User.objects.create_user(email="unnamed-profile@example.com", password="A-strong-passphrase-2042")
+    client = APIClient()
+    client.force_login(user)
+    response = client.put(
+        "/api/v1/account/profile/",
+        {"display_name": "", "bio": "", "profile_is_public": True},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "display_name" in response.json()
+
+
+@pytest.mark.django_db
 def test_account_summary_counts_personal_data():
     from catalog.models import Genre, Title
     from community.models import TitleRating

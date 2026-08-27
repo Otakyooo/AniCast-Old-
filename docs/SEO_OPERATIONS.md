@@ -14,6 +14,7 @@ SEO для AniCast — это управляемый цикл «доступно
 | `/`, `/catalog`, `/catalog?page=N`, `/schedule`, `/community`, `/media` | `index, follow`, self-canonical | Самостоятельные публичные страницы |
 | `/titles/<slug>`, `/characters/<slug>` | `index, follow`, self-canonical | Основной энциклопедический контент |
 | `/collections/<owner>/<slug>` | `index, follow`, self-canonical | Публичная авторская подборка с SSR-контентом |
+| `/users/<public_id>` | `index, follow`, self-canonical | Только явно включённый публичный профиль с SSR-коллекциями и рецензиями |
 | Поиск, сортировка и фильтры `/catalog?...` | `noindex, follow`, canonical на `/catalog` | Не создавать индекс из комбинаций фасетов |
 | Архивные недели `/schedule?week=...` | `noindex, follow`, canonical на `/schedule` | Не создавать бесконечный календарь |
 | Watch и отдельные эпизоды | `noindex, follow`, canonical на тайтл | Дублируют основную карточку тайтла |

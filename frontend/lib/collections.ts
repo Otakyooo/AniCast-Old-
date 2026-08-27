@@ -5,6 +5,7 @@ import { getCsrfToken } from "./auth";
 export interface CollectionOwner {
   public_id: string;
   display_name: string;
+  profile_is_public: boolean;
 }
 
 export interface CollectionItem {
