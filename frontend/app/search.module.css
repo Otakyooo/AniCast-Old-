@@ -95,6 +95,15 @@
   min-width: 0;
 }
 
+.aliases {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rowBody strong {
   overflow: hidden;
   font-size: 14px;

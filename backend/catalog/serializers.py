@@ -84,6 +84,7 @@ class TitleSerializer(serializers.ModelSerializer):
     synopsis = serializers.SerializerMethodField()
     rating_average = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
+    localized_names = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
@@ -100,12 +101,28 @@ class TitleSerializer(serializers.ModelSerializer):
     def get_rating_count(self, obj):
         return getattr(obj, "rating_count", None)
 
+    def get_localized_names(self, obj):
+        """Stable RU/EN/JA names independent from the request locale.
+
+        The localized ``name`` field remains backwards compatible, while title
+        pages and search suggestions can now show exactly which aliases are
+        available. Empty languages are omitted; equal official spellings stay
+        present under their own language labels.
+        """
+        translations = {item.language: item.name.strip() for item in obj.translations.all() if item.name.strip()}
+        candidates = (
+            ("ru", translations.get("ru", "")),
+            ("en", translations.get("en", "") or obj.name.strip()),
+            ("ja", translations.get("ja", "") or obj.original_name.strip()),
+        )
+        return {language: value for language, value in candidates if value}
+
     class Meta:
         model = Title
         fields = [
             "name", "slug", "original_name", "synopsis", "title_type", "status",
             "year", "poster_url", "genres", "franchise",
-            "rating_average", "rating_count",
+            "rating_average", "rating_count", "localized_names",
         ]
 
 
@@ -115,9 +132,10 @@ class TitleDetailSerializer(TitleSerializer):
     characters = serializers.SerializerMethodField()
     credits = serializers.SerializerMethodField()
     related_titles = serializers.SerializerMethodField()
+    characters_count = serializers.SerializerMethodField()
 
     class Meta(TitleSerializer.Meta):
-        fields = TitleSerializer.Meta.fields + ["duration_minutes", "episodes", "episodes_count", "characters", "credits", "related_titles"]
+        fields = TitleSerializer.Meta.fields + ["duration_minutes", "episodes", "episodes_count", "characters", "characters_count", "credits", "related_titles"]
 
     def get_episodes(self, obj):
         from .playback import playback_sources_prefetch
@@ -138,7 +156,15 @@ class TitleDetailSerializer(TitleSerializer):
         return count if count is not None else obj.episodes.count()
 
     def get_characters(self, obj):
-        return TitleCharacterSerializer(obj.character_links.all(), many=True, context=self.context).data
+        links = obj.character_links.all()
+        paginator = self.context.get("characters_paginator")
+        if paginator is not None:
+            links = paginator.paginate_queryset(links, self.context["request"])
+        return TitleCharacterSerializer(links, many=True, context=self.context).data
+
+    def get_characters_count(self, obj):
+        count = getattr(obj, "characters_count", None)
+        return count if count is not None else obj.character_links.count()
 
     def get_credits(self, obj):
         return [

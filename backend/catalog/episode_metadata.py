@@ -1,4 +1,6 @@
 import re
+import json
+import subprocess
 import time
 from dataclasses import dataclass
 from datetime import date
@@ -12,6 +14,7 @@ from .models import Episode, EpisodeTranslation, Title
 
 MAL_ID = re.compile(r"^(\d+)-")
 MAX_PAGES = 25
+ANIZIP_URL = "https://api.ani.zip/mappings?mal_id={mal_id}"
 
 
 class EpisodeMetadataError(RuntimeError):
@@ -58,6 +61,45 @@ def _page(mal_id: int, page: int) -> dict:
     raise EpisodeMetadataError("Jikan episode request failed")
 
 
+def _anizip_rows(mal_id: int) -> list[dict]:
+    """Normalize the ani.zip mapping fallback to Jikan's episode shape.
+
+    ani.zip exposes TVDB-derived dates and multilingual episode titles in one
+    bounded response. It is used only when Jikan is unavailable, so the normal
+    MAL path and its pagination semantics stay unchanged.
+    """
+    try:
+        result = subprocess.run(
+            ["curl", "-sSL", "--fail", "--max-time", "30", "--max-filesize", "20971520", ANIZIP_URL.format(mal_id=mal_id)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        raise EpisodeMetadataError("Episode metadata providers are unavailable") from error
+    episodes = payload.get("episodes") if isinstance(payload, dict) else None
+    if not isinstance(episodes, dict):
+        raise EpisodeMetadataError("ani.zip episode response schema is invalid")
+    rows = []
+    for raw_number, item in episodes.items():
+        if not isinstance(item, dict):
+            continue
+        try:
+            number = int(item.get("absoluteEpisodeNumber") or raw_number)
+        except (TypeError, ValueError):
+            continue
+        titles = item.get("title") if isinstance(item.get("title"), dict) else {}
+        rows.append({
+            "mal_id": number,
+            "title": titles.get("en") or titles.get("x-jat") or "",
+            "title_japanese": titles.get("ja") or "",
+            "title_russian": titles.get("ru") or "",
+            "aired": item.get("airDateUtc") or item.get("airDate"),
+        })
+    return rows
+
+
 def _fill_translation(episode: Episode, language: str, name: str) -> bool:
     if not name:
         return False
@@ -80,18 +122,23 @@ def sync_title_episode_metadata(title: Title, *, max_pages: int = MAX_PAGES) -> 
     if not 1 <= max_pages <= MAX_PAGES:
         raise ValueError(f"max_pages must be between 1 and {MAX_PAGES}")
 
+    mal_id = int(match.group(1))
     rows: list[dict] = []
     page_number = 1
-    while page_number <= max_pages:
-        payload = _page(int(match.group(1)), page_number)
-        rows.extend(row for row in payload["data"] if isinstance(row, dict))
-        pagination = payload.get("pagination") or {}
-        if not pagination.get("has_next_page"):
-            break
-        page_number += 1
-    else:
-        if (payload.get("pagination") or {}).get("has_next_page"):
-            raise EpisodeMetadataError("Jikan episode pagination exceeds the safety limit")
+    try:
+        while page_number <= max_pages:
+            payload = _page(mal_id, page_number)
+            rows.extend(row for row in payload["data"] if isinstance(row, dict))
+            pagination = payload.get("pagination") or {}
+            if not pagination.get("has_next_page"):
+                break
+            page_number += 1
+        else:
+            if (payload.get("pagination") or {}).get("has_next_page"):
+                raise EpisodeMetadataError("Jikan episode pagination exceeds the safety limit")
+    except EpisodeMetadataError:
+        rows = _anizip_rows(mal_id)
+        page_number = 1
 
     result = EpisodeMetadataResult(title=title.slug, pages=page_number)
     with transaction.atomic():
@@ -108,6 +155,7 @@ def sync_title_episode_metadata(title: Title, *, max_pages: int = MAX_PAGES) -> 
 
             english = _clean_name(row.get("title")) or _clean_name(row.get("title_romanji"))
             japanese = _clean_name(row.get("title_japanese"))
+            russian = _clean_name(row.get("title_russian"))
             update_fields: list[str] = []
             if not episode.name and english:
                 episode.name = english
@@ -123,5 +171,6 @@ def sync_title_episode_metadata(title: Title, *, max_pages: int = MAX_PAGES) -> 
                 episode.save(update_fields=update_fields)
             _fill_translation(episode, "en", english)
             _fill_translation(episode, "ja", japanese)
+            _fill_translation(episode, "ru", russian)
             result.episodes += 1
     return result

@@ -581,7 +581,7 @@ def test_public_collection_visibility_cache_and_payload_safety(users, titles):
     assert "email" not in str(payload)
     assert set(payload["items"][0]["title"]) == {
         "name", "slug", "original_name", "synopsis", "title_type", "status", "year", "poster_url", "genres", "franchise",
-        "rating_average", "rating_count"
+            "rating_average", "rating_count", "localized_names"
     }
     assert not {"episodes", "sources", "playback", "user", "id"} & set(payload["items"][0]["title"])
 

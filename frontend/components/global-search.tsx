@@ -267,6 +267,14 @@ export function GlobalSearch() {
                           </span>
                           <span className={styles.rowBody}>
                             <strong>{item.name}</strong>
+                            {item.localized_names && (
+                              <span className={styles.aliases}>
+                                {Object.entries(item.localized_names)
+                                  .filter(([, name]) => name && name !== item.name)
+                                  .map(([language, name]) => `${language.toUpperCase()} ${name}`)
+                                  .join(" · ")}
+                              </span>
+                            )}
                             <small>
                               {item.year ?? t("year.unknown")}
                               {item.title_type ? ` · ${t(`type.${item.title_type}`)}` : ""}

@@ -101,6 +101,7 @@ CELERY_TASK_ROUTES = {
     "catalog.tasks.refresh_title_posters": {"queue": "posters"},
     "catalog.tasks.sync_kodik_library": {"queue": "providers"},
     "catalog.tasks.sync_episode_metadata_library": {"queue": "providers"},
+    "catalog.tasks.sync_character_library": {"queue": "providers"},
     "common.tasks.probe_site_availability": {"queue": "default"},
 }
 CELERY_TASK_SOFT_TIME_LIMIT = 540
@@ -137,6 +138,10 @@ CELERY_BEAT_SCHEDULE = {
     "sync-episode-metadata-library": {
         "task": "catalog.tasks.sync_episode_metadata_library",
         "schedule": 900.0,
+    },
+    "sync-character-library": {
+        "task": "catalog.tasks.sync_character_library",
+        "schedule": 3600.0,
     },
     "probe-site-availability": {
         "task": "common.tasks.probe_site_availability",

@@ -678,6 +678,11 @@ def test_catalog_localizes_content_and_searches_translations(catalog_data):
 
     russian = APIClient().get("/api/v1/titles/sky-test/")
     assert russian.json()["name"] == "Небесный тест"
+    assert russian.json()["localized_names"] == {
+        "ru": "Небесный тест",
+        "en": "Sky Test",
+        "ja": "Sky Test Original",
+    }
     assert russian.json()["genres"][0]["name"] == "Экшен"
     assert russian.json()["franchise"]["name"] == "Тестовая франшиза"
     assert russian.json()["episodes"][0]["name"] == "Начало"

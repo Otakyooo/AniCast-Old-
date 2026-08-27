@@ -119,41 +119,66 @@ export function WatchSpace({
     router.replace(episodeHref(slug, currentNumber, key), { scroll: false });
   }
 
+  const player = chosen?.playback_mode === "iframe_embed" ? (
+    <ProviderPlayer
+      key={chosen.id}
+      sourceId={chosen.id}
+      playbackMode={chosen.playback_mode}
+      title={`${selectedName} · ${t("episode.number", { number: currentNumber })}`}
+    />
+  ) : chosen ? (
+    <section className={`${styles.playerShell} ${styles.playerPreview}`}>
+      <div className={styles.playerBar}>
+        <strong>{selectedName} · {t("episode.number", { number: currentNumber })}</strong>
+        <span>{kindLabel(chosen.kind)}</span>
+      </div>
+      <div className={styles.playerPreviewBody}>
+        <PlaybackLink
+          sourceId={chosen.id}
+          playbackMode={chosen.playback_mode}
+          label={t("watch.playEpisode", { number: currentNumber })}
+          className={styles.playerLaunch}
+        />
+      </div>
+    </section>
+  ) : (
+    <div className={styles.watchEmpty}>
+      <strong>{t("watch.noPlayer")}</strong>
+      <span>{t("watch.chooseAvailableEpisode")}</span>
+    </div>
+  );
+
   return (
     <div className={styles.watchLayout}>
       <header className={styles.watchHead}>
         <p className="eyebrow">{t("watch.title")} · {t("episode.number", { number: episode.number })}</p>
-        <h1>{episode.name || titleName}</h1>
+        <h1>{titleName}</h1>
+        {episode.name && <p>{episode.name}</p>}
       </header>
 
-      {chosen?.playback_mode === "iframe_embed" ? (
-        <ProviderPlayer
-          key={chosen.id}
-          sourceId={chosen.id}
-          playbackMode={chosen.playback_mode}
-          title={`${selectedName} · ${t("episode.number", { number: currentNumber })}`}
-        />
-      ) : chosen ? (
-        <section className={`${styles.playerShell} ${styles.playerPreview}`}>
-          <div className={styles.playerBar}>
-            <strong>{selectedName} · {t("episode.number", { number: currentNumber })}</strong>
-            <span>{kindLabel(chosen.kind)}</span>
+      <div className={styles.watchStage}>
+        <div className={styles.watchPlayer}>{player}</div>
+        <aside className={styles.voiceRail} aria-label={t("watch.voice")}>
+          <div className={styles.voiceRailHead}>
+            <strong>{t("watch.voice")}</strong>
+            <span>{groups.length}</span>
           </div>
-          <div className={styles.playerPreviewBody}>
-            <PlaybackLink
-              sourceId={chosen.id}
-              playbackMode={chosen.playback_mode}
-              label={t("watch.playEpisode", { number: currentNumber })}
-              className={styles.playerLaunch}
-            />
+          <div className={styles.voiceList}>
+            {groups.map((group) => (
+              <button
+                className={`${styles.voiceButton} ${group.key === selectedGroupKey ? styles.voiceButtonActive : ""}`}
+                key={group.key}
+                type="button"
+                onClick={() => chooseGroup(group.key)}
+              >
+                <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
+                <span>{kindLabel(group.kind)} · {t("watch.episodeCount", { count: group.episodes_count })}</span>
+              </button>
+            ))}
+            {!groups.length && <p className="muted">{t("watch.noVoice")}</p>}
           </div>
-        </section>
-      ) : (
-        <div className={styles.watchEmpty}>
-          <strong>{t("watch.noPlayer")}</strong>
-          <span>{t("watch.chooseAvailableEpisode")}</span>
-        </div>
-      )}
+        </aside>
+      </div>
 
       <EpisodeProgressControl slug={slug} number={episode.number} compact />
 

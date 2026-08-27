@@ -59,7 +59,11 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
 
     batch_limit = max(1, min(int(limit), 3))
     cursor = int(cache.get("catalog:episode-metadata-cursor", 0) or 0)
-    candidates = Title.objects.filter(episodes__name="").distinct()
+    from django.db.models import Q
+
+    candidates = Title.objects.filter(
+        Q(episodes__name="") | Q(episodes__air_date__isnull=True, episodes__air_at__isnull=True)
+    ).distinct()
     titles = list(candidates.filter(id__gt=cursor).order_by("id")[:batch_limit])
     if not titles:
         cursor = 0
@@ -81,6 +85,36 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
     logger.info("Episode metadata slice synchronized", extra={
         "event": "episode_metadata_sync_completed", **totals,
     })
+    return totals
+
+
+@shared_task(soft_time_limit=480, time_limit=520)
+def sync_character_library(limit: int = 5) -> dict[str, int]:
+    """Converge truncated legacy cast lists to Shikimori's complete roles."""
+    from django.core.cache import cache
+
+    from .character_sync import CharacterSyncError, sync_title_characters
+    from .models import Title
+
+    batch_limit = max(1, min(int(limit), 10))
+    cursor = int(cache.get("catalog:character-sync-cursor", 0) or 0)
+    titles = list(Title.objects.filter(id__gt=cursor).order_by("id")[:batch_limit])
+    if not titles:
+        cursor = 0
+        titles = list(Title.objects.order_by("id")[:batch_limit])
+    totals = {"titles": 0, "failed": 0, "discovered": 0, "created": 0, "linked": 0}
+    for title in titles:
+        try:
+            result = sync_title_characters(title)
+        except (CharacterSyncError, OSError, ValueError):
+            totals["failed"] += 1
+            logger.exception("Character sync failed", extra={"event": "character_sync_failed", "title_id": title.id})
+            continue
+        totals["titles"] += 1
+        for key in ("discovered", "created", "linked"):
+            totals[key] += getattr(result, key)
+    cache.set("catalog:character-sync-cursor", titles[-1].id if titles else cursor, timeout=None)
+    logger.info("Character slice synchronized", extra={"event": "character_sync_completed", **totals})
     return totals
 
 

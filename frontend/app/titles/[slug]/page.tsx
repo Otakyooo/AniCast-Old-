@@ -85,7 +85,8 @@ function TitleJsonLd({ item }: { item: CatalogItem }) {
     name: item.name,
     url: absoluteUrl(`/titles/${item.slug}`),
   };
-  if (item.original_name) data.alternateName = item.original_name;
+  const alternateNames = Object.values(item.localized_names ?? {}).filter((name) => name && name !== item.name);
+  if (alternateNames.length) data.alternateName = alternateNames;
   if (item.synopsis) data.description = metaDescription(item.synopsis, "", 5000);
   if (item.poster_url) data.image = absoluteUrl(item.poster_url);
   if (item.year) data.datePublished = String(item.year);
@@ -186,12 +187,14 @@ export default async function CatalogDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ episodes_page?: string; tab?: string }>;
+  searchParams: Promise<{ episodes_page?: string; characters_page?: string; tab?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const rawCharactersPage = Number(query.characters_page);
+  const charactersPage = Number.isInteger(rawCharactersPage) && rawCharactersPage > 0 ? rawCharactersPage : 1;
   // An existing `?episodes_page=` link must still land on the episode list, so
   // pagination implies the episodes tab when no explicit tab is requested.
   const tab: Tab = isTab(query.tab) ? query.tab : query.episodes_page ? "episodes" : "overview";
@@ -199,7 +202,7 @@ export default async function CatalogDetailPage({
   let item;
   let episodesPage = requestedPage;
   try {
-    item = await getCatalogItemEpisodes(slug, requestedPage);
+    item = await getCatalogItemEpisodes(slug, requestedPage, 20, tab === "characters" ? charactersPage : undefined);
   } catch (error) {
     if (apiErrorStatus(error) !== 404) return <ApiUnavailableState />;
     // The API answers 404 both for a missing title and for an episode page past
@@ -207,7 +210,7 @@ export default async function CatalogDetailPage({
     // of claiming the title does not exist.
     if (requestedPage === 1) notFound();
     try {
-      item = await getCatalogItemEpisodes(slug, 1);
+      item = await getCatalogItemEpisodes(slug, 1, 20, tab === "characters" ? 1 : undefined);
       episodesPage = 1;
     } catch (retryError) {
       if (apiErrorStatus(retryError) === 404) notFound();
@@ -220,7 +223,10 @@ export default async function CatalogDetailPage({
   const pageCount = Math.max(1, Math.ceil(episodesCount / 20));
   const genres = item.genres ?? [];
   const cast = item.characters ?? [];
+  const castCount = item.characters_count ?? cast.length;
+  const castPageCount = Math.max(1, Math.ceil(castCount / 60));
   const credits = item.credits ?? [];
+  const mainCredits = credits.filter((credit) => credit.role === "director" || credit.role === "writer" || credit.role === "producer").slice(0, 6);
   const relatedTitles = item.related_titles ?? [];
   // Main characters for the overview: heroes and antagonists only.
   const mainCast = cast
@@ -281,8 +287,14 @@ export default async function CatalogDetailPage({
         </div>
         <div className={styles.heroCopy}>
           <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
-          <h1 className={styles.heroTitle}>{item.name}</h1>
-          {item.original_name && <p className={styles.heroOriginal}>{item.original_name}</p>}
+          <div className={styles.titleNames}>
+            {(Object.entries(item.localized_names ?? { ru: item.name, ja: item.original_name ?? "" }) as Array<[string, string]>).filter(([, name]) => name).map(([language, name], index) => (
+              <div className={index === 0 ? styles.titleNamePrimary : styles.titleNameSecondary} key={language}>
+                <span>{language.toUpperCase()}</span>
+                {index === 0 ? <h1 className={styles.heroTitle}>{name}</h1> : <p className={styles.heroOriginal}>{name}</p>}
+              </div>
+            ))}
+          </div>
           <div className={styles.heroMeta}>
             {rating && (
               <Link
@@ -322,7 +334,7 @@ export default async function CatalogDetailPage({
           >
             {tabLabel[value]}
             {value === "episodes" && episodesCount > 0 && <span className={styles.tabCount}>{episodesCount}</span>}
-            {value === "characters" && cast.length + credits.length > 0 && <span className={styles.tabCount}>{cast.length + credits.length}</span>}
+            {value === "characters" && castCount + credits.length > 0 && <span className={styles.tabCount}>{castCount + credits.length}</span>}
           </Link>
         ))}
       </nav>
@@ -333,6 +345,22 @@ export default async function CatalogDetailPage({
             <h2>{t("title.description")}</h2>
             <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
           </section>
+          {mainCredits.length > 0 && (
+            <section className={styles.block}>
+              <div className="section-heading">
+                <h2>{t("title.authorsMain")}</h2>
+                {credits.length > mainCredits.length && <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.peopleAll")}</Link>}
+              </div>
+              <div className={styles.creditGrid}>
+                {mainCredits.map((credit) => (
+                  <div className={styles.creditCard} key={`${credit.role}-${credit.creator.slug}`}>
+                    <span className={styles.creditInitial} aria-hidden="true">{credit.creator.name.slice(0, 1)}</span>
+                    <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           <section className={styles.block}>
             <h2>{t("title.details")}</h2>
             {/* Only facts the hero chips do not already show: runtime, franchise
@@ -432,6 +460,13 @@ export default async function CatalogDetailPage({
                 {cast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
               </div>
             ) : <p className="muted">{t("title.noCast")}</p>}
+            {castPageCount > 1 && (
+              <nav className="episode-pagination" aria-label={t("title.characters")}>
+                {charactersPage > 1 ? <Link className="secondary" href={`/titles/${item.slug}?tab=characters&characters_page=${charactersPage - 1}`}>{t("common.back")}</Link> : <span />}
+                <span>{t("catalog.page", { current: charactersPage, total: castPageCount })} · {castCount}</span>
+                {charactersPage < castPageCount ? <Link className="secondary" href={`/titles/${item.slug}?tab=characters&characters_page=${charactersPage + 1}`}>{t("common.next")}</Link> : <span />}
+              </nav>
+            )}
           </section>
           <section className={styles.block}>
             <h2>{t("title.authors")}</h2>

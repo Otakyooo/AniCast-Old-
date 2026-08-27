@@ -120,11 +120,21 @@ class EpisodePagination(PageNumberPagination):
     max_page_size = 50
 
 
+class CharacterPagination(PageNumberPagination):
+    page_size = 60
+    page_query_param = "characters_page"
+    page_size_query_param = "characters_page_size"
+    max_page_size = 100
+
+
 class TitleDetailView(RetrieveAPIView):
     # Episodes are fetched by the serializer as a paginated queryset, so the
     # detail view never loads the full episode list of a long-running series.
     queryset = annotate_rating_aggregates(
-        Title.objects.annotate(episodes_count=Count("episodes")).select_related(
+        Title.objects.annotate(
+            episodes_count=Count("episodes", distinct=True),
+            characters_count=Count("character_links", distinct=True),
+        ).select_related(
             "franchise"
         )
     ).prefetch_related(
@@ -143,6 +153,7 @@ class TitleDetailView(RetrieveAPIView):
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
     episode_page_params = ("episodes_page", "episodes_page_size")
+    character_page_params = ("characters_page", "characters_page_size")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -150,6 +161,8 @@ class TitleDetailView(RetrieveAPIView):
         # full embedded list, keeps working during an expand/contract rollout.
         if any(param in self.request.query_params for param in self.episode_page_params):
             context["episodes_paginator"] = EpisodePagination()
+        if any(param in self.request.query_params for param in self.character_page_params):
+            context["characters_paginator"] = CharacterPagination()
         return context
 
 

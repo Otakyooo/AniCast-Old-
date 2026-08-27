@@ -75,6 +75,7 @@ export interface CatalogItem {
   name: string;
   poster_url?: string | null;
   original_name?: string | null;
+  localized_names?: Partial<Record<"ru" | "en" | "ja", string>>;
   synopsis?: string | null;
   status?: CatalogStatus | null;
   year?: number | null;
@@ -84,6 +85,7 @@ export interface CatalogItem {
   episodes?: Episode[];
   episodes_count?: number;
   characters?: TitleCastEntry[];
+  characters_count?: number;
   credits?: TitleCreditEntry[];
   related_titles?: CatalogItem[];
   duration_minutes?: number | null;
@@ -256,9 +258,14 @@ export async function getCatalogItem(slug: string): Promise<CatalogItem> {
 export async function getCatalogItemEpisodes(
   slug: string,
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  charactersPage?: number,
 ): Promise<CatalogItem> {
   const query = new URLSearchParams({ episodes_page: String(page), episodes_page_size: String(pageSize) });
+  if (charactersPage) {
+    query.set("characters_page", String(charactersPage));
+    query.set("characters_page_size", "60");
+  }
   return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, revalidated(60));
 }
 

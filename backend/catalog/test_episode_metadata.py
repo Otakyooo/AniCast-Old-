@@ -2,7 +2,7 @@ from datetime import datetime, timezone as datetime_timezone
 
 import pytest
 
-from catalog.episode_metadata import sync_title_episode_metadata
+from catalog.episode_metadata import EpisodeMetadataError, sync_title_episode_metadata
 from catalog.models import Episode, EpisodeTranslation, Title
 
 
@@ -71,3 +71,27 @@ def test_episode_metadata_follows_bounded_pagination(monkeypatch):
     result = sync_title_episode_metadata(title)
     assert result.pages == 2
     assert list(title.episodes.values_list("number", "name")) == [(1, "Episode 1"), (2, "Episode 2")]
+
+
+@pytest.mark.django_db
+def test_episode_metadata_falls_back_to_anizip(monkeypatch):
+    title = Title.objects.create(name="Fallback", slug="21-fallback")
+    Episode.objects.create(title=title, number=1)
+
+    monkeypatch.setattr("catalog.episode_metadata._anizip_rows", lambda mal_id: [{
+        "mal_id": 1,
+        "title": "I'm Luffy!",
+        "title_japanese": "俺はルフィ!",
+        "title_russian": "Я — Луффи!",
+        "aired": "1999-10-20",
+    }])
+
+    monkeypatch.setattr(
+        "catalog.episode_metadata._page",
+        lambda mal_id, page: (_ for _ in ()).throw(EpisodeMetadataError("timeout")),
+    )
+    result = sync_title_episode_metadata(title)
+    episode = title.episodes.get(number=1)
+    assert result.dated == 1
+    assert episode.air_date.isoformat() == "1999-10-20"
+    assert EpisodeTranslation.objects.get(episode=episode, language="ru").name == "Я — Луффи!"
