@@ -7,10 +7,10 @@ from catalog.models import CharacterTranslation, Title
 @pytest.mark.django_db
 def test_character_sync_imports_full_role_list_without_detail_requests(monkeypatch):
     title = Title.objects.create(name="One", slug="21-one")
-    monkeypatch.setattr("catalog.character_sync.graphql_post", lambda query: {"data": {"animes": [{"characterRoles": [
+    monkeypatch.setattr("catalog.character_sync._character_roles", lambda anime_id: [
         {"rolesEn": ["Main"], "character": {"id": "40", "name": "Luffy", "russian": "Луффи"}},
         {"rolesEn": ["Supporting"], "character": {"id": "723", "name": "Nami", "russian": "Нами"}},
-    ]}]}})
+    ])
 
     result = sync_title_characters(title)
     assert result.discovered == 2

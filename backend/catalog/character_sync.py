@@ -1,10 +1,11 @@
 import re
+import json
+import subprocess
 from dataclasses import dataclass
 
 from django.db import transaction
 from django.utils.text import slugify
 
-from .management.commands.fetch_shikimori import graphql_post
 from .models import Character, CharacterTranslation, Title, TitleCharacter
 
 
@@ -23,6 +24,31 @@ class CharacterSyncResult:
     linked: int = 0
 
 
+def _character_roles(anime_id: int) -> list[dict]:
+    query = '{animes(ids:"' + str(anime_id) + '"){characterRoles{rolesEn character{id name russian}}}}'
+    try:
+        result = subprocess.run(
+            [
+                "curl", "-sSL", "--fail", "--max-time", "45", "--max-filesize", "20971520",
+                "-H", "User-Agent: AniCast/1.0 (catalog metadata import)",
+                "-H", "Content-Type: application/json",
+                "--data-binary", json.dumps({"query": query}),
+                "https://shikimori.io/api/graphql",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        response = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        raise CharacterSyncError("Shikimori character request failed") from error
+    anime = (((response.get("data") or {}).get("animes") or [None])[0]) if isinstance(response, dict) else None
+    rows = anime.get("characterRoles") if isinstance(anime, dict) else None
+    if not isinstance(rows, list):
+        raise CharacterSyncError("Shikimori character response schema is invalid")
+    return rows
+
+
 def _slug(character_id: int, name: str) -> str:
     return f"{character_id}-{slugify(name) or 'character'}"[:110]
 
@@ -33,13 +59,7 @@ def sync_title_characters(title: Title) -> CharacterSyncResult:
     if match is None:
         raise ValueError("Title slug does not contain a MyAnimeList id")
     anime_id = int(match.group(1))
-    response = graphql_post(
-        '{animes(ids:"' + str(anime_id) + '"){characterRoles{rolesEn character{id name russian}}}}'
-    )
-    anime = (((response.get("data") or {}).get("animes") or [None])[0]) if isinstance(response, dict) else None
-    rows = anime.get("characterRoles") if isinstance(anime, dict) else None
-    if not isinstance(rows, list):
-        raise CharacterSyncError("Shikimori character response schema is invalid")
+    rows = _character_roles(anime_id)
 
     result = CharacterSyncResult(title=title.slug, discovered=len(rows))
     for position, row in enumerate(rows):
