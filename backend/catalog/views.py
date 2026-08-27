@@ -183,9 +183,6 @@ class WatchNavigationView(APIView):
 
     def get(self, request, slug):
         title = get_object_or_404(Title, slug=slug)
-        episode_numbers = list(
-            Episode.objects.filter(title=title).order_by("number").values_list("number", flat=True)
-        )
         now = timezone.now()
         provider_context = {}
         entitled_provider_ids = []
@@ -259,6 +256,7 @@ class WatchNavigationView(APIView):
                 group["key"],
             )
         )
+        episode_numbers = sorted({number for group in source_groups for number in group["episode_numbers"]})
         return Response({"episode_numbers": episode_numbers, "source_groups": source_groups})
 
 

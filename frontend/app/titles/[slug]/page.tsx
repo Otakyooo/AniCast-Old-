@@ -151,7 +151,9 @@ function EpisodeCard({
         )}
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
-      <Link className="secondary" href={`/titles/${slug}/watch?episode=${episode.number}`}>{t("watch.title")}</Link>
+      {sources.some((source) => source.playback_available) && (
+        <Link className="secondary" href={`/titles/${slug}/watch?episode=${episode.number}`}>{t("watch.title")}</Link>
+      )}
       <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
       <div className="episode-sources">
         <h3>{t("episode.sources")}</h3>

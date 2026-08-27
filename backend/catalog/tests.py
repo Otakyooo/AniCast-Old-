@@ -129,7 +129,8 @@ def test_watch_navigation_groups_playable_sources_by_voice_over(authorized_sourc
 
     assert response.status_code == 200
     body = response.json()
-    assert body["episode_numbers"] == [1, 2, 4]
+    # Metadata-only episodes never become dead destinations in the player.
+    assert body["episode_numbers"] == [1, 2]
     assert len(body["source_groups"]) == 1
     group = body["source_groups"][0]
     assert group["name"] == "Playback Source"
