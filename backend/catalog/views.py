@@ -161,8 +161,10 @@ class TitleDetailView(RetrieveAPIView):
         # full embedded list, keeps working during an expand/contract rollout.
         if any(param in self.request.query_params for param in self.episode_page_params):
             context["episodes_paginator"] = EpisodePagination()
-        if any(param in self.request.query_params for param in self.character_page_params):
-            context["characters_paginator"] = CharacterPagination()
+        # Cast lists can exceed a thousand entries (One Piece). Always bound
+        # the embedded payload; clients use characters_count and opt into
+        # subsequent pages with characters_page.
+        context["characters_paginator"] = CharacterPagination()
         return context
 
 

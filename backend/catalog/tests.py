@@ -694,6 +694,18 @@ def test_catalog_localizes_content_and_searches_translations(catalog_data):
 
 
 @pytest.mark.django_db
+def test_title_detail_bounds_large_character_payload(catalog_data):
+    for index in range(61):
+        character = Character.objects.create(name=f"Cast {index}", slug=f"cast-{index}")
+        TitleCharacter.objects.create(title=catalog_data, character=character, sort_order=index)
+    first = APIClient().get("/api/v1/titles/sky-test/").json()
+    second = APIClient().get("/api/v1/titles/sky-test/?characters_page=2").json()
+    assert first["characters_count"] == 61
+    assert len(first["characters"]) == 60
+    assert len(second["characters"]) == 1
+
+
+@pytest.mark.django_db
 def test_language_cookie_and_unsupported_language_fallback(catalog_data):
     TitleTranslation.objects.create(title=catalog_data, language="ru", name="Русское имя")
     client = APIClient()
