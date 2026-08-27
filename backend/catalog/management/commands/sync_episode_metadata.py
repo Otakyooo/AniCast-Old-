@@ -13,6 +13,7 @@ class Command(BaseCommand):
         parser.add_argument("--all", action="store_true", dest="all_titles")
         parser.add_argument("--limit", type=int, default=0)
         parser.add_argument("--max-pages", type=int, default=25)
+        parser.add_argument("--fallback-first", action="store_true", help="Use the one-request ani.zip/TVDB mapping before Jikan")
         parser.add_argument("--apply", action="store_true")
 
     def handle(self, *args, **options):
@@ -34,7 +35,11 @@ class Command(BaseCommand):
         for title in titles:
             try:
                 with transaction.atomic():
-                    result = sync_title_episode_metadata(title, max_pages=options["max_pages"])
+                    result = sync_title_episode_metadata(
+                        title,
+                        max_pages=options["max_pages"],
+                        fallback_first=options["fallback_first"],
+                    )
                     if not options["apply"]:
                         transaction.set_rollback(True)
             except (EpisodeMetadataError, ValueError) as error:

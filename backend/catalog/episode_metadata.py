@@ -115,7 +115,12 @@ def _fill_translation(episode: Episode, language: str, name: str) -> bool:
     return created
 
 
-def sync_title_episode_metadata(title: Title, *, max_pages: int = MAX_PAGES) -> EpisodeMetadataResult:
+def sync_title_episode_metadata(
+    title: Title,
+    *,
+    max_pages: int = MAX_PAGES,
+    fallback_first: bool = False,
+) -> EpisodeMetadataResult:
     match = MAL_ID.match(title.slug)
     if match is None:
         raise ValueError("Title slug does not contain a MyAnimeList id")
@@ -125,20 +130,24 @@ def sync_title_episode_metadata(title: Title, *, max_pages: int = MAX_PAGES) -> 
     mal_id = int(match.group(1))
     rows: list[dict] = []
     page_number = 1
-    try:
-        while page_number <= max_pages:
-            payload = _page(mal_id, page_number)
-            rows.extend(row for row in payload["data"] if isinstance(row, dict))
-            pagination = payload.get("pagination") or {}
-            if not pagination.get("has_next_page"):
-                break
-            page_number += 1
-        else:
-            if (payload.get("pagination") or {}).get("has_next_page"):
-                raise EpisodeMetadataError("Jikan episode pagination exceeds the safety limit")
-    except EpisodeMetadataError:
+    if fallback_first:
         rows = _anizip_rows(mal_id)
         page_number = 1
+    else:
+        try:
+            while page_number <= max_pages:
+                payload = _page(mal_id, page_number)
+                rows.extend(row for row in payload["data"] if isinstance(row, dict))
+                pagination = payload.get("pagination") or {}
+                if not pagination.get("has_next_page"):
+                    break
+                page_number += 1
+            else:
+                if (payload.get("pagination") or {}).get("has_next_page"):
+                    raise EpisodeMetadataError("Jikan episode pagination exceeds the safety limit")
+        except EpisodeMetadataError:
+            rows = _anizip_rows(mal_id)
+            page_number = 1
 
     result = EpisodeMetadataResult(title=title.slug, pages=page_number)
     with transaction.atomic():

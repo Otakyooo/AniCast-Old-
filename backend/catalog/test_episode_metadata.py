@@ -95,3 +95,18 @@ def test_episode_metadata_falls_back_to_anizip(monkeypatch):
     assert result.dated == 1
     assert episode.air_date.isoformat() == "1999-10-20"
     assert EpisodeTranslation.objects.get(episode=episode, language="ru").name == "Я — Луффи!"
+
+
+@pytest.mark.django_db
+def test_episode_metadata_can_prefer_single_request_fallback(monkeypatch):
+    title = Title.objects.create(name="Batch", slug="22-batch")
+    Episode.objects.create(title=title, number=1)
+    monkeypatch.setattr(
+        "catalog.episode_metadata._page",
+        lambda mal_id, page: pytest.fail("Jikan must not be called in fallback-first mode"),
+    )
+    monkeypatch.setattr("catalog.episode_metadata._anizip_rows", lambda mal_id: [{
+        "mal_id": 1, "title": "Episode One", "aired": "2001-01-01",
+    }])
+    result = sync_title_episode_metadata(title, fallback_first=True)
+    assert result.dated == 1
