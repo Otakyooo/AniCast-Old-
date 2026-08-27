@@ -156,15 +156,16 @@ class TitleDetailSerializer(TitleSerializer):
         return count if count is not None else obj.episodes.count()
 
     def get_characters(self, obj):
-        links = obj.character_links.all()
+        links = TitleCharacter.objects.filter(title=obj).select_related("character").prefetch_related(
+            "character__translations"
+        )
         paginator = self.context.get("characters_paginator")
         if paginator is not None:
             links = paginator.paginate_queryset(links, self.context["request"])
         return TitleCharacterSerializer(links, many=True, context=self.context).data
 
     def get_characters_count(self, obj):
-        count = getattr(obj, "characters_count", None)
-        return count if count is not None else obj.character_links.count()
+        return obj.character_links.count()
 
     def get_credits(self, obj):
         return [

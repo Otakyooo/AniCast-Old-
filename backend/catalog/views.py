@@ -28,7 +28,6 @@ from .models import (
     Source,
     SourceReport,
     Title,
-    TitleCharacter,
     TitleCredit,
 )
 from .playback import (
@@ -131,18 +130,11 @@ class TitleDetailView(RetrieveAPIView):
     # Episodes are fetched by the serializer as a paginated queryset, so the
     # detail view never loads the full episode list of a long-running series.
     queryset = annotate_rating_aggregates(
-        Title.objects.annotate(
-            episodes_count=Count("episodes", distinct=True),
-            characters_count=Count("character_links", distinct=True),
-        ).select_related(
+        Title.objects.annotate(episodes_count=Count("episodes", distinct=True)).select_related(
             "franchise"
         )
     ).prefetch_related(
         "translations", "franchise__translations", "genres", "genres__translations",
-        Prefetch(
-            "character_links",
-            queryset=TitleCharacter.objects.select_related("character").prefetch_related("character__translations"),
-        ),
         Prefetch("credits", queryset=TitleCredit.objects.select_related("creator")),
         Prefetch(
             "franchise__titles",
