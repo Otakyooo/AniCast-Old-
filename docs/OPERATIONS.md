@@ -56,9 +56,12 @@ Cron on MainServer runs the backups and verifications (logs in `~/anicast/backup
 15 3 * * *  ~/anicast/scripts/backup-db.sh >> ~/anicast/backups/backup.log 2>&1
 45 3 * * 0  ~/anicast/scripts/backup-posters.sh >> ~/anicast/backups/backup.log 2>&1
 30 4 * * 0  ~/anicast/scripts/restore-db.sh --verify >> ~/anicast/backups/restore-verify.log 2>&1
+10 5 * * *  ~/anicast/scripts/prune-docker-cache.sh >> ~/anicast/backups/maintenance.log 2>&1
 ```
 
 The newest successful DB dump is recorded in `backups/db/last_backup`. A failed backup sends a Telegram message through the ops bot and exits non-zero; a failed offsite upload still alerts even when the local dump succeeded.
+
+`prune-docker-cache.sh` removes only BuildKit cache older than 24 hours. It does not prune images, containers or volumes, so production and image rollback remain available. The daily limit prevents rapid local-image builds from filling the MainServer root filesystem and triggering `DiskSpaceWarning`.
 
 DB restore runbook:
 
