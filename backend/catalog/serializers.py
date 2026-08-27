@@ -162,10 +162,14 @@ class TitleDetailSerializer(TitleSerializer):
         paginator = self.context.get("characters_paginator")
         if paginator is not None:
             links = paginator.paginate_queryset(links, self.context["request"])
+            # Reuse the count already calculated by Django's paginator instead
+            # of issuing the same COUNT query again for characters_count.
+            self.context["characters_count"] = paginator.page.paginator.count
         return TitleCharacterSerializer(links, many=True, context=self.context).data
 
     def get_characters_count(self, obj):
-        return obj.character_links.count()
+        count = self.context.get("characters_count")
+        return count if count is not None else obj.character_links.count()
 
     def get_credits(self, obj):
         return [

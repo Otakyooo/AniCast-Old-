@@ -261,7 +261,7 @@ def issue_playback(source_id: int) -> PlaybackTarget | None:
     )
 
 
-def resolve_playback(token: str) -> str | None:
+def resolve_playback(token: str) -> tuple[int, str] | None:
     try:
         payload = signing.loads(token, salt=PLAYBACK_TOKEN_SALT, max_age=playback_url_ttl())
     except signing.BadSignature:
@@ -275,4 +275,4 @@ def resolve_playback(token: str) -> str | None:
     if adapter is None:
         return None
     target = adapter.target_url(source)
-    return target if source_url_allowed(source) and target == source.url else None
+    return (source.pk, target) if source_url_allowed(source) and target == source.url else None

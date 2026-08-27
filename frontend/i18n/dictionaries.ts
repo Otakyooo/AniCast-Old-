@@ -115,6 +115,7 @@ Object.assign(ru, {
   "watch.neighborEpisodes":"Соседние доступные серии","watch.playEpisode":"Смотреть серию {number}","watch.noPlayer":"Для этой серии нет доступного плеера",
   "watch.chooseAvailableEpisode":"Выберите активную кнопку серии или другую озвучку.","watch.sourceDetails":"Все источники и диагностика",
   "watch.kind.dub":"озвучка","watch.kind.sub":"субтитры","watch.kind.raw":"оригинал",
+  "watch.choiceShare":"выбор зрителей",
 });
 
 Object.assign(en, {
@@ -136,6 +137,7 @@ Object.assign(en, {
   "watch.neighborEpisodes":"Adjacent available episodes","watch.playEpisode":"Watch episode {number}","watch.noPlayer":"No playable source for this episode",
   "watch.chooseAvailableEpisode":"Choose an active episode button or another voice-over.","watch.sourceDetails":"All sources and diagnostics",
   "watch.kind.dub":"dub","watch.kind.sub":"subtitles","watch.kind.raw":"original",
+  "watch.choiceShare":"viewer choice",
 });
 
 Object.assign(ru, {

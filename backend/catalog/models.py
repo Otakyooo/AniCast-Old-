@@ -333,6 +333,7 @@ class Source(models.Model):
     last_checked_at = models.DateTimeField(null=True, blank=True)
     last_http_status = models.PositiveSmallIntegerField(null=True, blank=True)
     consecutive_failures = models.PositiveSmallIntegerField(default=0)
+    playback_count = models.PositiveBigIntegerField(default=0)
 
     @property
     def is_available(self) -> bool:

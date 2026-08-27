@@ -48,6 +48,7 @@ export interface WatchSourceGroup {
   provider_name: string;
   episodes_count: number;
   episode_numbers: number[];
+  popularity_percent: number;
 }
 
 export interface WatchNavigation {

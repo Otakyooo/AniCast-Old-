@@ -221,12 +221,12 @@ class WatchNavigationView(APIView):
                 provider_id__in=provider_context,
             )
             .filter(rights_filter)
-            .values_list("provider_id", "episode__number", "name", "kind", "url")
+            .values_list("provider_id", "episode__number", "name", "kind", "url", "playback_count")
             .distinct()
             .order_by("kind", "name", "provider_id", "episode__number")
         )
         groups = {}
-        for provider_id, episode_number, name, kind, url in rows:
+        for provider_id, episode_number, name, kind, url, playback_count in rows:
             provider_slug, provider_name, allowed_hosts = provider_context[provider_id]
             if not playback_url_allowed(url, allowed_hosts):
                 continue
@@ -239,23 +239,38 @@ class WatchNavigationView(APIView):
                     "kind": kind,
                     "provider_name": provider_name,
                     "episode_numbers": set(),
+                    "playback_count": 0,
                 },
             )
             group["episode_numbers"].add(episode_number)
+            group["playback_count"] += playback_count
 
         kind_order = {"dub": 0, "sub": 1, "raw": 2}
         source_groups = []
+        total_playbacks = sum(group["playback_count"] for group in groups.values())
         for group in groups.values():
             numbers = sorted(group["episode_numbers"])
-            source_groups.append({**group, "episode_numbers": numbers, "episodes_count": len(numbers)})
+            source_groups.append({
+                "key": group["key"],
+                "name": group["name"],
+                "kind": group["kind"],
+                "provider_name": group["provider_name"],
+                "episode_numbers": numbers,
+                "episodes_count": len(numbers),
+                "popularity_percent": round(group["playback_count"] * 100 / total_playbacks) if total_playbacks else 0,
+                "_playback_count": group["playback_count"],
+            })
         source_groups.sort(
             key=lambda group: (
-                kind_order.get(group["kind"], 9),
+                -group["_playback_count"],
                 -group["episodes_count"],
+                kind_order.get(group["kind"], 9),
                 group["name"].casefold(),
                 group["key"],
             )
         )
+        for group in source_groups:
+            group.pop("_playback_count")
         episode_numbers = sorted({number for group in source_groups for number in group["episode_numbers"]})
         return Response({"episode_numbers": episode_numbers, "source_groups": source_groups})
 
@@ -377,11 +392,13 @@ class PlaybackResolveView(APIView):
     throttle_scope = "playback"
 
     def get(self, request, token):
-        target = resolve_playback(token)
-        if target is None:
+        resolved = resolve_playback(token)
+        if resolved is None:
             from rest_framework.exceptions import NotFound
 
             raise NotFound("Ссылка просмотра недействительна или истекла.")
+        source_id, target = resolved
+        Source.objects.filter(pk=source_id).update(playback_count=F("playback_count") + 1)
         response = HttpResponseRedirect(target)
         response["Cache-Control"] = "no-store, private"
         response["Referrer-Policy"] = "no-referrer"

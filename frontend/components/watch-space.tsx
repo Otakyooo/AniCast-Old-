@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import { EpisodeProgressControl } from "./episode-progress-control";
 import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer } from "./provider-player";
-import { SourceReportControl } from "./source-report-control";
 import type { Source, WatchSourceGroup } from "../lib/api";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
@@ -66,6 +65,7 @@ export function WatchSpace({
         provider_name: source.provider_name ?? "",
         episodes_count: episodesCount,
         episode_numbers: episodeNumbers,
+        popularity_percent: 0,
       });
     }
     return [...fallback.values()];
@@ -107,8 +107,6 @@ export function WatchSpace({
   const nextNumber = navigableNumbers.find((number) => number > currentNumber);
   const currentIsAvailable = availableNumbers.has(currentNumber);
 
-  const sourceLabel = (value: string) =>
-    t(`source.${value === "geo_blocked" ? "geo" : value === "provider_error" ? "error" : value}`);
   const kindLabel = (kind: string) => t(`watch.kind.${kind}`);
   const selectedName = selectedGroup
     ? cleanSourceName(selectedGroup.name, selectedGroup.provider_name)
@@ -171,8 +169,11 @@ export function WatchSpace({
                 type="button"
                 onClick={() => chooseGroup(group.key)}
               >
-                <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
-                <span>{kindLabel(group.kind)} · {t("watch.episodeCount", { count: group.episodes_count })}</span>
+                <span className={styles.voiceButtonTop}>
+                  <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
+                  <b>{group.popularity_percent}%</b>
+                </span>
+                <span>{kindLabel(group.kind)} · {t("watch.choiceShare")}</span>
               </button>
             ))}
             {!groups.length && <p className="muted">{t("watch.noVoice")}</p>}
@@ -213,10 +214,6 @@ export function WatchSpace({
             </label>
           )}
 
-          <div className={styles.watchAvailability}>
-            <span>{t("watch.available")}</span>
-            <strong>{selectedGroup?.episodes_count ?? 0} / {episodeNumbers.length}</strong>
-          </div>
         </div>
 
         <nav className={styles.episodeGrid} aria-label={t("title.episodes")}>
@@ -271,26 +268,6 @@ export function WatchSpace({
         </nav>
       </section>
 
-      <details className={styles.watchDiagnostics}>
-        <summary>{t("watch.sourceDetails")}</summary>
-        <p className="muted">{t("watch.sourcesHint")}</p>
-        {episode.sources.length ? (
-          <ul className="source-list">
-            {episode.sources.map((source) => (
-              <li className={`source-status source-status-${source.availability}`} key={source.id}>
-                <span className="source-status-main">
-                  <strong>{source.name}</strong>
-                  <span>{source.kind.toUpperCase()}</span>
-                </span>
-                <span className="source-status-label">{sourceLabel(source.availability)}</span>
-                <SourceReportControl sourceId={source.id} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="empty-state"><strong>{t("episode.noSources")}</strong></div>
-        )}
-      </details>
     </div>
   );
 }

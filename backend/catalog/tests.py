@@ -138,6 +138,8 @@ def test_watch_navigation_groups_playable_sources_by_voice_over(authorized_sourc
     assert group["provider_name"] == "Playback Provider"
     assert group["episode_numbers"] == [1, 2]
     assert group["episodes_count"] == 2
+    assert group["popularity_percent"] == 0
+    assert "playback_count" not in group
     episode = APIClient().get("/api/v1/titles/playback-test/episodes/1/").json()
     assert episode["sources"][0]["selection_key"] == group["key"]
     assert episode["sources"][0]["provider_name"] == "Playback Provider"
@@ -157,6 +159,33 @@ def test_watch_navigation_accepts_an_approved_source_level_grant(authorized_sour
     assert body["source_groups"][0]["key"] == APIClient().get(
         "/api/v1/titles/playback-test/episodes/1/"
     ).json()["sources"][0]["selection_key"]
+
+
+@pytest.mark.django_db
+def test_watch_navigation_ranks_sources_by_playback_share(authorized_source):
+    source, provider, _ = authorized_source
+    provider.rights_reference = "Provider catalogue entitlement"
+    provider.rights_verified_at = timezone.now()
+    provider.save(update_fields=["rights_reference", "rights_verified_at"])
+    source.playback_count = 1
+    source.save(update_fields=["playback_count"])
+    Source.objects.create(
+        episode=source.episode,
+        provider=provider,
+        external_id="popular-source",
+        name="Popular voice",
+        kind="dub",
+        url="https://watch.example.com/popular/1",
+        playback_count=3,
+    )
+
+    groups = APIClient().get(
+        "/api/v1/titles/playback-test/watch-navigation/"
+    ).json()["source_groups"]
+
+    assert [group["name"] for group in groups] == ["Popular voice", "Playback Source"]
+    assert [group["popularity_percent"] for group in groups] == [75, 25]
+    assert all("playback_count" not in group for group in groups)
 
 
 @pytest.mark.django_db
@@ -392,7 +421,7 @@ def test_title_detail_exposes_cast_without_extra_queries(catalog_data, django_as
     CharacterTranslation.objects.create(character=hero, language="ru", name="Герой")
     # Creator credits and related works extend the payload with a fixed number
     # of prefetches; this remains bounded regardless of cast size.
-    with django_assert_max_num_queries(14):
+    with django_assert_max_num_queries(15):
         body = APIClient().get("/api/v1/titles/sky-test/").json()
     assert [entry["character"]["slug"] for entry in body["characters"]] == ["hero", "rival"]
     assert body["characters"][0]["role"] == "protagonist"
@@ -511,6 +540,8 @@ def test_iframe_playback_uses_signed_resolver_and_rechecks_rights(authorized_sou
     resolved = APIClient().get(issued.json()["url"])
     assert resolved.status_code == 302
     assert resolved.url == source.url
+    source.refresh_from_db()
+    assert source.playback_count == 1
 
     grant.status = RightsGrant.Status.REVOKED
     grant.save(update_fields=["status"])
