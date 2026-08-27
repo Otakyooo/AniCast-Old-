@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteHeader, type NavSection } from "./site-header";
+import { SiteFooter } from "./site-footer";
 
 interface PageShellProps {
   active: NavSection;
@@ -19,9 +20,9 @@ export async function PageShell({ active, back, heading, children }: PageShellPr
   const hasHeading = Boolean(heading?.eyebrow || heading?.title || heading?.subtitle);
 
   return (
-    <main className="shell">
+    <div className="shell">
       <SiteHeader active={active} />
-      <section className="content">
+      <main className="content">
         {back && (
           <div className="page-back">
             <Link className="back-link" href={back.href}>← {back.label}</Link>
@@ -35,7 +36,8 @@ export async function PageShell({ active, back, heading, children }: PageShellPr
           </div>
         )}
         {children}
-      </section>
-    </main>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }

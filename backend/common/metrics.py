@@ -115,6 +115,20 @@ def render_metrics() -> str:
         # Telemetry must never affect the application path it observes.
         pass
 
+    try:
+        from django.db.models import Sum
+        from django.utils import timezone
+        from common.models import DailyVisitStat
+
+        today = DailyVisitStat.objects.filter(day=timezone.localdate()).values_list("visits", flat=True).first() or 0
+        total = DailyVisitStat.objects.aggregate(total=Sum("visits"))["total"] or 0
+        lines += _family("anicast_site_visits", "Privacy-safe browser visits.", "gauge", [
+            _sample("anicast_site_visits", {"period": "today"}, today),
+            _sample("anicast_site_visits", {"period": "total"}, total),
+        ])
+    except Exception:
+        pass
+
     from catalog.models import Provider, Source
 
     provider_samples = [_sample("anicast_providers", {"enabled": str(enabled).lower()}, Provider.objects.filter(is_enabled=enabled).count()) for enabled in (True, False)]

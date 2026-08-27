@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 
 from common import availability
 from common.logging import JsonFormatter
-from common.models import AvailabilitySample
+from common.models import AvailabilitySample, DailyVisitStat
 
 
 @pytest.mark.django_db
@@ -59,6 +59,84 @@ def test_metrics_are_private_and_prometheus_compatible():
     body = response.content.decode()
     assert "anicast_http_requests_total" in body
     assert "test-metrics-token" not in body
+
+
+# ---------- Anonymous visit counter ----------
+
+
+@pytest.mark.django_db
+def test_visit_counter_counts_browser_once_per_day():
+    client = APIClient()
+    first = client.post("/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0 AniCast test")
+    second = client.post("/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0 AniCast test")
+
+    assert first.status_code == 200
+    assert first.json() == {"total": 1, "today": 1, "counted": True}
+    assert first.cookies["anicast_visit_day"]["httponly"] is True
+    assert first.cookies["anicast_visit_day"]["samesite"] == "Lax"
+    assert second.json() == {"total": 1, "today": 1, "counted": False}
+    assert DailyVisitStat.objects.get().visits == 1
+
+
+@pytest.mark.django_db
+def test_visit_counter_counts_a_second_browser():
+    first = APIClient()
+    second = APIClient()
+    first.post("/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0 browser one")
+    response = second.post("/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0 browser two")
+
+    assert response.json() == {"total": 2, "today": 2, "counted": True}
+    assert DailyVisitStat.objects.get().visits == 2
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("user_agent", ["Googlebot/2.1", "Blackbox monitoring", "curl/8.0", ""])
+def test_visit_counter_ignores_automated_clients(user_agent):
+    response = APIClient().post("/api/v1/analytics/visit/", HTTP_USER_AGENT=user_agent)
+
+    assert response.json() == {"total": 0, "today": 0, "counted": False}
+    assert "anicast_visit_day" not in response.cookies
+    assert not DailyVisitStat.objects.exists()
+
+
+@pytest.mark.django_db
+def test_visit_counter_recovers_from_invalid_cookie_without_storing_identifiers():
+    client = APIClient()
+    client.cookies["anicast_visit_day"] = "tampered"
+    response = client.post(
+        "/api/v1/analytics/visit/",
+        HTTP_USER_AGENT="Mozilla/5.0",
+        REMOTE_ADDR="203.0.113.42",
+    )
+
+    assert response.json()["counted"] is True
+    field_names = {field.name for field in DailyVisitStat._meta.fields}
+    assert field_names == {"id", "day", "visits", "created_at", "updated_at"}
+    assert response["Cache-Control"] == "no-store"
+
+
+@pytest.mark.django_db
+def test_visit_counter_is_exported_as_aggregate_metrics():
+    DailyVisitStat.objects.create(day=dj_timezone.localdate(), visits=7)
+    from common.metrics import render_metrics
+
+    body = render_metrics()
+    assert 'anicast_site_visits{period="today"} 7' in body
+    assert 'anicast_site_visits{period="total"} 7' in body
+
+
+@pytest.mark.django_db
+def test_visit_counter_requires_csrf_for_real_http_clients():
+    client = APIClient(enforce_csrf_checks=True)
+    assert client.post("/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0").status_code == 403
+    token = client.get("/api/v1/auth/csrf/").json()["csrfToken"]
+    response = client.post(
+        "/api/v1/analytics/visit/",
+        HTTP_USER_AGENT="Mozilla/5.0",
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert response.status_code == 200
+    assert response.json()["counted"] is True
 
 
 def test_json_formatter_uses_allowlist_and_omits_message():

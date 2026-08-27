@@ -30,3 +30,20 @@ class AvailabilitySample(models.Model):
     def __str__(self) -> str:
         state = "ok" if self.ok else f"fail ({self.detail})" if self.detail else "fail"
         return f"{self.target} {state} @ {self.checked_at:%Y-%m-%d %H:%M:%S}"
+
+
+class DailyVisitStat(models.Model):
+    """Privacy-safe aggregate of anonymous browser visits per UTC day."""
+
+    day = models.DateField(unique=True, db_index=True)
+    visits = models.PositiveBigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Посещения за день"
+        verbose_name_plural = "Посещения по дням"
+        ordering = ["-day"]
+
+    def __str__(self) -> str:
+        return f"{self.day}: {self.visits}"

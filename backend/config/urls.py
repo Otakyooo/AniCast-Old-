@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from common.staff_dashboard import shadowed_admin_urls
-from common.views import health_live, health_ready, staff_login_redirect
+from common.views import health_live, health_ready, record_visit, staff_login_redirect
 from common.metrics import metrics_view
 
 admin.site.site_header = "AniCast — управление контентом"
@@ -14,6 +14,7 @@ urlpatterns = [
     path("health/live", health_live, name="health-live"),
     path("health/ready", health_ready, name="health-ready"),
     path("internal/metrics", metrics_view, name="internal-metrics"),
+    path("api/v1/analytics/visit/", record_visit, name="record-visit"),
     path("staff/login/", staff_login_redirect, name="staff-login"),
     path("staff/", shadowed_admin_urls()),
     path("api/v1/", include("catalog.urls")),

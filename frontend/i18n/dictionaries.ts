@@ -138,4 +138,20 @@ Object.assign(en, {
   "watch.kind.dub":"dub","watch.kind.sub":"subtitles","watch.kind.raw":"original",
 });
 
+Object.assign(ru, {
+  "footer.tagline":"Каталог, расписание и личная библиотека для тех, кто любит аниме.",
+  "footer.navigation":"Навигация в подвале сайта",
+  "visits.label":"Статистика посещений сайта",
+  "visits.total":"посещений",
+  "visits.today":"сегодня",
+});
+
+Object.assign(en, {
+  "footer.tagline":"Anime catalog, schedule and personal library built for fans.",
+  "footer.navigation":"Footer navigation",
+  "visits.label":"Site visit statistics",
+  "visits.total":"visits",
+  "visits.today":"today",
+});
+
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };
