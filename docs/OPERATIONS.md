@@ -181,6 +181,16 @@ copy unrelated Kodik records. Each pass also:
 - imports duration and director/producer/writer/composer/designer credits;
 - marks disappeared sources unavailable only after a complete provider response.
 
+Kodik season numbers are provider-side metadata, not AniCast season numbers.
+The normal pass therefore does not send a hard-coded `season=1`: it consumes the
+positive season key returned for the exact Shikimori id and ignores season `0`
+when a positive season exists (extras); season `0` remains a fallback for OVAs.
+For a completed title, season-zero bonuses fill only the remainder up to the
+official Shikimori/MAL episode count (for example Bakemonogatari 13–15), never
+creating episodes beyond that boundary.
+Movies and one-shot specials use their direct player link. `--season N`
+remains an explicit diagnostics override.
+
 Initial production activation is explicit and auditable. The reference is not a
 password or API token; it describes the verified provider entitlement:
 
@@ -196,6 +206,24 @@ command, commit or deployment manifest. After activation, Celery Beat runs
 its cursor in Redis. Revoke playback without deleting metadata by disabling the
 Kodik provider in `/staff/`; sources and schedule data remain available for
 audit and a later reactivation.
+
+## Episode names and dates
+
+`sync_episode_metadata` fills missing episode names and confirmed calendar dates
+from the Jikan/MAL episode endpoint. English and Japanese names are stored as
+separate translations; the English name is the safe fallback when no Russian
+episode title exists. Existing editorial names are never overwritten. Jikan's
+date-only value never replaces a more precise Kodik `air_at` timestamp.
+
+```bash
+docker exec mainserver-backend-1 python manage.py sync_episode_metadata --all
+docker exec mainserver-backend-1 python manage.py sync_episode_metadata --all --apply
+```
+
+The command is dry-run first, retries bounded upstream failures and caps a title
+at 25 pages. Celery Beat refreshes up to three titles with missing names every
+15 minutes so successful rows leave the retry queue and temporary upstream 504s
+converge without exceeding the public API rate limit.
 
 Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`maximum_image_url`, falling back to `large_image_url`; Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively.
 

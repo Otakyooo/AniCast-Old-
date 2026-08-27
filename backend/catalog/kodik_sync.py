@@ -110,7 +110,7 @@ def _material(results: list[dict]) -> dict:
 def sync_title(
     title: Title,
     *,
-    season: int = 1,
+    season: int | None = None,
     limit: int = 100,
     activate: bool = False,
     rights_reference: str = "",
@@ -134,6 +134,7 @@ def sync_title(
     outcome.credits = _sync_credits(title, material)
 
     episodes = {episode.number: episode for episode in Episode.objects.filter(title=title)}
+    authoritative_episode_ceiling = max(episodes, default=0) if title.status == "finished" else 0
     active_source_ids: list[int] = []
     for item in results:
         external_id = item.get("id")
@@ -142,45 +143,99 @@ def sync_title(
         if not isinstance(external_id, str) or not KODIK_ID.fullmatch(external_id) or type(translation_id) is not int:
             outcome.skipped += 1
             continue
-        source_external_id = f"{external_id}:s{season}:t{translation_id}"
         translation_title = str(translation.get("title") or "Kodik").strip()[:100]
         kind = "sub" if translation.get("type") == "subtitles" else "dub"
-        season_data = (item.get("seasons") or {}).get(str(season)) or {}
-        episode_links = season_data.get("episodes") or {}
-        if not episode_links and item.get("link"):
-            episode_links = {"1": item["link"]}
-        for raw_number, episode_data in episode_links.items():
-            try:
-                number = int(raw_number)
-            except (TypeError, ValueError):
+        seasons = item.get("seasons") or {}
+        parsed_seasons: list[tuple[int, dict]] = []
+        if isinstance(seasons, dict):
+            for raw_season, season_data in seasons.items():
+                try:
+                    provider_season = int(raw_season)
+                except (TypeError, ValueError):
+                    outcome.skipped += 1
+                    continue
+                if provider_season < 0 or (season is not None and provider_season != season):
+                    continue
+                if isinstance(season_data, dict):
+                    parsed_seasons.append((provider_season, season_data))
+        # Season zero is normally a provider-side extras bucket and must not
+        # overwrite episodes 1..N when a positive season exists. Some OVAs
+        # are genuinely stored only in season zero, so retain it as fallback.
+        positive_seasons = [payload for payload in parsed_seasons if payload[0] > 0]
+        season_payloads: list[tuple[int, dict, int]] = [
+            (provider_season, season_data, 0)
+            for provider_season, season_data in (positive_seasons or parsed_seasons)
+        ]
+        if positive_seasons and season is None and authoritative_episode_ceiling:
+            positive_numbers = [
+                int(raw_number)
+                for _, season_data in positive_seasons
+                for raw_number in (season_data.get("episodes") or {})
+                if str(raw_number).isdigit()
+            ]
+            positive_ceiling = max(positive_numbers, default=0)
+            if positive_ceiling < authoritative_episode_ceiling:
+                # Some providers put canonical bonus episodes in season zero
+                # while Shikimori/MAL include them in the finished title's
+                # official episode count. Append only the confirmed remainder.
+                season_payloads.extend(
+                    (provider_season, season_data, positive_ceiling)
+                    for provider_season, season_data in parsed_seasons
+                    if provider_season == 0
+                )
+        if not season_payloads and item.get("link"):
+            # Movies and one-shot specials have a direct player link and no
+            # seasons object at all.
+            season_payloads = [(0, {"episodes": {"1": item["link"]}}, 0)]
+
+        for provider_season, season_data, episode_offset in season_payloads:
+            source_external_id = f"{external_id}:s{provider_season}:t{translation_id}"
+            episode_links = season_data.get("episodes") or {}
+            if not isinstance(episode_links, dict):
                 outcome.skipped += 1
                 continue
-            raw_url = episode_data.get("link") if isinstance(episode_data, dict) else episode_data
-            url = normalize_player_url(raw_url)
-            candidate = Source(provider=provider, url=url or "")
-            if number < 1 or url is None or not source_url_allowed(candidate):
-                outcome.skipped += 1
-                continue
-            episode = episodes.get(number)
-            if episode is None:
-                episode = Episode.objects.create(title=title, number=number)
-                episodes[number] = episode
-                outcome.created_episodes += 1
-            outcome.discovered += 1
-            source, _ = Source.objects.update_or_create(
-                provider=provider,
-                episode=episode,
-                external_id=source_external_id,
-                defaults={
-                    "name": f"Kodik · {translation_title}"[:120],
-                    "kind": kind,
-                    "url": url,
-                    "availability": "available",
-                    "availability_reason": "",
-                },
-            )
-            active_source_ids.append(source.id)
-            outcome.persisted += 1
+            for raw_number, episode_data in episode_links.items():
+                try:
+                    number = int(raw_number) + episode_offset
+                except (TypeError, ValueError):
+                    outcome.skipped += 1
+                    continue
+                raw_url = episode_data.get("link") if isinstance(episode_data, dict) else episode_data
+                url = normalize_player_url(raw_url)
+                candidate = Source(provider=provider, url=url or "")
+                if number < 1 or url is None or not source_url_allowed(candidate):
+                    outcome.skipped += 1
+                    continue
+                episode = episodes.get(number)
+                if episode is None:
+                    # The catalog import owns the final episode count for a
+                    # completed work. Provider packages sometimes append
+                    # recaps or specials after that boundary.
+                    if authoritative_episode_ceiling and number > authoritative_episode_ceiling:
+                        outcome.skipped += 1
+                        continue
+                    episode = Episode.objects.create(title=title, number=number)
+                    episodes[number] = episode
+                    outcome.created_episodes += 1
+                provider_name = episode_data.get("title") if isinstance(episode_data, dict) else None
+                if not episode.name and isinstance(provider_name, str) and provider_name.strip():
+                    episode.name = " ".join(provider_name.split())[:240]
+                    episode.save(update_fields=["name"])
+                outcome.discovered += 1
+                source, _ = Source.objects.update_or_create(
+                    provider=provider,
+                    episode=episode,
+                    external_id=source_external_id,
+                    defaults={
+                        "name": f"Kodik · {translation_title}"[:120],
+                        "kind": kind,
+                        "url": url,
+                        "availability": "available",
+                        "availability_reason": "",
+                    },
+                )
+                active_source_ids.append(source.id)
+                outcome.persisted += 1
 
     next_episode_at = material.get("next_episode_at")
     episodes_aired = material.get("episodes_aired")
@@ -201,8 +256,10 @@ def sync_title(
         stale = Source.objects.filter(
             provider=provider,
             episode__title=title,
-            external_id__contains=f":s{season}:",
+            external_id__contains=":s",
         ).exclude(id__in=active_source_ids)
+        if season is not None:
+            stale = stale.filter(external_id__contains=f":s{season}:")
         outcome.stale = stale.update(
             availability="unavailable",
             availability_reason="Kodik sync: source no longer returned",

@@ -1,4 +1,5 @@
 from io import StringIO
+from copy import deepcopy
 
 import pytest
 from django.core.management import call_command
@@ -135,3 +136,75 @@ def test_sync_kodik_imports_schedule_credits_and_domain_authorization(monkeypatc
     assert Episode.objects.get(title=title, number=3).air_at.isoformat() == "2026-08-30T14:15:00+00:00"
     assert set(Creator.objects.values_list("name", flat=True)) == {"Мэгуми Иситани", "Эйитиро Ода"}
     assert set(TitleCredit.objects.values_list("role", flat=True)) == {"director", "writer"}
+
+
+@pytest.mark.django_db
+def test_sync_kodik_uses_provider_season_and_direct_movie_link(monkeypatch):
+    sequel = Title.objects.create(name="Sequel", slug="25777-sequel")
+    payload = deepcopy(kodik_result())
+    payload["seasons"] = {
+        "0": {"episodes": {"1": {"link": "https://kodikplayer.com/seria/1/extra/720p"}}},
+        "2": {"episodes": {"1": {"link": "https://kodikplayer.com/seria/1/main/720p"}}},
+    }
+    calls = []
+
+    def search(shikimori_id, **kwargs):
+        calls.append(kwargs)
+        return KodikSearchResult(total=1, results=[payload])
+
+    monkeypatch.setattr("catalog.kodik_sync.search_by_shikimori", search)
+    call_command("sync_kodik", sequel.slug, apply=True, stdout=StringIO())
+    source = Source.objects.get(episode__title=sequel)
+    assert source.external_id == "serial-1:s2:t610"
+    assert calls[0]["season"] is None
+
+    movie = Title.objects.create(name="Movie", slug="32281-movie")
+    movie_payload = deepcopy(kodik_result())
+    movie_payload.update({"id": "movie-1", "seasons": {}, "link": "//kodikplayer.com/video/1/movie/720p"})
+    monkeypatch.setattr(
+        "catalog.kodik_sync.search_by_shikimori",
+        lambda shikimori_id, **kwargs: KodikSearchResult(total=1, results=[movie_payload]),
+    )
+    call_command("sync_kodik", movie.slug, apply=True, stdout=StringIO())
+    movie_source = Source.objects.get(episode__title=movie)
+    assert movie_source.external_id == "movie-1:s0:t610"
+
+
+@pytest.mark.django_db
+def test_sync_kodik_does_not_append_provider_extras_to_finished_title(monkeypatch):
+    title = Title.objects.create(name="Finished", slug="5114-finished", status="finished")
+    Episode.objects.bulk_create([Episode(title=title, number=1), Episode(title=title, number=2)])
+    payload = deepcopy(kodik_result())
+    payload["seasons"]["1"]["episodes"]["3"] = {
+        "link": "https://kodikplayer.com/seria/3/provider-extra/720p",
+    }
+    monkeypatch.setattr(
+        "catalog.kodik_sync.search_by_shikimori",
+        lambda shikimori_id, **kwargs: KodikSearchResult(total=1, results=[payload]),
+    )
+    call_command("sync_kodik", title.slug, apply=True, stdout=StringIO())
+    assert list(title.episodes.values_list("number", flat=True)) == [1, 2]
+    assert Source.objects.filter(episode__title=title).count() == 2
+
+
+@pytest.mark.django_db
+def test_sync_kodik_maps_season_zero_into_official_finished_episode_remainder(monkeypatch):
+    title = Title.objects.create(name="Bonus", slug="5081-bonus", status="finished")
+    Episode.objects.bulk_create([Episode(title=title, number=number) for number in range(1, 4)])
+    payload = deepcopy(kodik_result())
+    payload["seasons"] = {
+        "0": {"episodes": {"1": {"link": "https://kodikplayer.com/seria/1/bonus/720p"}}},
+        "1": {"episodes": {
+            "1": {"link": "https://kodikplayer.com/seria/1/main/720p"},
+            "2": {"link": "https://kodikplayer.com/seria/2/main/720p"},
+        }},
+    }
+    monkeypatch.setattr(
+        "catalog.kodik_sync.search_by_shikimori",
+        lambda shikimori_id, **kwargs: KodikSearchResult(total=1, results=[payload]),
+    )
+    call_command("sync_kodik", title.slug, apply=True, stdout=StringIO())
+    assert list(
+        Source.objects.filter(episode__title=title).order_by("episode__number").values_list("episode__number", flat=True)
+    ) == [1, 2, 3]
+    assert Source.objects.get(episode__title=title, episode__number=3).external_id == "serial-1:s0:t610"

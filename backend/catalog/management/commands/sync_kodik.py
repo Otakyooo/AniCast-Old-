@@ -12,7 +12,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("title_slug", nargs="?")
         parser.add_argument("--all", action="store_true", dest="all_titles")
-        parser.add_argument("--season", type=int, default=1)
+        parser.add_argument(
+            "--season", type=int,
+            help="Ограничить синхронизацию конкретным номером сезона Kodik; по умолчанию используются данные ответа провайдера.",
+        )
         parser.add_argument("--limit", type=int, default=100)
         parser.add_argument("--apply", action="store_true")
         parser.add_argument("--activate", action="store_true")
@@ -27,6 +30,8 @@ class Command(BaseCommand):
             raise CommandError("--activate требует --rights-reference")
         if not 1 <= options["limit"] <= 100:
             raise CommandError("--limit должен быть от 1 до 100")
+        if options["season"] is not None and options["season"] < 1:
+            raise CommandError("--season должен быть положительным числом")
 
         titles = Title.objects.order_by("id")
         if options["title_slug"]:

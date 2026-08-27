@@ -44,6 +44,46 @@ def sync_kodik_library(limit: int = 20) -> dict[str, int]:
     return totals
 
 
+@shared_task(soft_time_limit=480, time_limit=520)
+def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
+    """Continuously fill trustworthy episode names and broadcast dates.
+
+    The deliberately small slice respects Jikan's public rate limit. Exact
+    future timestamps remain owned by Kodik; Jikan only supplies episode names
+    and confirmed calendar dates.
+    """
+    from django.core.cache import cache
+
+    from .episode_metadata import EpisodeMetadataError, sync_title_episode_metadata
+    from .models import Title
+
+    batch_limit = max(1, min(int(limit), 3))
+    cursor = int(cache.get("catalog:episode-metadata-cursor", 0) or 0)
+    candidates = Title.objects.filter(episodes__name="").distinct()
+    titles = list(candidates.filter(id__gt=cursor).order_by("id")[:batch_limit])
+    if not titles:
+        cursor = 0
+        titles = list(candidates.order_by("id")[:batch_limit])
+    totals = {"titles": 0, "failed": 0, "pages": 0, "episodes": 0, "named": 0, "dated": 0}
+    for title in titles:
+        try:
+            result = sync_title_episode_metadata(title)
+        except (EpisodeMetadataError, ValueError):
+            totals["failed"] += 1
+            logger.exception("Episode metadata sync failed", extra={
+                "event": "episode_metadata_sync_failed", "title_id": title.id,
+            })
+            continue
+        totals["titles"] += 1
+        for key in ("pages", "episodes", "named", "dated"):
+            totals[key] += getattr(result, key)
+    cache.set("catalog:episode-metadata-cursor", titles[-1].id if titles else cursor, timeout=None)
+    logger.info("Episode metadata slice synchronized", extra={
+        "event": "episode_metadata_sync_completed", **totals,
+    })
+    return totals
+
+
 @shared_task(soft_time_limit=1500, time_limit=1800)
 def refresh_title_posters(limit: int = 0) -> dict[str, int]:
     """Scheduled poster upgrade pass.
