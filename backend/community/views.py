@@ -3,7 +3,9 @@ from django.shortcuts import get_object_or_404
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
@@ -12,7 +14,7 @@ from catalog.serializers import TitleSerializer
 from accounts.models import User
 from library.models import TitleCollection, TitleCollectionItem
 
-from .models import TitleRating, TitleReview
+from .models import ProfileFollow, TitleRating, TitleReview
 from .serializers import (
     PrivateReviewSerializer,
     PublicReviewSerializer,
@@ -107,6 +109,7 @@ class PublicProfileView(APIView):
             "stats": {
                 "collections": TitleCollection.objects.filter(owner=user, is_public=True).count(),
                 "reviews": TitleReview.objects.filter(user=user, status=TitleReview.Status.APPROVED).count(),
+                "followers": ProfileFollow.objects.filter(following=user).count(),
             },
             "collections": [
                 {
@@ -121,6 +124,102 @@ class PublicProfileView(APIView):
             ],
             "reviews": PublicReviewSerializer(reviews, many=True, context={"request": request}).data,
         })
+
+
+class FollowThrottle(UserRateThrottle):
+    rate = "60/hour"
+
+
+class PrivateNoStoreAPIView(APIView):
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "no-store, private"
+        return response
+
+
+class ProfileFollowView(PrivateNoStoreAPIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [FollowThrottle]
+
+    def get_throttles(self):
+        return [] if self.request.method == "GET" else super().get_throttles()
+
+    def target(self, public_id):
+        return get_object_or_404(User, public_id=public_id, profile_is_public=True, is_active=True)
+
+    def payload(self, request, target):
+        return {
+            "is_self": request.user.pk == target.pk,
+            "is_following": ProfileFollow.objects.filter(follower=request.user, following=target).exists(),
+            "followers": ProfileFollow.objects.filter(following=target).count(),
+        }
+
+    def get(self, request, public_id):
+        target = self.target(public_id)
+        return Response(self.payload(request, target))
+
+    def put(self, request, public_id):
+        target = self.target(public_id)
+        if request.user.pk == target.pk:
+            raise ValidationError({"detail": "Нельзя подписаться на собственный профиль."})
+        _, created = ProfileFollow.objects.get_or_create(follower=request.user, following=target)
+        return Response(self.payload(request, target), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request, public_id):
+        target = self.target(public_id)
+        ProfileFollow.objects.filter(follower=request.user, following=target).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FollowingFeedView(PrivateNoStoreAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        following_ids = ProfileFollow.objects.filter(
+            follower=request.user,
+            following__profile_is_public=True,
+            following__is_active=True,
+        ).values_list("following_id", flat=True)
+        reviews = list(
+            TitleReview.objects.filter(
+                user_id__in=following_ids,
+                user__profile_is_public=True,
+                status=TitleReview.Status.APPROVED,
+            ).select_related("user", "title").prefetch_related("title__translations")[:30]
+        )
+        collections = list(
+            TitleCollection.objects.filter(
+                owner_id__in=following_ids,
+                owner__profile_is_public=True,
+                is_public=True,
+            ).select_related("owner").annotate(item_count=Count("items")).order_by("-updated_at", "-id")[:30]
+        )
+        review_data = PublicReviewSerializer(reviews, many=True, context={"request": request}).data
+        items = [
+            {
+                "kind": "review",
+                "occurred_at": review.published_at or review.updated_at,
+                "author": {"public_id": str(review.user.public_id), "display_name": review.user.display_name},
+                "review": serialized,
+            }
+            for review, serialized in zip(reviews, review_data, strict=True)
+        ]
+        items += [
+            {
+                "kind": "collection",
+                "occurred_at": collection.updated_at,
+                "author": {"public_id": str(collection.owner.public_id), "display_name": collection.owner.display_name},
+                "collection": {
+                    "name": collection.name,
+                    "slug": collection.slug,
+                    "description": collection.description,
+                    "item_count": collection.item_count,
+                },
+            }
+            for collection in collections
+        ]
+        items.sort(key=lambda item: item["occurred_at"], reverse=True)
+        return Response({"count": len(items[:30]), "results": items[:30]})
 
 
 class RatingView(APIView):

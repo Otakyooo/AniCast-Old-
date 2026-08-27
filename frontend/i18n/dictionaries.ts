@@ -162,6 +162,19 @@ Object.assign(ru, {
   "social.noPublicCollections":"Публичных коллекций пока нет.",
   "social.noPublishedReviews":"Опубликованных рецензий пока нет.",
   "social.profileDescription":"Профиль {name} в сообществе AniCast: публичные коллекции и рецензии.",
+  "social.follow":"Подписаться",
+  "social.unfollow":"Отписаться",
+  "social.signInToFollow":"Войти, чтобы подписаться",
+  "social.editOwnProfile":"Настроить профиль",
+  "social.followers":"Подписчики",
+  "social.followersCount":"Подписчиков: {count}",
+  "social.feedTabs":"Разделы ленты сообщества",
+  "social.feedAll":"Все рецензии",
+  "social.feedFollowing":"Мои подписки",
+  "social.feedEmpty":"В ленте подписок пока пусто",
+  "social.feedEmptyHint":"Подпишитесь на интересные публичные профили — их новые рецензии и обновления коллекций появятся здесь.",
+  "social.collectionUpdated":"Коллекция обновлена",
+  "social.reviewPublished":"Рецензия опубликована",
 });
 
 Object.assign(en, {
@@ -188,6 +201,19 @@ Object.assign(en, {
   "social.noPublicCollections":"No public collections yet.",
   "social.noPublishedReviews":"No published reviews yet.",
   "social.profileDescription":"{name}'s AniCast community profile, public collections and reviews.",
+  "social.follow":"Follow",
+  "social.unfollow":"Unfollow",
+  "social.signInToFollow":"Sign in to follow",
+  "social.editOwnProfile":"Edit profile",
+  "social.followers":"Followers",
+  "social.followersCount":"Followers: {count}",
+  "social.feedTabs":"Community feed sections",
+  "social.feedAll":"All reviews",
+  "social.feedFollowing":"Following",
+  "social.feedEmpty":"Your following feed is empty",
+  "social.feedEmptyHint":"Follow public profiles you enjoy. Their new reviews and collection updates will appear here.",
+  "social.collectionUpdated":"Collection updated",
+  "social.reviewPublished":"Review published",
 });
 
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };

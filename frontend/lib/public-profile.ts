@@ -19,6 +19,7 @@ export interface PublicProfileData {
   stats: {
     collections: number;
     reviews: number;
+    followers: number;
   };
   collections: PublicProfileCollection[];
   reviews: Review[];

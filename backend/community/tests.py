@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from catalog.models import Title
-from community.models import TitleReview
+from community.models import ProfileFollow, TitleReview
 from library.models import TitleCollection, TitleCollectionItem
 
 
@@ -121,7 +121,7 @@ def test_public_profile_exposes_only_approved_and_explicitly_public_content(comm
         "display_name": "First",
         "bio": "Профиль для теста безопасной социальной витрины.",
     }
-    assert body["stats"] == {"collections": 1, "reviews": 1}
+    assert body["stats"] == {"collections": 1, "reviews": 1, "followers": 0}
     assert [collection["name"] for collection in body["collections"]] == ["Public picks"]
     assert body["collections"][0]["item_count"] == 1
     assert body["collections"][0]["preview_titles"][0]["slug"] == title.slug
@@ -130,6 +130,104 @@ def test_public_profile_exposes_only_approved_and_explicitly_public_content(comm
     assert first.email not in serialized
     assert private_collection.name not in serialized
     assert "pending review" not in serialized
+
+
+@pytest.mark.django_db
+def test_follow_requires_public_target_rejects_self_and_is_idempotent(community_data):
+    first, second, _ = community_data
+    client = APIClient()
+    client.force_login(first)
+    path = f"/api/v1/community/follows/{second.public_id}/"
+    assert client.put(path).status_code == 404
+
+    second.profile_is_public = True
+    second.save(update_fields=["profile_is_public"])
+    assert client.put(path).status_code == 201
+    assert client.put(path).status_code == 200
+    assert ProfileFollow.objects.count() == 1
+    state = client.get(path).json()
+    assert state == {"is_self": False, "is_following": True, "followers": 1}
+    assert client.get(path)["Cache-Control"] == "no-store, private"
+
+    first.profile_is_public = True
+    first.save(update_fields=["profile_is_public"])
+    assert client.put(f"/api/v1/community/follows/{first.public_id}/").status_code == 400
+    assert client.delete(path).status_code == 204
+    assert not ProfileFollow.objects.exists()
+
+
+@pytest.mark.django_db
+def test_follow_mutation_requires_auth_and_csrf(community_data):
+    first, second, _ = community_data
+    second.profile_is_public = True
+    second.save(update_fields=["profile_is_public"])
+    path = f"/api/v1/community/follows/{second.public_id}/"
+    assert APIClient().put(path).status_code in {401, 403}
+    checked = APIClient(enforce_csrf_checks=True)
+    checked.force_login(first)
+    assert checked.put(path).status_code == 403
+
+
+@pytest.mark.django_db
+def test_following_feed_contains_only_safe_content_from_followed_public_profiles(community_data):
+    follower, followed, title = community_data
+    unrelated = User.objects.create_user(email="unrelated-feed@example.com", display_name="Unrelated", profile_is_public=True)
+    followed.profile_is_public = True
+    followed.save(update_fields=["profile_is_public"])
+    ProfileFollow.objects.create(follower=follower, following=followed)
+    TitleReview.objects.create(
+        user=followed,
+        title=title,
+        body="Approved followed review with enough useful detail.",
+        status=TitleReview.Status.APPROVED,
+        published_at=timezone.now(),
+    )
+    TitleReview.objects.create(
+        user=unrelated,
+        title=Title.objects.create(name="Unrelated title", slug="unrelated-feed-title"),
+        body="Approved but unrelated review with enough useful detail.",
+        status=TitleReview.Status.APPROVED,
+        published_at=timezone.now(),
+    )
+    TitleReview.objects.create(
+        user=followed,
+        title=Title.objects.create(name="Pending feed title", slug="pending-feed-title"),
+        body="Pending followed review that must remain private.",
+    )
+    TitleCollection.objects.create(owner=followed, name="Visible feed list", slug="visible-feed", is_public=True)
+    TitleCollection.objects.create(owner=followed, name="Private feed list", slug="private-feed", is_public=False)
+
+    client = APIClient()
+    client.force_login(follower)
+    response = client.get("/api/v1/community/feed/")
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "no-store, private"
+    body = response.json()
+    assert body["count"] == 2
+    assert {item["kind"] for item in body["results"]} == {"review", "collection"}
+    serialized = str(body)
+    assert "Approved followed review" in serialized
+    assert "Visible feed list" in serialized
+    assert "Unrelated" not in serialized
+    assert "Pending followed" not in serialized
+    assert "Private feed list" not in serialized
+
+
+@pytest.mark.django_db
+def test_closing_profile_revokes_incoming_follows(community_data):
+    follower, target, _ = community_data
+    target.profile_is_public = True
+    target.save(update_fields=["profile_is_public"])
+    ProfileFollow.objects.create(follower=follower, following=target)
+    client = APIClient()
+    client.force_login(target)
+    response = client.put(
+        "/api/v1/account/profile/",
+        {"display_name": target.display_name, "bio": "", "profile_is_public": False},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert not ProfileFollow.objects.exists()
 
 
 @pytest.mark.django_db

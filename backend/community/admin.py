@@ -3,7 +3,23 @@ from django.utils import timezone
 
 from push.tasks import notify_review_moderated
 
-from .models import TitleRating, TitleReview
+from .models import ProfileFollow, TitleRating, TitleReview
+
+
+@admin.register(ProfileFollow)
+class ProfileFollowAdmin(admin.ModelAdmin):
+    list_display = ["follower", "following", "created_at"]
+    search_fields = ["follower__email", "follower__display_name", "following__email", "following__display_name"]
+    readonly_fields = ["follower", "following", "created_at"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(TitleRating)

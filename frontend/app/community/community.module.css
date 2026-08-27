@@ -11,6 +11,7 @@
 .form button[type=submit]:hover:not(:disabled) { background: var(--primary-hover) }
 .form button:disabled { color: var(--muted-2); background: var(--surface-1); cursor: not-allowed }
 .summary strong { overflow-wrap: anywhere }
+.feedTabs{display:flex;width:max-content;max-width:100%;gap:4px;margin-bottom:18px;padding:4px;border:1px solid var(--border);border-radius:11px;background:var(--surface-1)}.feedTabs button{padding:8px 14px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}.feedTabs button:hover{color:var(--text)}.feedTabs .feedTabActive{background:var(--primary);color:var(--on-primary)}.eventLabel{margin-bottom:9px;color:var(--primary);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.eventTitle{display:flex;justify-content:space-between;gap:12px}.eventTitle:hover{color:var(--primary-hover)}.eventMeta{display:flex;justify-content:space-between;gap:12px;margin-top:16px;color:var(--muted-2);font-size:12px}.eventMeta a:hover{color:var(--primary-hover)}.collectionEvent p{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:4}
 @media (max-width: 640px) {
   .panel { padding: 16px }
   .feed { grid-template-columns: 1fr }

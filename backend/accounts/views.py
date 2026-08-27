@@ -183,6 +183,10 @@ def profile_settings(request):
     serializer = PublicProfileUpdateSerializer(request.user, data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.save()
+    if not request.user.profile_is_public:
+        # Closing a profile revokes every incoming social edge immediately;
+        # it cannot silently reappear in old followers' feeds if reopened.
+        request.user.profile_followers.all().delete()
     return Response(UserSerializer(request.user).data)
 
 

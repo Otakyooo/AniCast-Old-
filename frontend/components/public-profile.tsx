@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { PublicProfileData } from "../lib/public-profile";
 import { getI18n } from "../i18n/server";
+import { FollowButton } from "./follow-button";
 import styles from "../app/users/[publicId]/profile.module.css";
 
 export async function PublicProfile({ data }: { data: PublicProfileData }) {
@@ -18,6 +19,7 @@ export async function PublicProfile({ data }: { data: PublicProfileData }) {
             <p className="eyebrow">{t("social.publicBadge")}</p>
             <h1>{data.profile.display_name}</h1>
             {data.profile.bio && <p className={styles.bio}>{data.profile.bio}</p>}
+            <FollowButton publicId={data.profile.public_id} initialFollowers={data.stats.followers} />
           </div>
           <dl className={styles.stats}>
             <div><dt>{t("social.collections")}</dt><dd>{data.stats.collections}</dd></div>
