@@ -197,8 +197,7 @@ export default async function CatalogDetailPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const watchRequested = query.episode !== undefined;
-  const navigationRequest = watchRequested ? getWatchNavigation(slug).catch(() => null) : Promise.resolve(null);
+  const navigationRequest = getWatchNavigation(slug).catch(() => null);
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawCharactersPage = Number(query.characters_page);
@@ -249,7 +248,7 @@ export default async function CatalogDetailPage({
       : getFirstEpisodeNumber(slug),
   ]);
   let watchSpace: React.ReactNode = null;
-  if (watchRequested && episodesCount > 0 && firstEpisode !== null) {
+  if (episodesCount > 0 && firstEpisode !== null) {
     const loadedNavigation = await navigationRequest;
     const navigation: WatchNavigation = loadedNavigation ?? {
       episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
