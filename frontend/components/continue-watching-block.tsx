@@ -58,32 +58,18 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
     <>
       <section className={styles.resumeHero} aria-label={t("home.continueWatching")}>
         {displayTitle?.poster_url ? (
-          <>
-            <div className={styles.resumeHeroBackdrop} aria-hidden="true">
-              <Image
-                className={styles.resumeHeroBackdropArt}
-                src={displayTitle.poster_url}
-                alt=""
-                fill
-                priority
-                sizes="100vw"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className={styles.resumeHeroArtFrame} aria-hidden="true">
-              <Image
-                className={styles.resumeHeroArt}
-                src={displayTitle.poster_url}
-                alt=""
-                fill
-                priority
-                sizes="(max-width: 767px) 72vw, 320px"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          </>
+          <div className={styles.resumeHeroArtFrame} aria-hidden="true">
+            <Image
+              className={styles.resumeHeroArt}
+              src={displayTitle.poster_url}
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 520px) 92px, 164px"
+              referrerPolicy="no-referrer"
+            />
+          </div>
         ) : null}
-        <div className={styles.resumeHeroOverlay} />
         <div className={styles.resumeHeroBody}>
           <p className={styles.resumeHeroEyebrow}>{heroEntry ? t("home.heroEyebrow") : t("home.featuredEyebrow")}</p>
           <h1 className={styles.resumeHeroTitle}>{displayTitle?.name ?? t("home.title")}</h1>
@@ -108,7 +94,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
               <span><i style={{ width: `${Math.min(100, Math.round((heroEntry.watched_count / total) * 100))}%` }} /></span>
               <small>{t("home.heroProgress", { watched: heroEntry.watched_count, total })}</small>
             </div>
-          ) : typeof catalogCount === "number" && catalogCount > 0 ? (
+          ) : !heroEntry && typeof catalogCount === "number" && catalogCount > 0 ? (
             <small className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</small>
           ) : null}
         </div>
