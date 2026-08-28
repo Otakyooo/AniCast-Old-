@@ -46,9 +46,9 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const heroTarget = heroEntry ? heroEntry.next_episode ?? heroEntry.last_episode : undefined;
   const total = displayTitle?.episodes_count;
   const primaryHref = heroEntry && heroTarget
-    ? `/titles/${heroEntry.title.slug}/watch?episode=${heroTarget.number}`
+    ? `/titles/${heroEntry.title.slug}?episode=${heroTarget.number}`
     : displayTitle?.episodes_count
-      ? `/titles/${displayTitle.slug}/watch?episode=1`
+      ? `/titles/${displayTitle.slug}?episode=1`
       : displayTitle ? `/titles/${displayTitle.slug}` : "/catalog";
   const metadata = displayTitle
     ? [displayTitle.year, displayTitle.title_type ? t(`type.${displayTitle.title_type}`) : null, total ? t("home.episodeCount", { count: total }) : null].filter(Boolean)
@@ -121,7 +121,7 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
         const target = entry.next_episode ?? entry.last_episode;
         return (
           <li key={entry.title.slug}>
-            <Link className={styles.resumeCard} href={`/titles/${entry.title.slug}/watch?episode=${target.number}`}>
+            <Link className={styles.resumeCard} href={`/titles/${entry.title.slug}?episode=${target.number}`}>
               <span className={styles.resumeFrame}>
                 {entry.title.poster_url ? (
                   <Image

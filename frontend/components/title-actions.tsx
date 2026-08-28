@@ -98,7 +98,7 @@ export function TitleActions({ slug, firstEpisode }: TitleActionsProps) {
             {t("title.noEpisodesYet")}
           </button>
         ) : (
-          <Link className={styles.watch} href={`/titles/${slug}/watch?episode=${watchNumber}`}>
+          <Link className={styles.watch} href={`/titles/${slug}?episode=${watchNumber}`}>
             {resumeNumber ? t("title.continueEpisode", { number: resumeNumber }) : t("title.watchFirst")}
           </Link>
         )}

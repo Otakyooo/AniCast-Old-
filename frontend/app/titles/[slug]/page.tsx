@@ -13,16 +13,20 @@ import { ShareButton } from "../../../components/share-button";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
+import { WatchSpace } from "../../../components/watch-space";
 import {
   apiErrorStatus,
   getCatalogItem,
   getCatalogItemEpisodes,
+  getEpisode,
   getFirstEpisodeNumber,
   getSimilarTitles,
+  getWatchNavigation,
   type CatalogItem,
   type Episode,
   type Source,
   type TitleCastEntry,
+  type WatchNavigation,
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { titleRating } from "../../../lib/rating";
@@ -152,7 +156,7 @@ function EpisodeCard({
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
       {sources.some((source) => source.playback_available) && (
-        <Link className="secondary" href={`/titles/${slug}/watch?episode=${episode.number}`}>{t("watch.title")}</Link>
+        <Link className="secondary" href={`/titles/${slug}?episode=${episode.number}`}>{t("watch.title")}</Link>
       )}
       <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
       <div className="episode-sources">
@@ -189,10 +193,12 @@ export default async function CatalogDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ episodes_page?: string; characters_page?: string; tab?: string }>;
+  searchParams: Promise<{ episodes_page?: string; characters_page?: string; tab?: string; episode?: string; voice?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
+  const watchRequested = query.episode !== undefined;
+  const navigationRequest = watchRequested ? getWatchNavigation(slug).catch(() => null) : Promise.resolve(null);
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawCharactersPage = Number(query.characters_page);
@@ -242,6 +248,54 @@ export default async function CatalogDetailPage({
       ? Promise.resolve(Math.min(...episodes.map((episode) => episode.number)))
       : getFirstEpisodeNumber(slug),
   ]);
+  let watchSpace: React.ReactNode = null;
+  if (watchRequested && episodesCount > 0 && firstEpisode !== null) {
+    const loadedNavigation = await navigationRequest;
+    const navigation: WatchNavigation = loadedNavigation ?? {
+      episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
+      source_groups: [],
+    };
+    const episodeNumbers = navigation.episode_numbers.length
+      ? navigation.episode_numbers
+      : Array.from({ length: episodesCount }, (_, index) => index + 1);
+    const rawRequested = Number(query.episode);
+    const fallbackNumber = Number(episodeNumbers[0] ?? firstEpisode);
+    let watchNumber = Number.isInteger(rawRequested) && episodeNumbers.includes(rawRequested)
+      ? rawRequested
+      : fallbackNumber;
+    let watchEpisode;
+    try {
+      watchEpisode = await getEpisode(slug, watchNumber);
+    } catch (error) {
+      if (apiErrorStatus(error) !== 404) watchEpisode = null;
+      else {
+        watchNumber = fallbackNumber;
+        try { watchEpisode = await getEpisode(slug, watchNumber); }
+        catch { watchEpisode = null; }
+      }
+    }
+    if (watchEpisode) {
+      watchSpace = (
+        <WatchSpace
+          embedded
+          slug={slug}
+          titleName={item.name}
+          episodesCount={episodesCount}
+          episodeNumbers={episodeNumbers}
+          sourceGroups={navigation.source_groups}
+          requestedSourceKey={query.voice}
+          currentNumber={watchNumber}
+          episode={{
+            number: watchEpisode.number,
+            name: watchEpisode.name,
+            synopsis: watchEpisode.synopsis,
+            air_date: watchEpisode.air_date,
+            sources: watchEpisode.sources ?? [],
+          }}
+        />
+      );
+    }
+  }
   const rating = titleRating(item);
   const { t, locale } = await getI18n();
   const dayFormatter = new Intl.DateTimeFormat(intlLocale[locale], {
@@ -325,6 +379,8 @@ export default async function CatalogDetailPage({
         </div>
         <TitleActions slug={item.slug} firstEpisode={firstEpisode} />
       </article>
+
+      {watchSpace}
 
       <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
         {TABS.map((value) => (

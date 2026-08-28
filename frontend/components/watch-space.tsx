@@ -28,7 +28,7 @@ function cleanSourceName(name: string, providerName = "") {
 function episodeHref(slug: string, number: number, sourceKey: string) {
   const query = new URLSearchParams({ episode: String(number) });
   if (sourceKey) query.set("voice", sourceKey);
-  return `/titles/${slug}/watch?${query}`;
+  return `/titles/${slug}?${query}`;
 }
 
 export function WatchSpace({
@@ -40,6 +40,7 @@ export function WatchSpace({
   requestedSourceKey,
   currentNumber,
   episode,
+  embedded = false,
 }: {
   slug: string;
   titleName: string;
@@ -49,6 +50,7 @@ export function WatchSpace({
   requestedSourceKey?: string;
   currentNumber: number;
   episode: WatchEpisode;
+  embedded?: boolean;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -148,11 +150,13 @@ export function WatchSpace({
 
   return (
     <div className={styles.watchLayout}>
-      <header className={styles.watchHead}>
-        <p className="eyebrow">{t("watch.title")} · {t("episode.number", { number: episode.number })}</p>
-        <h1>{titleName}</h1>
-        {episode.name && <p>{episode.name}</p>}
-      </header>
+      {!embedded && (
+        <header className={styles.watchHead}>
+          <p className="eyebrow">{t("watch.title")} · {t("episode.number", { number: episode.number })}</p>
+          <h1>{titleName}</h1>
+          {episode.name && <p>{episode.name}</p>}
+        </header>
+      )}
 
       <div className={styles.watchStage}>
         <div className={styles.watchPlayer}>{player}</div>

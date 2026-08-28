@@ -444,13 +444,13 @@
   .heroPoster { max-width: 200px }
 }
 
-/* ---------- Unified watch space (/titles/<slug>/watch) ---------- */
+/* ---------- Unified watch space embedded on /titles/<slug> ---------- */
 
 .watchLayout {
   display: grid;
   gap: 18px;
-  width: min(100%, 1180px);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   padding-bottom: 28px;
 }
 

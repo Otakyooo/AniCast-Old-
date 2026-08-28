@@ -1,7 +1,7 @@
 /* Home page shelves: section headings, resume row and the airing strip. */
 
 .homeColumn {
-  width: min(100%, 1120px);
+  width: min(100%, 1360px);
   margin: 0 auto;
 }
 
