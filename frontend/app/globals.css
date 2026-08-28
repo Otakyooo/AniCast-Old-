@@ -502,7 +502,11 @@ summary:focus-visible {
 /* Poster boxes keep a fixed 2:3 ratio so grid rows stay aligned regardless of
    the source image dimensions or a missing poster. */
 .poster-wrap { position: relative; aspect-ratio: 2 / 3 }
-.poster-image { border-radius: inherit; object-fit: cover }
+.poster-image {
+  border-radius: inherit;
+  object-fit: cover;
+  image-rendering: auto;
+}
 .catalog-card .poster-image { position: absolute; inset: 0 }
 
 /* Community score badge: only rendered when real votes exist. */

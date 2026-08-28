@@ -29,8 +29,6 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
           <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
-          <Link className={linkClass("characters")} href="/characters">{t("nav.characters")}</Link>
-          <Link className={linkClass("media")} href="/media">{t("nav.media")}</Link>
           <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
         </nav>
         <GlobalSearch />

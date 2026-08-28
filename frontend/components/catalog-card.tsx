@@ -20,7 +20,7 @@ export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; 
             src={item.poster_url}
             alt=""
             fill
-            sizes="(max-width: 768px) 50vw, 220px"
+            sizes={variant === "media" ? "(max-width: 768px) 42vw, 176px" : "(max-width: 768px) 50vw, 220px"}
             referrerPolicy="no-referrer"
           />
         ) : (

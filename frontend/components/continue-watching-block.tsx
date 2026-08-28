@@ -57,7 +57,19 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   return (
     <>
       <section className={styles.resumeHero} aria-label={t("home.continueWatching")}>
-        <Image className={styles.resumeHeroArt} src="/home-hero.webp" alt="" fill priority sizes="100vw" />
+        {displayTitle?.poster_url ? (
+          <div className={styles.resumeHeroArtFrame} aria-hidden="true">
+            <Image
+              className={styles.resumeHeroArt}
+              src={displayTitle.poster_url}
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 767px) 72vw, 390px"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        ) : null}
         <div className={styles.resumeHeroOverlay} />
         <div className={styles.resumeHeroBody}>
           <p className={styles.resumeHeroEyebrow}>{heroEntry ? t("home.heroEyebrow") : t("home.featuredEyebrow")}</p>
