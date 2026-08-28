@@ -19,6 +19,7 @@ from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from . import posters
 from .models import (
     Character,
+    Creator,
     Episode,
     Franchise,
     Genre,
@@ -44,6 +45,7 @@ from .serializers import (
     FranchiseSummarySerializer,
     CharacterDetailSerializer,
     CharacterSummarySerializer,
+    CreatorDetailSerializer,
     GenreOptionSerializer,
     MediaAssetSerializer,
     ScheduleEpisodeSerializer,
@@ -158,6 +160,20 @@ class TitleDetailView(RetrieveAPIView):
         # subsequent pages with characters_page.
         context["characters_paginator"] = CharacterPagination()
         return context
+
+
+class CreatorDetailView(RetrieveAPIView):
+    queryset = Creator.objects.prefetch_related(
+        Prefetch(
+            "title_credits",
+            queryset=TitleCredit.objects.select_related("title", "title__franchise").prefetch_related(
+                "title__translations", "title__genres", "title__genres__translations",
+                "title__franchise__translations",
+            ),
+        )
+    )
+    serializer_class = CreatorDetailSerializer
+    lookup_field = "slug"
 
 
 class EpisodeDetailView(APIView):

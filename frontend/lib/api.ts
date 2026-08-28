@@ -137,6 +137,7 @@ export interface FranchiseResponse { count: number; next: string | null; previou
 export interface CharacterSummary { name: string; slug: string; original_name: string; description: string; image_url: string; title_count: number }
 export interface CharacterDetail extends CharacterSummary { title_links: Array<{ title: CatalogItem; role: string; sort_order: number }> }
 export interface CharacterResponse { count: number; next: string | null; previous: string | null; results: CharacterSummary[] }
+export interface CreatorDetail { name: string; slug: string; title_credits: Array<{ role: string; sort_order: number; title: CatalogItem }> }
 
 export interface GlobalSearchResponse {
   query: string;
@@ -334,6 +335,10 @@ export async function getCharacters(search = "", page = 1): Promise<CharacterRes
 
 export async function getCharacter(slug: string): Promise<CharacterDetail> {
   return request<CharacterDetail>(`/characters/${encodeURIComponent(slug)}/`, revalidated(300));
+}
+
+export async function getCreator(slug: string): Promise<CreatorDetail> {
+  return request<CreatorDetail>(`/creators/${encodeURIComponent(slug)}/`, revalidated(300));
 }
 
 export async function getMedia(kind = ""): Promise<MediaResponse> {

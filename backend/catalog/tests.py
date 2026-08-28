@@ -12,6 +12,7 @@ from catalog.models import (
     EpisodeTranslation,
     Character,
     CharacterTranslation,
+    Creator,
     Franchise,
     FranchiseTranslation,
     Genre,
@@ -24,6 +25,7 @@ from catalog.models import (
     Title,
     TitleTranslation,
     TitleCharacter,
+    TitleCredit,
 )
 from django.core.management import call_command
 
@@ -64,6 +66,24 @@ def test_title_detail_includes_nested_relations(catalog_data):
     assert body["episodes"][0]["sources"][0]["is_available"] is True
     assert "url" not in body["episodes"][0]["sources"][0]
     assert body["episodes"][0]["sources"][0]["playback_available"] is False
+
+
+@pytest.mark.django_db
+def test_creator_detail_lists_credited_titles(catalog_data):
+    creator = Creator.objects.create(name="Тестовый режиссёр", slug="тестовый-режиссёр")
+    TitleCredit.objects.create(
+        title=catalog_data,
+        creator=creator,
+        role="director",
+        sort_order=0,
+    )
+
+    response = APIClient().get("/api/v1/creators/тестовый-режиссёр/")
+
+    assert response.status_code == 200
+    assert response.json()["slug"] == "тестовый-режиссёр"
+    assert response.json()["title_credits"][0]["role"] == "director"
+    assert response.json()["title_credits"][0]["title"]["slug"] == "sky-test"
 
 
 @pytest.mark.django_db

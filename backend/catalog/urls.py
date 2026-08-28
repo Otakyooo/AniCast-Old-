@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     CharacterDetailView,
     CharacterListView,
+    CreatorDetailView,
     FranchiseDetailView,
     FranchiseListView,
     GenreListView,
@@ -36,6 +37,7 @@ urlpatterns = [
     path("franchises/<slug:slug>/", FranchiseDetailView.as_view(), name="franchise-detail"),
     path("characters/", CharacterListView.as_view(), name="character-list"),
     path("characters/<slug:slug>/", CharacterDetailView.as_view(), name="character-detail"),
+    path("creators/<str:slug>/", CreatorDetailView.as_view(), name="creator-detail"),
     path("media/", MediaAssetListView.as_view(), name="media-list"),
     path("media/posters/<str:filename>", poster_media_view, name="poster-media"),
 ]

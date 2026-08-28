@@ -90,6 +90,14 @@ Object.assign(en, {
   "home.featuredEyebrow":"Featured","home.watchFeatured":"Watch","home.episodeCount":"{count} episodes"
 });
 
+Object.assign(ru, {
+  "creator.eyebrow":"АВТОР","creator.works":"Работы","creator.worksCount":"Работ в каталоге: {count}"
+});
+
+Object.assign(en, {
+  "creator.eyebrow":"CREATOR","creator.works":"Works","creator.worksCount":"Works in catalog: {count}"
+});
+
 Object.assign(en, {
   "nav.collections":"Collections",
   "collections.eyebrow":"CURATED LISTS","collections.title":"My collections","collections.subtitle":"Build themed lists, arrange titles and share a public link.","collections.manage":"Manage collection","collections.manageText":"Edit its description, visibility and title order.",

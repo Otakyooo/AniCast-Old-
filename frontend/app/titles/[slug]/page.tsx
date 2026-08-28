@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
 import { TitleActions } from "../../../components/title-actions";
@@ -26,6 +27,7 @@ import {
   type Episode,
   type Source,
   type TitleCastEntry,
+  type TitleCreditEntry,
   type WatchNavigation,
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
@@ -184,6 +186,16 @@ function CastCard({ entry, t }: { entry: TitleCastEntry; t: Translator }) {
         <strong>{character.name}</strong>
         <small>{t(`role.${entry.role}`)}</small>
       </span>
+    </Link>
+  );
+}
+
+function CreditCard({ credit, t }: { credit: TitleCreditEntry; t: Translator }) {
+  return (
+    <Link className={styles.creditCard} href={`/creators/${credit.creator.slug}`}>
+      <span className={styles.creditInitial} aria-hidden="true">{credit.creator.name.slice(0, 1)}</span>
+      <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
+      <ArrowUpRight className={styles.creditArrow} aria-hidden="true" size={17} />
     </Link>
   );
 }
@@ -379,8 +391,6 @@ export default async function CatalogDetailPage({
         <TitleActions slug={item.slug} firstEpisode={firstEpisode} />
       </article>
 
-      {watchSpace}
-
       <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
         {TABS.map((value) => (
           <Link
@@ -396,12 +406,39 @@ export default async function CatalogDetailPage({
         ))}
       </nav>
 
+      {tab !== "overview" && watchSpace && (
+        <section className={styles.watchSection}>
+          <h2>{t("watch.title")}</h2>
+          {watchSpace}
+        </section>
+      )}
+
       {tab === "overview" && (
         <div className={styles.panel}>
-          <section className={styles.block}>
-            <h2>{t("title.description")}</h2>
-            <p className="muted">{item.synopsis || t("title.descriptionMissing")}</p>
-          </section>
+          <div className={styles.overviewLead}>
+            <section className={`${styles.block} ${styles.overviewCard} ${styles.descriptionCard}`}>
+              <h2>{t("title.description")}</h2>
+              <p>{item.synopsis || t("title.descriptionMissing")}</p>
+            </section>
+            <section className={`${styles.block} ${styles.overviewCard}`}>
+              <h2>{t("title.details")}</h2>
+              <dl className={styles.detailsList}>
+                <div><dt>{t("catalog.format")}</dt><dd>{t(`type.${item.title_type ?? "anime"}`)}</dd></div>
+                {item.duration_minutes ? (
+                  <div><dt>{t("title.duration")}</dt><dd>{t("title.durationValue", { minutes: item.duration_minutes })}</dd></div>
+                ) : null}
+                {item.franchise && (
+                  <div>
+                    <dt>{t("title.franchiseLabel")}</dt>
+                    <dd><Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link></dd>
+                  </div>
+                )}
+                {item.original_name && (
+                  <div><dt>{t("title.originalName")}</dt><dd>{item.original_name}</dd></div>
+                )}
+              </dl>
+            </section>
+          </div>
           {mainCredits.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
@@ -409,35 +446,10 @@ export default async function CatalogDetailPage({
                 {credits.length > mainCredits.length && <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.peopleAll")}</Link>}
               </div>
               <div className={styles.creditGrid}>
-                {mainCredits.map((credit) => (
-                  <div className={styles.creditCard} key={`${credit.role}-${credit.creator.slug}`}>
-                    <span className={styles.creditInitial} aria-hidden="true">{credit.creator.name.slice(0, 1)}</span>
-                    <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
-                  </div>
-                ))}
+                {mainCredits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} t={t} />)}
               </div>
             </section>
           )}
-          <section className={styles.block}>
-            <h2>{t("title.details")}</h2>
-            {/* Only facts the hero chips do not already show: runtime, franchise
-                and the original spelling. Status/episodes/genres live above. */}
-            <dl className={styles.detailsList}>
-              <div><dt>{t("catalog.format")}</dt><dd>{t(`type.${item.title_type ?? "anime"}`)}</dd></div>
-              {item.duration_minutes ? (
-                <div><dt>{t("title.duration")}</dt><dd>{t("title.durationValue", { minutes: item.duration_minutes })}</dd></div>
-              ) : null}
-              {item.franchise && (
-                <div>
-                  <dt>{t("title.franchiseLabel")}</dt>
-                  <dd><Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link></dd>
-                </div>
-              )}
-              {item.original_name && (
-                <div><dt>{t("title.originalName")}</dt><dd>{item.original_name}</dd></div>
-              )}
-            </dl>
-          </section>
           {mainCast.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
@@ -451,6 +463,12 @@ export default async function CatalogDetailPage({
               </div>
             </section>
           )}
+          {watchSpace && (
+            <section className={styles.watchSection}>
+              <h2>{t("watch.title")}</h2>
+              {watchSpace}
+            </section>
+          )}
           {relatedTitles.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
@@ -459,8 +477,8 @@ export default async function CatalogDetailPage({
                   {item.franchise && <p className="muted">{item.franchise.name}</p>}
                 </div>
               </div>
-              <div className="catalog-shelf">
-                {relatedTitles.map((related) => <CatalogCard key={related.slug} item={related} />)}
+              <div className={styles.relatedRail}>
+                {relatedTitles.map((related) => <CatalogCard key={related.slug} item={related} variant="media" />)}
               </div>
             </section>
           )}
@@ -472,7 +490,7 @@ export default async function CatalogDetailPage({
                 <h2>{t("similar.title")}</h2>
                 <Link href="/catalog">{t("home.allCatalog")}</Link>
               </div>
-              <div className="catalog-shelf">{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} />)}</div>
+              <div className={styles.relatedRail}>{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</div>
             </section>
           )}
         </div>
@@ -529,12 +547,7 @@ export default async function CatalogDetailPage({
             <h2>{t("title.authors")}</h2>
             {credits.length ? (
               <div className={styles.creditGrid}>
-                {credits.map((credit) => (
-                  <div className={styles.creditCard} key={`${credit.role}-${credit.creator.slug}`}>
-                    <span className={styles.creditInitial} aria-hidden="true">{credit.creator.name.slice(0, 1)}</span>
-                    <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
-                  </div>
-                ))}
+                {credits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} t={t} />)}
               </div>
             ) : <p className="muted">{t("title.noAuthors")}</p>}
           </section>

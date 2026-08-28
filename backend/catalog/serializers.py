@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .i18n import translated_value
-from .models import Character, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
+from .models import Character, Creator, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
 
 class GenreSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
@@ -201,6 +201,24 @@ class TitleDetailSerializer(TitleSerializer):
                 "year": title.year,
             }
             for title in related
+        ]
+
+
+class CreatorDetailSerializer(serializers.ModelSerializer):
+    title_credits = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Creator
+        fields = ["name", "slug", "title_credits"]
+
+    def get_title_credits(self, obj):
+        return [
+            {
+                "role": credit.role,
+                "sort_order": credit.sort_order,
+                "title": TitleSerializer(credit.title, context=self.context).data,
+            }
+            for credit in obj.title_credits.all()
         ]
 
 
