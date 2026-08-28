@@ -73,46 +73,48 @@ export default async function HomePage() {
 
   return <PageShell active="home">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd(locale)) }} />
-    <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
+    <div className={styles.homeColumn}>
+      <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
 
-    {schedule.results.length > 0 && (
-      <section className="section">
-        <div className="section-heading">
-          <div className={styles.shelfHeading}>
-            <h2>{t("schedule.title")}</h2>
-            <p>{t("schedule.subtitle")}</p>
+      {schedule.results.length > 0 && (
+        <section className="section">
+          <div className="section-heading">
+            <div className={styles.shelfHeading}>
+              <h2>{t("schedule.title")}</h2>
+              <p>{t("schedule.subtitle")}</p>
+            </div>
+            <Link href="/schedule">{t("home.showAll")}</Link>
           </div>
-          <Link href="/schedule">{t("home.showAll")}</Link>
-        </div>
-        <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
-      </section>
-    )}
+          <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
+        </section>
+      )}
 
-    <CatalogShelf
-      title={hasDenseAiringShelf ? t("home.airingNow") : t("home.popular")}
-      subtitle={hasDenseAiringShelf ? t("home.airingNowText") : t("home.popularText")}
-      items={leadShelfItems}
-      href={hasDenseAiringShelf ? "/catalog?status=ongoing" : "/catalog"}
-      linkLabel={t("home.showAll")}
-      emptyLabel={t("home.sectionEmpty")}
-    />
+      <CatalogShelf
+        title={hasDenseAiringShelf ? t("home.airingNow") : t("home.popular")}
+        subtitle={hasDenseAiringShelf ? t("home.airingNowText") : t("home.popularText")}
+        items={leadShelfItems}
+        href={hasDenseAiringShelf ? "/catalog?status=ongoing" : "/catalog"}
+        linkLabel={t("home.showAll")}
+        emptyLabel={t("home.sectionEmpty")}
+      />
 
-    {hasDenseAiringShelf && <CatalogShelf
-      title={t("home.popular")}
-      subtitle={t("home.popularText")}
-      items={popular.results}
-      href="/catalog"
-      linkLabel={t("home.allCatalog")}
-      emptyLabel={t("home.empty")}
-    />}
+      {hasDenseAiringShelf && <CatalogShelf
+        title={t("home.popular")}
+        subtitle={t("home.popularText")}
+        items={popular.results}
+        href="/catalog"
+        linkLabel={t("home.allCatalog")}
+        emptyLabel={t("home.empty")}
+      />}
 
-    <CatalogShelf
-      title={t("home.newest")}
-      subtitle={t("home.newestText")}
-      items={newest.results}
-      href="/catalog"
-      linkLabel={t("home.allCatalog")}
-      emptyLabel={t("home.sectionEmpty")}
-    />
+      <CatalogShelf
+        title={t("home.newest")}
+        subtitle={t("home.newestText")}
+        items={newest.results}
+        href="/catalog"
+        linkLabel={t("home.allCatalog")}
+        emptyLabel={t("home.sectionEmpty")}
+      />
+    </div>
   </PageShell>;
 }

@@ -1,5 +1,10 @@
 /* Home page shelves: section headings, resume row and the airing strip. */
 
+.homeColumn {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+
 /* ---------- Resume hero (design spec §4.2) ---------- */
 
 .resumeHero {
@@ -7,9 +12,9 @@
   grid-template-columns: 164px minmax(0, 1fr);
   align-items: center;
   gap: clamp(24px, 3vw, 42px);
-  width: min(100%, 1120px);
+  width: 100%;
   min-height: 286px;
-  margin: 28px auto 4px;
+  margin: 28px 0 4px;
   padding: 20px clamp(22px, 3vw, 38px) 20px 20px;
   border: 1px solid var(--border);
   border-radius: 14px;
