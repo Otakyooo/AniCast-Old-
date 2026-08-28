@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useI18n } from "./i18n-provider";
 
 /** Custom event the header search listens for to expand its sheet. */
@@ -21,7 +22,7 @@ export function MobileSearchLink() {
         window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
       }}
     >
-      <span aria-hidden="true">⌕</span>{t("search.title")}
+      <MagnifyingGlass aria-hidden="true" size={20} />{t("search.title")}
     </Link>
   );
 }

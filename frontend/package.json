@@ -10,6 +10,7 @@
     "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "next": "15.5.23",
     "react": "19.1.1",
     "react-dom": "19.1.1"

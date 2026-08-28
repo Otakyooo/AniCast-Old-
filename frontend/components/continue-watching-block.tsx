@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Play, Plus } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import type { CatalogItem } from "../lib/api";
 import { getContinueWatching, type ContinueWatchingEntry } from "../lib/continue-watching";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
@@ -34,63 +36,60 @@ function useContinueWatching(): State {
  * viewers without progress see the static welcome hero instead; the real
  * catalog size grounds it with a fact instead of decoration.
  */
-export function ContinueWatchingBlock({ catalogCount }: { catalogCount?: number }) {
+export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount?: number; featured?: CatalogItem }) {
   const { t } = useI18n();
   const state = useContinueWatching();
-
-  if (state.kind !== "ready" || state.entries.length === 0) {
-    return (
-      <div className="hero">
-        <p className="eyebrow">{t("home.eyebrow")}</p>
-        <h1>{t("home.title")}</h1>
-        <p className="muted">{t("home.subtitle")}</p>
-        {typeof catalogCount === "number" && catalogCount > 0 && (
-          <p className={styles.heroCount}>{t("home.catalogCount", { count: catalogCount })}</p>
-        )}
-        <Link className="primary inline-button" href="/catalog">{t("home.openCatalog")}</Link>
-      </div>
-    );
-  }
-
-  const [heroEntry, ...rest] = state.entries;
-  const shelfEntries = rest.slice(0, 5);
-  const heroTarget = heroEntry.next_episode ?? heroEntry.last_episode;
-  const total = heroEntry.title.episodes_count;
+  const entries = state.kind === "ready" ? state.entries : [];
+  const [heroEntry, ...rest] = entries;
+  const shelfEntries = rest.slice(0, 7);
+  const displayTitle = heroEntry?.title ?? featured;
+  const heroTarget = heroEntry ? heroEntry.next_episode ?? heroEntry.last_episode : undefined;
+  const total = displayTitle?.episodes_count;
+  const primaryHref = heroEntry && heroTarget
+    ? `/titles/${heroEntry.title.slug}/watch?episode=${heroTarget.number}`
+    : displayTitle?.episodes_count
+      ? `/titles/${displayTitle.slug}/watch?episode=1`
+      : displayTitle ? `/titles/${displayTitle.slug}` : "/catalog";
+  const metadata = displayTitle
+    ? [displayTitle.year, displayTitle.title_type ? t(`type.${displayTitle.title_type}`) : null, total ? t("home.episodeCount", { count: total }) : null].filter(Boolean)
+    : [];
 
   return (
     <>
       <section className={styles.resumeHero} aria-label={t("home.continueWatching")}>
-        {heroEntry.title.poster_url && (
-          <Image
-            className={styles.resumeHeroArt}
-            src={heroEntry.title.poster_url}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            referrerPolicy="no-referrer"
-          />
-        )}
+        <Image className={styles.resumeHeroArt} src="/home-hero.webp" alt="" fill priority sizes="100vw" />
         <div className={styles.resumeHeroOverlay} />
         <div className={styles.resumeHeroBody}>
-          <p className={styles.resumeHeroEyebrow}>{t("home.heroEyebrow")}</p>
-          <h1 className={styles.resumeHeroTitle}>{heroEntry.title.name}</h1>
-          <p className={styles.resumeHeroMeta}>
-            {t("episode.number", { number: heroTarget.number })}
-            {total ? ` · ${t("home.heroProgress", { watched: heroEntry.watched_count, total })}` : ""}
-          </p>
+          <p className={styles.resumeHeroEyebrow}>{heroEntry ? t("home.heroEyebrow") : t("home.featuredEyebrow")}</p>
+          <h1 className={styles.resumeHeroTitle}>{displayTitle?.name ?? t("home.title")}</h1>
+          {metadata.length > 0 && <p className={styles.resumeHeroMeta}>{metadata.join(" · ")}</p>}
+          {displayTitle?.genres?.length ? (
+            <ul className={styles.heroGenres} aria-label={t("catalog.genre")}>
+              {displayTitle.genres.slice(0, 3).map((genre) => <li key={genre.slug}>{genre.name}</li>)}
+            </ul>
+          ) : null}
+          {displayTitle?.synopsis && <p className={styles.heroSynopsis}>{displayTitle.synopsis}</p>}
           <div className={styles.resumeHeroActions}>
-            <Link className={`primary inline-button ${styles.resumeHeroCta}`} href={`/titles/${heroEntry.title.slug}/watch?episode=${heroTarget.number}`}>
-              {t("home.continueEpisode", { number: heroTarget.number })}
+            <Link className={`primary inline-button ${styles.resumeHeroCta}`} href={primaryHref}>
+              <Play aria-hidden="true" weight="fill" size={19} />
+              {heroEntry && heroTarget ? t("home.continueEpisode", { number: heroTarget.number }) : t("home.watchFeatured")}
             </Link>
-            <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href={`/titles/${heroEntry.title.slug}`}>
-              {t("home.aboutTitle")}
-            </Link>
+            {displayTitle && <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href={`/titles/${displayTitle.slug}`}>
+              <Plus aria-hidden="true" size={20} />{t("title.addLibrary")}
+            </Link>}
           </div>
+          {heroEntry && heroTarget && total ? (
+            <div className={styles.heroProgress}>
+              <span><i style={{ width: `${Math.min(100, Math.round((heroEntry.watched_count / total) * 100))}%` }} /></span>
+              <small>{t("home.heroProgress", { watched: heroEntry.watched_count, total })}</small>
+            </div>
+          ) : typeof catalogCount === "number" && catalogCount > 0 ? (
+            <small className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</small>
+          ) : null}
         </div>
       </section>
 
-      <section className="section" aria-label={t("home.continueWatching")}>
+      {shelfEntries.length > 0 && <section className="section" aria-label={t("home.continueWatching")}>
         <div className="section-heading">
           <div className={styles.shelfHeading}>
             <h2>{t("home.continueWatching")}</h2>
@@ -98,7 +97,7 @@ export function ContinueWatchingBlock({ catalogCount }: { catalogCount?: number 
           <Link href="/history">{t("history.all")}</Link>
         </div>
         <ResumeRow entries={shelfEntries} />
-      </section>
+      </section>}
     </>
   );
 }

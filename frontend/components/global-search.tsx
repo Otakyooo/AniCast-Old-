@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { CharacterAvatar } from "./character-avatar";
 import { globalSearch, SEARCH_MIN_LENGTH, type GlobalSearchResponse } from "../lib/api";
 import { buildSearchOptionModel } from "../lib/global-search";
@@ -186,12 +187,12 @@ export function GlobalSearch() {
         aria-expanded={expanded}
         onClick={toggleExpanded}
       >
-        <span aria-hidden="true">⌕</span>
+        <MagnifyingGlass aria-hidden="true" size={19} />
       </button>
 
       <div className={styles.field}>
         <form className={`global-search ${styles.form}`} action="/catalog" role="search" onSubmit={close}>
-          <span aria-hidden="true">⌕</span>
+          <MagnifyingGlass aria-hidden="true" size={17} />
           <input
             ref={inputRef}
             name="q"

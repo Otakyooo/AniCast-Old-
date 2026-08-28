@@ -158,9 +158,9 @@ summary:focus-visible {
 
 .global-nav-inner {
   display: grid;
-  grid-template-columns: auto auto minmax(180px, 420px) auto;
+  grid-template-columns: auto minmax(0, auto) minmax(180px, 300px) auto;
   align-items: center;
-  gap: 24px;
+  gap: clamp(12px, 1.2vw, 18px);
   width: min(100%, var(--content-width));
   height: 100%;
   margin: 0 auto;
@@ -193,7 +193,7 @@ summary:focus-visible {
 .primary-nav {
   display: flex;
   align-self: stretch;
-  gap: 22px;
+  gap: clamp(10px, 1vw, 15px);
 }
 
 .primary-nav > a,
@@ -207,6 +207,10 @@ summary:focus-visible {
   cursor: pointer;
   list-style: none;
   transition: color 140ms ease;
+}
+
+@media (max-width: 1500px) {
+  .primary-nav > a { font-size: 13px }
 }
 
 .primary-nav > a:hover,
@@ -474,6 +478,20 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.catalog-card-media {
+  overflow: visible;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.catalog-card-media:hover { border-color: transparent; transform: translateY(-3px) }
+.catalog-card-media .poster-wrap { overflow: hidden; border-radius: 8px; background: var(--surface-card) }
+.catalog-card-media .catalog-card-body { padding: 10px 0 0 }
+.catalog-card-media .card-kicker { display: none }
+.catalog-card-media h2 { margin: 0 0 4px; font-size: 14px; line-height: 1.35 }
+.catalog-card-media p { font-size: 12px }
+
 .card-kicker {
   color: var(--primary);
   font-size: 10px;
@@ -655,7 +673,7 @@ summary:focus-visible {
 
 @media (max-width: 1199px) {
   .global-nav-inner { grid-template-columns: auto auto minmax(42px, 1fr) auto; gap: 18px }
-  .primary-nav > a:nth-of-type(n+5) { display: none }
+  .primary-nav > a:nth-of-type(n+4) { display: none }
   .compact-only { display: block }
   .catalog-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) }
   .site-footer-inner { grid-template-columns: 1fr auto; gap: 24px }

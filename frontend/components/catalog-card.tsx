@@ -6,13 +6,13 @@ import type { CatalogItem } from "../lib/api";
 import { titleRating } from "../lib/rating";
 import { useI18n } from "./i18n-provider";
 
-export function CatalogCard({ item }: { item: CatalogItem }) {
+export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; variant?: "default" | "media" }) {
   const { t } = useI18n();
   const status = item.status ? t(`status.${item.status}`) : t("type.anime");
   const rating = titleRating(item);
 
   return (
-    <Link className="catalog-card" href={`/titles/${item.slug}`}>
+    <Link className={`catalog-card ${variant === "media" ? "catalog-card-media" : ""}`} href={`/titles/${item.slug}`}>
       <div className="poster-wrap">
         {item.poster_url ? (
           <Image

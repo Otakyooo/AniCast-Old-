@@ -48,7 +48,7 @@ function CatalogShelf({
         <Link href={href}>{linkLabel}</Link>
       </div>
       {items.length ? (
-        <div className="catalog-shelf">{items.map((item) => <CatalogCard item={item} key={item.slug} />)}</div>
+        <div className={styles.posterRail}>{items.map((item) => <CatalogCard item={item} key={item.slug} variant="media" />)}</div>
       ) : (
         <div className="empty-state" role="status"><strong>{emptyLabel}</strong></div>
       )}
@@ -68,10 +68,12 @@ export default async function HomePage() {
     getSchedule(todayKey, addDays(todayKey, 2)).catch((): ScheduleResponse => emptyPage()),
     getI18n(),
   ]);
+  const hasDenseAiringShelf = ongoing.results.length >= 4;
+  const leadShelfItems = hasDenseAiringShelf ? ongoing.results : popular.results;
 
   return <PageShell active="home">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd(locale)) }} />
-    <ContinueWatchingBlock catalogCount={popular.count} />
+    <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
 
     {schedule.results.length > 0 && (
       <section className="section">
@@ -87,22 +89,22 @@ export default async function HomePage() {
     )}
 
     <CatalogShelf
-      title={t("home.airingNow")}
-      subtitle={t("home.airingNowText")}
-      items={ongoing.results}
-      href="/catalog?status=ongoing"
+      title={hasDenseAiringShelf ? t("home.airingNow") : t("home.popular")}
+      subtitle={hasDenseAiringShelf ? t("home.airingNowText") : t("home.popularText")}
+      items={leadShelfItems}
+      href={hasDenseAiringShelf ? "/catalog?status=ongoing" : "/catalog"}
       linkLabel={t("home.showAll")}
       emptyLabel={t("home.sectionEmpty")}
     />
 
-    <CatalogShelf
+    {hasDenseAiringShelf && <CatalogShelf
       title={t("home.popular")}
       subtitle={t("home.popularText")}
       items={popular.results}
       href="/catalog"
       linkLabel={t("home.allCatalog")}
       emptyLabel={t("home.empty")}
-    />
+    />}
 
     <CatalogShelf
       title={t("home.newest")}

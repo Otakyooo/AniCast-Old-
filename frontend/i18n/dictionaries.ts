@@ -70,6 +70,10 @@ Object.assign(ru, {
   "home.continueWatching":"Продолжить просмотр","home.airingNow":"Сейчас выходит","home.airingNowText":"Тайтлы с подтверждёнными датами новых эпизодов.","home.popular":"Популярное","home.popularText":"Тайтлы, которые чаще всего добавляют в библиотеку.","home.newest":"Новинки","home.newestText":"Самые свежие тайтлы каталога.","home.showAll":"Смотреть все →","home.sectionEmpty":"Пока нет данных для этого блока","home.watchNow":"Смотреть эпизод {number}"
 });
 
+Object.assign(ru, {
+  "home.featuredEyebrow":"В центре внимания","home.watchFeatured":"Смотреть","home.episodeCount":"{count} эпизодов"
+});
+
 Object.assign(en, {
   "schedule.weekdays":"Weekdays","schedule.today":"Today","schedule.tomorrow":"Tomorrow","schedule.yesterday":"Yesterday",
   "schedule.released":"Released","schedule.airingNow":"Now","schedule.inMinutes":"In {count} min","schedule.inHours":"In {count} h","schedule.inHoursMinutes":"In {hours} h {minutes} min","schedule.laterToday":"Later today","schedule.upcoming":"Upcoming","schedule.timeUnknown":"Time not confirmed",
@@ -80,6 +84,10 @@ Object.assign(en, {
   "title.watchFirst":"Watch episode 1","title.continueEpisode":"Continue: episode {number}","watch.title":"Watch","watch.prev":"Previous episode","watch.next":"Next episode","title.castMain":"Main cast","title.castAll":"Full cast","title.addLibrary":"Add to library","title.inLibrary":"In library","title.favorite":"Favorite","title.favoriteActive":"In favorites","title.noEpisodesYet":"No episodes added","title.actionsGuest":"Sign in to keep your progress.",
   "title.tabOverview":"Overview","title.tabEpisodes":"Episodes","title.tabCharacters":"Characters & creators","title.tabCommunity":"Community","title.tabNotes":"Notes","title.description":"Description","title.details":"Details","title.duration":"Runtime","title.durationValue":"~{minutes} min","title.franchiseLabel":"Franchise","title.originalName":"Original title","title.noCast":"No characters added yet","title.charactersMain":"Main characters","title.authorsMain":"Main creators","title.peopleAll":"All characters and creators →","title.characters":"Characters","title.authors":"Creators","title.noAuthors":"Creator details are being verified","title.relatedWorks":"Related works","credit.director":"Director","credit.producer":"Producer","credit.writer":"Writer","credit.composer":"Composer","credit.designer":"Designer",
   "home.continueWatching":"Continue watching","home.airingNow":"Airing now","home.airingNowText":"Titles with confirmed upcoming episode dates.","home.popular":"Popular","home.popularText":"Titles most often added to libraries.","home.newest":"Newest","home.newestText":"The freshest titles in the catalog.","home.showAll":"See all →","home.sectionEmpty":"No data for this block yet","home.watchNow":"Watch episode {number}"
+});
+
+Object.assign(en, {
+  "home.featuredEyebrow":"Featured","home.watchFeatured":"Watch","home.episodeCount":"{count} episodes"
 });
 
 Object.assign(en, {

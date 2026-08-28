@@ -5,6 +5,7 @@ import { BrandLockup } from "./brand-lockup";
 import { GlobalSearch } from "./global-search";
 import { MobileSearchLink } from "./mobile-search-link";
 import { UserMenu } from "./user-menu";
+import { CalendarDots, House, SquaresFour, UserCircle } from "@phosphor-icons/react/dist/ssr";
 
 export type NavSection =
   | "home" | "catalog" | "schedule" | "franchises" | "characters"
@@ -12,8 +13,6 @@ export type NavSection =
 
 // Personal routes highlight nothing in the desktop top nav by design: the
 // library lives inside the profile (design freeze v0.2, acceptance #2).
-const OVERFLOW_SECTIONS: NavSection[] = ["media", "community"];
-
 export async function SiteHeader({ active }: { active: NavSection }) {
   const { t } = await getI18n();
   // Presence of the session cookie decides the first paint only. The client
@@ -29,13 +28,10 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("home")} href="/">{t("nav.home")}</Link>
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
-          <details className={`more-nav ${OVERFLOW_SECTIONS.includes(active) ? "active" : ""}`}>
-            <summary>{t("nav.more")}</summary>
-            <div className="more-menu">
-              <Link className={linkClass("media")} href="/media">{t("nav.media")}</Link>
-              <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
-            </div>
-          </details>
+          <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
+          <Link className={linkClass("characters")} href="/characters">{t("nav.characters")}</Link>
+          <Link className={linkClass("media")} href="/media">{t("nav.media")}</Link>
+          <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
         </nav>
         <GlobalSearch />
         <div className="global-actions">
@@ -44,11 +40,11 @@ export async function SiteHeader({ active }: { active: NavSection }) {
       </div>
     </header>
     <nav className="mobile-bottom-nav" aria-label={t("nav.main")}>
-      <Link className={linkClass("home")} href="/"><span aria-hidden="true">⌂</span>{t("nav.home")}</Link>
-      <Link className={linkClass("catalog")} href="/catalog"><span aria-hidden="true">▦</span>{t("nav.catalog")}</Link>
-      <Link className={linkClass("schedule")} href="/schedule"><span aria-hidden="true">◫</span>{t("nav.schedule")}</Link>
+      <Link className={linkClass("home")} href="/"><House aria-hidden="true" size={20} />{t("nav.home")}</Link>
+      <Link className={linkClass("catalog")} href="/catalog"><SquaresFour aria-hidden="true" size={20} />{t("nav.catalog")}</Link>
+      <Link className={linkClass("schedule")} href="/schedule"><CalendarDots aria-hidden="true" size={20} />{t("nav.schedule")}</Link>
       <MobileSearchLink />
-      <Link className={linkClass("profile")} href="/account"><span aria-hidden="true">○</span>{t("nav.profile")}</Link>
+      <Link className={linkClass("profile")} href="/account"><UserCircle aria-hidden="true" size={21} />{t("nav.profile")}</Link>
     </nav>
   </>;
 }
