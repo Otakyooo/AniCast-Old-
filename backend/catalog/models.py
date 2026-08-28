@@ -218,6 +218,7 @@ class TitleCharacter(models.Model):
 class Creator(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=220, unique=True)
+    image_url = models.URLField(blank=True)
 
     class Meta:
         ordering = ["name", "id"]

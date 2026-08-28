@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
+import { User } from "@phosphor-icons/react/dist/ssr";
 import { CatalogCard } from "../../../components/catalog-card";
 import { PageShell } from "../../../components/page-shell";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
@@ -40,7 +42,11 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
   return (
     <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
       <header className={styles.header}>
-        <span className={styles.initial} aria-hidden="true">{creator.name.slice(0, 1)}</span>
+        <span className={styles.portrait} aria-hidden="true">
+          {creator.image_url ? (
+            <Image src={creator.image_url} alt="" fill sizes="92px" referrerPolicy="no-referrer" priority />
+          ) : <User size={38} weight="bold" />}
+        </span>
         <div>
           <p className="eyebrow">{t("creator.eyebrow")}</p>
           <h1>{creator.name}</h1>

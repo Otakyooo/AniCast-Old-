@@ -259,7 +259,7 @@ class CharacterAdmin(admin.ModelAdmin):
 
 @admin.register(Creator)
 class CreatorAdmin(admin.ModelAdmin):
-    list_display = ["name", "slug"]
+    list_display = ["name", "slug", "image_url"]
     search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
 

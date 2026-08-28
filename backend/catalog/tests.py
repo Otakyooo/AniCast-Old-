@@ -70,7 +70,11 @@ def test_title_detail_includes_nested_relations(catalog_data):
 
 @pytest.mark.django_db
 def test_creator_detail_lists_credited_titles(catalog_data):
-    creator = Creator.objects.create(name="Тестовый режиссёр", slug="тестовый-режиссёр")
+    creator = Creator.objects.create(
+        name="Тестовый режиссёр",
+        slug="тестовый-режиссёр",
+        image_url="https://shikimori.one/system/people/original/1.jpg",
+    )
     TitleCredit.objects.create(
         title=catalog_data,
         creator=creator,
@@ -82,8 +86,11 @@ def test_creator_detail_lists_credited_titles(catalog_data):
 
     assert response.status_code == 200
     assert response.json()["slug"] == "тестовый-режиссёр"
+    assert response.json()["image_url"].endswith("/people/original/1.jpg")
     assert response.json()["title_credits"][0]["role"] == "director"
     assert response.json()["title_credits"][0]["title"]["slug"] == "sky-test"
+    title = APIClient().get("/api/v1/titles/sky-test/").json()
+    assert title["credits"][0]["creator"]["image_url"].endswith("/people/original/1.jpg")
 
 
 @pytest.mark.django_db

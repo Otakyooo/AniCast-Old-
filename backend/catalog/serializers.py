@@ -176,7 +176,11 @@ class TitleDetailSerializer(TitleSerializer):
             {
                 "role": credit.role,
                 "sort_order": credit.sort_order,
-                "creator": {"name": credit.creator.name, "slug": credit.creator.slug},
+                "creator": {
+                    "name": credit.creator.name,
+                    "slug": credit.creator.slug,
+                    "image_url": credit.creator.image_url,
+                },
             }
             for credit in obj.credits.all()
         ]
@@ -209,7 +213,7 @@ class CreatorDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Creator
-        fields = ["name", "slug", "title_credits"]
+        fields = ["name", "slug", "image_url", "title_credits"]
 
     def get_title_credits(self, obj):
         return [

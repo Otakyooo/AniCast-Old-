@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr";
+import { ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
 import { TitleActions } from "../../../components/title-actions";
@@ -25,7 +25,6 @@ import {
   getWatchNavigation,
   type CatalogItem,
   type Episode,
-  type Source,
   type TitleCastEntry,
   type TitleCreditEntry,
   type WatchNavigation,
@@ -119,19 +118,6 @@ function isoDay(value: string): Date {
   return new Date(`${value}T12:00:00Z`);
 }
 
-function SourceStatus({ source, t }: { source: Source; t: Translator }) {
-  return (
-    <li className={`source-status source-status-${source.availability}`}>
-      <span className="source-status-main">
-        <strong>{source.name}</strong>
-        <span>{source.kind.toUpperCase()}</span>
-      </span>
-      <span className="source-status-label">{t(`source.${source.availability === "geo_blocked" ? "geo" : source.availability === "provider_error" ? "error" : source.availability}`)}</span>
-      {source.availability_reason && <small>{source.availability_reason}</small>}
-    </li>
-  );
-}
-
 function EpisodeCard({
   episode,
   slug,
@@ -161,16 +147,6 @@ function EpisodeCard({
         <Link className="secondary" href={`/titles/${slug}?episode=${episode.number}`}>{t("watch.title")}</Link>
       )}
       <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
-      <div className="episode-sources">
-        <h3>{t("episode.sources")}</h3>
-        {sources.length ? (
-          <ul className="source-list">
-            {sources.map((source) => <SourceStatus key={`${source.name}-${source.kind}`} source={source} t={t} />)}
-          </ul>
-        ) : (
-          <p className="muted">{t("episode.noSources")}</p>
-        )}
-      </div>
     </li>
   );
 }
@@ -193,7 +169,11 @@ function CastCard({ entry, t }: { entry: TitleCastEntry; t: Translator }) {
 function CreditCard({ credit, t }: { credit: TitleCreditEntry; t: Translator }) {
   return (
     <Link className={styles.creditCard} href={`/creators/${credit.creator.slug}`}>
-      <span className={styles.creditInitial} aria-hidden="true">{credit.creator.name.slice(0, 1)}</span>
+      <span className={styles.creditAvatar} aria-hidden="true">
+        {credit.creator.image_url ? (
+          <Image src={credit.creator.image_url} alt="" fill sizes="44px" referrerPolicy="no-referrer" />
+        ) : <User size={22} weight="bold" />}
+      </span>
       <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
       <ArrowUpRight className={styles.creditArrow} aria-hidden="true" size={17} />
     </Link>
@@ -209,7 +189,6 @@ export default async function CatalogDetailPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const navigationRequest = getWatchNavigation(slug).catch(() => null);
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawCharactersPage = Number(query.characters_page);
@@ -260,8 +239,8 @@ export default async function CatalogDetailPage({
       : getFirstEpisodeNumber(slug),
   ]);
   let watchSpace: React.ReactNode = null;
-  if (episodesCount > 0 && firstEpisode !== null) {
-    const loadedNavigation = await navigationRequest;
+  if (tab === "overview" && episodesCount > 0 && firstEpisode !== null) {
+    const loadedNavigation = await getWatchNavigation(slug).catch(() => null);
     const navigation: WatchNavigation = loadedNavigation ?? {
       episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
       source_groups: [],
@@ -405,13 +384,6 @@ export default async function CatalogDetailPage({
           </Link>
         ))}
       </nav>
-
-      {tab !== "overview" && watchSpace && (
-        <section className={styles.watchSection}>
-          <h2>{t("watch.title")}</h2>
-          {watchSpace}
-        </section>
-      )}
 
       {tab === "overview" && (
         <div className={styles.panel}>

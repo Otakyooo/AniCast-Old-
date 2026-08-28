@@ -595,38 +595,6 @@ summary:focus-visible {
 .episode-card p { margin: 0 }
 .episode-card .secondary { margin-top: 0 }
 
-.episode-sources { display: grid; gap: 8px }
-.episode-sources h3 { margin: 0; color: var(--muted); font-size: 12px; letter-spacing: 1px; text-transform: uppercase }
-
-.source-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none }
-
-.source-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 11px 13px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--muted-2);
-  border-radius: 9px;
-  background: var(--surface-2);
-}
-
-.source-status-main { display: flex; align-items: baseline; gap: 9px }
-.source-status-main span { color: var(--muted-2); font-size: 11px; letter-spacing: 1px }
-.source-status-label { color: var(--muted); font-size: 12px }
-.source-status small { width: 100%; color: var(--muted-2); font-size: 12px }
-
-.source-status-available { border-left-color: var(--success) }
-.source-status-available .source-status-label { color: var(--success) }
-.source-status-unavailable,
-.source-status-expired { border-left-color: var(--muted-2) }
-.source-status-geo_blocked { border-left-color: var(--warning) }
-.source-status-geo_blocked .source-status-label { color: var(--warning) }
-.source-status-provider_error { border-left-color: var(--danger) }
-.source-status-provider_error .source-status-label { color: var(--danger) }
-
 .episode-pagination {
   display: flex;
   flex-wrap: wrap;
