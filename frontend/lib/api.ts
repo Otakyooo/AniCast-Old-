@@ -268,7 +268,15 @@ export async function getCatalogItemEpisodes(
     query.set("characters_page", String(charactersPage));
     query.set("characters_page_size", "60");
   }
-  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, revalidated(60));
+  const path = `/titles/${encodeURIComponent(slug)}/?${query}`;
+  try {
+    // Detail pages are dynamic and should never inherit a cached transient API
+    // failure. A single retry absorbs a tunnel reconnect without replacing the
+    // complete title screen with the generic unavailable state.
+    return await request<CatalogItem>(path, { cache: "no-store" });
+  } catch {
+    return request<CatalogItem>(path, { cache: "no-store" });
+  }
 }
 
 /**

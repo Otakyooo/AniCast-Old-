@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, Case, Count, F, FloatField, IntegerField, Min, OuterRef, Q, Subquery, Sum, Value, When
+from django.db.models import Avg, Case, Count, F, FloatField, IntegerField, OuterRef, Subquery, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 
 from catalog.i18n import translated_value
 from catalog.models import Episode, Genre, Title
-from catalog.playback import playback_sources_prefetch
+from catalog.playback import playback_available, playback_source_queryset, playback_sources_prefetch
 from catalog.serializers import ShelfEpisodeSerializer, TitleSerializer
 from community.models import TitleRating
 
@@ -201,9 +201,9 @@ class EpisodeProgressView(APIView):
 class ContinueWatchingView(APIView):
     """Resume shelf for the home page.
 
-    Built only from recorded progress: the newest opened episode per title plus
-    the next existing episode after the highest episode the viewer actually
-    marked as watched. Nothing is inferred for titles without progress.
+    Built only from recorded playback starts. Resume targets are guaranteed to
+    have an authorized source; completed and currently unplayable titles do not
+    become dead cards on the home page.
     """
 
     permission_classes = [IsAuthenticated]
@@ -223,53 +223,64 @@ class ContinueWatchingView(APIView):
             .order_by("-last_opened_at", "-id")[: self.title_limit * 20]
         )
         latest_by_title: dict[int, EpisodeProgress] = {}
-        watched_numbers: dict[int, int] = {}
+        highest_watched: dict[int, int] = {}
         for entry in progress_entries:
             title_id = entry.episode.title_id
             if title_id not in latest_by_title and len(latest_by_title) < self.title_limit:
                 latest_by_title[title_id] = entry
             if title_id in latest_by_title and entry.is_watched:
-                watched_numbers[title_id] = max(watched_numbers.get(title_id, 0), entry.episode.number)
+                highest_watched[title_id] = max(highest_watched.get(title_id, 0), entry.episode.number)
         if not latest_by_title:
             return Response([])
-        # An opened-but-unwatched episode resumes on itself; a watched one resumes
-        # on the next existing episode, so nothing is skipped or invented.
+        title_ids = list(latest_by_title)
+        watched_counts = {
+            row["episode__title_id"]: row["count"]
+            for row in EpisodeProgress.objects.filter(
+                user=request.user,
+                is_watched=True,
+                episode__title_id__in=title_ids,
+            ).values("episode__title_id").annotate(count=Count("id"))
+        }
+        # An opened-but-unwatched episode resumes on itself; a watched one starts
+        # after the highest watched number. The source query is bounded to the
+        # user's latest titles and stops at the first authorized candidate.
         resume_after = {
-            title_id: watched_numbers.get(title_id, entry.episode.number - 1)
+            title_id: (
+                highest_watched.get(title_id, entry.episode.number)
+                if entry.is_watched
+                else entry.episode.number - 1
+            )
             for title_id, entry in latest_by_title.items()
         }
-        candidate_filter = Q()
+        resume_by_title: dict[int, Episode] = {}
         for title_id, threshold in resume_after.items():
-            candidate_filter |= Q(title_id=title_id, number__gt=threshold)
-        # Two bounded queries instead of loading every episode of a long series.
-        next_numbers = (
-            Episode.objects.filter(candidate_filter)
-            .values("title_id")
-            .annotate(next_number=Min("number"))
-        )
-        next_filter = Q()
-        for row in next_numbers:
-            next_filter |= Q(title_id=row["title_id"], number=row["next_number"])
-        next_by_title: dict[int, Episode] = {}
-        if next_filter:
-            for episode in Episode.objects.filter(next_filter).prefetch_related("translations"):
-                next_by_title[episode.title_id] = episode
+            sources = playback_source_queryset().filter(
+                episode__title_id=title_id,
+                episode__number__gt=threshold,
+            ).order_by("episode__number", "id")
+            for source in sources.iterator(chunk_size=100):
+                if playback_available(source):
+                    resume_by_title[title_id] = source.episode
+                    break
         context = {"request": request}
         ordered = sorted(latest_by_title.values(), key=lambda entry: entry.last_opened_at, reverse=True)
         return Response([
             {
                 "title": TitleSerializer(entry.episode.title, context=context).data,
                 "last_episode": ShelfEpisodeSerializer(entry.episode, context=context).data,
-                "next_episode": (
-                    ShelfEpisodeSerializer(next_by_title[entry.episode.title_id], context=context).data
-                    if entry.episode.title_id in next_by_title
-                    else None
-                ),
+                "resume_episode": ShelfEpisodeSerializer(
+                    resume_by_title[entry.episode.title_id], context=context
+                ).data,
+                # Temporary compatibility for the previous frontend release.
+                "next_episode": ShelfEpisodeSerializer(
+                    resume_by_title[entry.episode.title_id], context=context
+                ).data,
                 "is_watched": entry.is_watched,
-                "watched_count": watched_numbers.get(entry.episode.title_id, 0),
+                "watched_count": watched_counts.get(entry.episode.title_id, 0),
                 "last_opened_at": entry.last_opened_at,
             }
             for entry in ordered
+            if entry.episode.title_id in resume_by_title
         ])
 
 

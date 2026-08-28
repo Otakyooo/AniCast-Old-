@@ -10,7 +10,7 @@ import {
   type LibraryEntry,
   type LibraryStatus,
 } from "../lib/library";
-import { getContinueWatching } from "../lib/continue-watching";
+import { getContinueWatching, resumeEpisode } from "../lib/continue-watching";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
@@ -54,7 +54,7 @@ export function TitleActions({ slug, firstEpisode }: TitleActionsProps) {
         if (entries === null) return;
         const match = entries.find((item) => item.title.slug === slug);
         if (!match) return;
-        setResumeNumber((match.next_episode ?? match.last_episode).number);
+        setResumeNumber(resumeEpisode(match)?.number ?? null);
       })
       .catch(() => undefined);
 

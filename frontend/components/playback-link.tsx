@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getPlayback, type PlaybackMode } from "../lib/api";
 import { safePlaybackTarget } from "../lib/playback";
+import { recordEpisodeOpen } from "../lib/history";
 import { useI18n } from "./i18n-provider";
 
 export function PlaybackLink({
@@ -11,12 +12,16 @@ export function PlaybackLink({
   onEmbed,
   label,
   className,
+  slug,
+  episodeNumber,
 }: {
   sourceId: number;
   playbackMode?: PlaybackMode | null;
   onEmbed?: (url: string) => void;
   label?: string;
   className?: string;
+  slug?: string;
+  episodeNumber?: number;
 }) {
   const { t } = useI18n();
   const [error, setError] = useState("");
@@ -28,6 +33,7 @@ export function PlaybackLink({
       const payload = await getPlayback(sourceId);
       const target = safePlaybackTarget(payload, window.location.origin);
       if (playbackMode && target.mode !== playbackMode) throw new Error("Playback mode changed");
+      if (slug && episodeNumber) void recordEpisodeOpen(slug, episodeNumber).catch(() => undefined);
       if (target.mode === "iframe_embed" && onEmbed) {
         popup?.close();
         onEmbed(target.url);

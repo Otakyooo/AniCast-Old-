@@ -91,10 +91,12 @@ Object.assign(en, {
 });
 
 Object.assign(ru, {
+  "watch.startEpisode":"Запустить {number} серию","watch.sourceFailed":"Эта озвучка сейчас не открывается. Повторите или выберите другую.",
   "creator.eyebrow":"АВТОР","creator.works":"Работы","creator.worksCount":"Работ в каталоге: {count}"
 });
 
 Object.assign(en, {
+  "watch.startEpisode":"Start episode {number}","watch.sourceFailed":"This voice track is unavailable right now. Retry or choose another one.",
   "creator.eyebrow":"CREATOR","creator.works":"Works","creator.worksCount":"Works in catalog: {count}"
 });
 

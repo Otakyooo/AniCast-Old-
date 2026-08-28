@@ -2,7 +2,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from catalog.models import Episode, Franchise, Genre, Title, TitleTranslation
+from catalog.models import Episode, Franchise, Genre, Provider, Source, Title, TitleTranslation
 from django.utils import timezone
 
 from library.models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
@@ -21,6 +21,28 @@ def titles(db):
     return (
         Title.objects.create(name="First", slug="first", status="ongoing"),
         Title.objects.create(name="Second", slug="second", status="finished"),
+    )
+
+
+def make_playable(episode):
+    provider, _ = Provider.objects.get_or_create(
+        slug="resume-provider",
+        defaults={
+            "name": "Resume Provider",
+            "is_enabled": True,
+            "website_url": "https://watch.example.com",
+            "allowed_hosts": ["watch.example.com"],
+            "playback_adapter": "external_link",
+            "rights_reference": "Resume catalogue entitlement",
+            "rights_verified_at": timezone.now(),
+        },
+    )
+    return Source.objects.create(
+        episode=episode,
+        provider=provider,
+        name="Resume Source",
+        kind="dub",
+        url=f"https://watch.example.com/{episode.title.slug}/{episode.number}",
     )
 
 
@@ -134,8 +156,8 @@ def test_continue_watching_requires_auth_and_is_empty_without_progress(users, ti
 @pytest.mark.django_db
 def test_continue_watching_resumes_after_the_watched_episode(users, titles):
     for number in (1, 2, 3):
-        Episode.objects.create(title=titles[0], number=number)
-    Episode.objects.create(title=titles[1], number=1)
+        make_playable(Episode.objects.create(title=titles[0], number=number))
+    make_playable(Episode.objects.create(title=titles[1], number=1))
     client = APIClient()
     client.force_login(users[0])
     client.post("/api/v1/episodes/first/1/progress/")
@@ -149,16 +171,33 @@ def test_continue_watching_resumes_after_the_watched_episode(users, titles):
     assert resumed["is_watched"] is True
     # A watched episode resumes on the next one; an opened-but-unwatched episode
     # resumes on itself, so nothing is skipped.
+    assert resumed["resume_episode"]["number"] == 2
     assert resumed["next_episode"]["number"] == 2
     opened = next(entry for entry in entries if entry["title"]["slug"] == "second")
-    assert opened["next_episode"]["number"] == 1
+    assert opened["resume_episode"]["number"] == 1
 
     client.put("/api/v1/episodes/first/3/progress/", {"is_watched": True}, format="json")
-    finished = next(
-        entry for entry in client.get("/api/v1/continue-watching/").json()
-        if entry["title"]["slug"] == "first"
+    assert all(
+        entry["title"]["slug"] != "first"
+        for entry in client.get("/api/v1/continue-watching/").json()
     )
-    assert finished["next_episode"] is None
+
+
+@pytest.mark.django_db
+def test_continue_watching_skips_unplayable_episodes_and_counts_marks(users, titles):
+    first = Episode.objects.create(title=titles[0], number=1)
+    Episode.objects.create(title=titles[0], number=2)
+    playable = Episode.objects.create(title=titles[0], number=3)
+    make_playable(playable)
+    client = APIClient()
+    client.force_login(users[0])
+    client.put("/api/v1/episodes/first/1/progress/", {"is_watched": True}, format="json")
+
+    entry = client.get("/api/v1/continue-watching/").json()[0]
+
+    assert first.number == 1
+    assert entry["resume_episode"]["number"] == 3
+    assert entry["watched_count"] == 1
 
 
 @pytest.mark.django_db

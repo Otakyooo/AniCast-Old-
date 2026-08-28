@@ -5,15 +5,24 @@ import type { CatalogItem, Episode } from "./api";
 export interface ContinueWatchingEntry {
   title: CatalogItem;
   last_episode: Episode;
+  resume_episode?: Episode | null;
+  /** Compatibility field for one older backend release. */
   next_episode: Episode | null;
   is_watched: boolean;
   watched_count: number;
   last_opened_at: string;
 }
 
+export function resumeEpisode(entry: ContinueWatchingEntry): Episode | null {
+  return entry.resume_episode ?? entry.next_episode;
+}
+
 export class ContinueWatchingApiError extends Error {
-  constructor(public status: number) {
+  status: number;
+
+  constructor(status: number) {
     super(`Continue watching request failed with status ${status}`);
+    this.status = status;
   }
 }
 

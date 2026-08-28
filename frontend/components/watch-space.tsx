@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { EpisodeProgressControl } from "./episode-progress-control";
 import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer } from "./provider-player";
 import type { Source, WatchSourceGroup } from "../lib/api";
@@ -125,6 +124,8 @@ export function WatchSpace({
       sourceId={chosen.id}
       playbackMode={chosen.playback_mode}
       title={`${selectedName} · ${t("episode.number", { number: currentNumber })}`}
+      slug={slug}
+      episodeNumber={currentNumber}
     />
   ) : chosen ? (
     <section className={`${styles.playerShell} ${styles.playerPreview}`}>
@@ -136,6 +137,8 @@ export function WatchSpace({
         <PlaybackLink
           sourceId={chosen.id}
           playbackMode={chosen.playback_mode}
+          slug={slug}
+          episodeNumber={currentNumber}
           label={t("watch.playEpisode", { number: currentNumber })}
           className={styles.playerLaunch}
         />
@@ -184,8 +187,6 @@ export function WatchSpace({
           </div>
         </aside>
       </div>
-
-      <EpisodeProgressControl slug={slug} number={episode.number} compact />
 
       {episode.synopsis && <p className={styles.watchSynopsis}>{episode.synopsis}</p>}
 

@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { getPlayback, type PlaybackMode } from "../lib/api";
+import { recordEpisodeOpen } from "../lib/history";
 import { safePlaybackTarget } from "../lib/playback";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
 type PlayerState =
+  | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ready"; src: string }
   | { kind: "error" };
@@ -15,37 +17,41 @@ export function ProviderPlayer({
   sourceId,
   playbackMode,
   title,
+  slug,
+  episodeNumber,
 }: {
   sourceId: number;
   playbackMode: PlaybackMode;
   title: string;
+  slug: string;
+  episodeNumber: number;
 }) {
   const { t } = useI18n();
-  const [state, setState] = useState<PlayerState>({ kind: "loading" });
+  const [state, setState] = useState<PlayerState>({ kind: "idle" });
   const [frameLoaded, setFrameLoaded] = useState(false);
-  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    let active = true;
+    setState({ kind: "idle" });
+    setFrameLoaded(false);
+  }, [playbackMode, sourceId]);
+
+  async function start() {
     setState({ kind: "loading" });
     setFrameLoaded(false);
-
-    getPlayback(sourceId)
-      .then((payload) => {
-        const target = safePlaybackTarget(payload, window.location.origin);
-        if (target.mode !== playbackMode || target.mode !== "iframe_embed") {
-          throw new Error("Playback mode changed");
-        }
-        if (active) setState({ kind: "ready", src: target.url });
-      })
-      .catch(() => {
-        if (active) setState({ kind: "error" });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [attempt, playbackMode, sourceId]);
+    try {
+      const payload = await getPlayback(sourceId);
+      const target = safePlaybackTarget(payload, window.location.origin);
+      if (target.mode !== playbackMode || target.mode !== "iframe_embed") {
+        throw new Error("Playback mode changed");
+      }
+      // Playback progress starts only after an explicit user action and a
+      // successfully authorized target. Guest history failure never blocks TV.
+      void recordEpisodeOpen(slug, episodeNumber).catch(() => undefined);
+      setState({ kind: "ready", src: target.url });
+    } catch {
+      setState({ kind: "error" });
+    }
+  }
 
   return (
     <section
@@ -56,13 +62,20 @@ export function ProviderPlayer({
         <strong>{title}</strong>
       </div>
       <div className={styles.playerFrameWrap}>
+        {state.kind === "idle" && (
+          <div className={styles.playerPreviewBody}>
+            <button className={styles.playerLaunch} type="button" onClick={start}>
+              {t("watch.startEpisode", { number: episodeNumber })}
+            </button>
+          </div>
+        )}
         {(state.kind === "loading" || (state.kind === "ready" && !frameLoaded)) && (
           <span className={styles.playerLoading} role="status">{t("common.loading")}</span>
         )}
         {state.kind === "error" && (
           <div className={styles.playerError} role="alert">
-            <span>{t("source.gone")}</span>
-            <button className="secondary inline-button" type="button" onClick={() => setAttempt((value) => value + 1)}>
+            <span>{t("watch.sourceFailed")}</span>
+            <button className="secondary inline-button" type="button" onClick={start}>
               {t("common.retry")}
             </button>
           </div>

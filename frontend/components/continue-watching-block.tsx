@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Play, Plus } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { CatalogItem } from "../lib/api";
-import { getContinueWatching, type ContinueWatchingEntry } from "../lib/continue-watching";
+import { getContinueWatching, resumeEpisode, type ContinueWatchingEntry } from "../lib/continue-watching";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
@@ -43,7 +43,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const [heroEntry, ...rest] = entries;
   const shelfEntries = rest.slice(0, 7);
   const displayTitle = heroEntry?.title ?? featured;
-  const heroTarget = heroEntry ? heroEntry.next_episode ?? heroEntry.last_episode : undefined;
+  const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
   const total = displayTitle?.episodes_count;
   const primaryHref = heroEntry && heroTarget
     ? `/titles/${heroEntry.title.slug}?episode=${heroTarget.number}`
@@ -118,7 +118,8 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
   if (entries.length === 0) return null;  return (
     <ul className={styles.resumeRow}>
       {entries.map((entry) => {
-        const target = entry.next_episode ?? entry.last_episode;
+        const target = resumeEpisode(entry);
+        if (!target) return null;
         return (
           <li key={entry.title.slug}>
             <Link className={styles.resumeCard} href={`/titles/${entry.title.slug}?episode=${target.number}`}>
