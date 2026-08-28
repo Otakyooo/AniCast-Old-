@@ -7,16 +7,35 @@
   display: grid;
   overflow: hidden;
   align-items: end;
-  min-height: clamp(520px, 54vh, 580px);
+  min-height: clamp(430px, 46vh, 480px);
   margin: 0 calc(var(--gutter) * -1) 4px;
   border-radius: 0;
   background: #070d13;
 }
 
+.resumeHeroBackdrop {
+  position: absolute;
+  inset: -36px;
+  overflow: hidden;
+}
+
+.resumeHeroBackdropArt {
+  object-fit: cover;
+  object-position: 50% 28%;
+  filter: blur(26px) saturate(.82);
+  opacity: .52;
+  transform: scale(1.08);
+}
+
 .resumeHeroArtFrame {
   position: absolute;
-  inset: 20px clamp(28px, 6vw, 96px) 0 auto;
-  width: min(390px, 34vw);
+  inset: 18px clamp(52px, 7vw, 110px) 18px auto;
+  width: min(320px, 26vw);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 10px;
+  background: #0b1118;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, .42);
 }
 
 .resumeHeroArt {
@@ -29,8 +48,8 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(6, 12, 18, .99) 0%, rgba(6, 12, 18, .92) 42%, rgba(6, 12, 18, .28) 72%, rgba(6, 12, 18, .08) 100%),
-    linear-gradient(0deg, var(--background) 0%, rgba(11, 19, 28, 0) 36%);
+    linear-gradient(90deg, rgba(6, 12, 18, .99) 0%, rgba(6, 12, 18, .9) 38%, rgba(6, 12, 18, .52) 63%, rgba(6, 12, 18, .16) 100%),
+    linear-gradient(0deg, var(--background) 0%, rgba(11, 19, 28, .04) 38%);
 }
 
 .resumeHeroBody {
@@ -38,9 +57,9 @@
   display: grid;
   align-content: center;
   gap: 14px;
-  width: min(900px, 66vw);
+  width: min(820px, 62vw);
   min-height: inherit;
-  padding: 70px clamp(42px, 4vw, 72px) 58px;
+  padding: 52px clamp(42px, 4vw, 72px) 44px;
 }
 
 .resumeHeroEyebrow {
@@ -336,15 +355,20 @@
 
 @media (max-width: 767px) {
   .resumeHeroArtFrame {
-    inset: 0 -8vw 0 auto;
+    inset: 20px -8vw 20px auto;
     width: 72vw;
+    border: 0;
+    border-radius: 0;
     opacity: .62;
   }
+
+  .resumeHeroBackdrop { inset: -28px }
+  .resumeHeroBackdropArt { filter: blur(22px) saturate(.78); opacity: .48 }
 
   .shelfHeading h2 { font-size: 19px }
   .shelfHeading p { display: none }
   .resumeHero {
-    min-height: clamp(540px, 68vh, 600px);
+    min-height: clamp(500px, 64vh, 560px);
     margin: 0 calc(var(--gutter) * -1);
   }
   .resumeHeroArt { object-position: 65% 50% }

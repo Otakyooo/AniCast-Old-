@@ -58,17 +58,30 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
     <>
       <section className={styles.resumeHero} aria-label={t("home.continueWatching")}>
         {displayTitle?.poster_url ? (
-          <div className={styles.resumeHeroArtFrame} aria-hidden="true">
-            <Image
-              className={styles.resumeHeroArt}
-              src={displayTitle.poster_url}
-              alt=""
-              fill
-              priority
-              sizes="(max-width: 767px) 72vw, 390px"
-              referrerPolicy="no-referrer"
-            />
-          </div>
+          <>
+            <div className={styles.resumeHeroBackdrop} aria-hidden="true">
+              <Image
+                className={styles.resumeHeroBackdropArt}
+                src={displayTitle.poster_url}
+                alt=""
+                fill
+                priority
+                sizes="100vw"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className={styles.resumeHeroArtFrame} aria-hidden="true">
+              <Image
+                className={styles.resumeHeroArt}
+                src={displayTitle.poster_url}
+                alt=""
+                fill
+                priority
+                sizes="(max-width: 767px) 72vw, 320px"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          </>
         ) : null}
         <div className={styles.resumeHeroOverlay} />
         <div className={styles.resumeHeroBody}>
