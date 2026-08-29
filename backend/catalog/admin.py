@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils.html import format_html
 from django.utils import timezone
 
@@ -45,6 +46,52 @@ SOURCE_AVAILABILITY_TONES = {
     "unavailable": ("#efefef", "#5f5f5f"),
     "expired": ("#efefef", "#5f5f5f"),
 }
+
+
+def _missing_avatar_query(field: str = "image_url") -> Q:
+    return Q(**{field: ""}) | Q(**{f"{field}__isnull": True}) | Q(**{f"{field}__icontains": "missing_original"})
+
+
+class AvatarStatusFilter(admin.SimpleListFilter):
+    title = "аватар"
+    parameter_name = "avatar"
+
+    def lookups(self, request, model_admin):
+        return (("missing", "Нет оригинального изображения"), ("present", "Есть изображение"))
+
+    def queryset(self, request, queryset):
+        missing = _missing_avatar_query()
+        if self.value() == "missing":
+            return queryset.filter(missing)
+        if self.value() == "present":
+            return queryset.exclude(missing)
+        return queryset
+
+
+class CharacterImportanceFilter(admin.SimpleListFilter):
+    title = "значимость"
+    parameter_name = "importance"
+
+    def lookups(self, request, model_admin):
+        return (("main", "Главные герои"), ("supporting", "Второстепенные"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "main":
+            return queryset.filter(title_links__role__in=("protagonist", "antagonist")).distinct()
+        if self.value() == "supporting":
+            return queryset.exclude(title_links__role__in=("protagonist", "antagonist")).distinct()
+        return queryset
+
+
+@admin.display(description="Аватар")
+def avatar_preview(obj):
+    if not obj.image_url or "missing_original" in obj.image_url:
+        return format_html('<span style="color:#b45309;font-weight:600">нет</span>')
+    return format_html(
+        '<img src="{}" alt="" referrerpolicy="no-referrer" '
+        'style="width:42px;height:42px;object-fit:cover;object-position:50% 18%;border-radius:50%" />',
+        obj.image_url,
+    )
 
 
 class ProviderAdminForm(forms.ModelForm):
@@ -251,7 +298,8 @@ class EpisodeAdmin(admin.ModelAdmin):
 
 @admin.register(Character)
 class CharacterAdmin(admin.ModelAdmin):
-    list_display = ["name", "original_name", "slug"]
+    list_display = [avatar_preview, "name", "original_name", "slug"]
+    list_filter = [AvatarStatusFilter, CharacterImportanceFilter]
     search_fields = ["name", "original_name", "slug", "translations__name"]
     prepopulated_fields = {"slug": ("name",)}
     inlines = [CharacterTranslationInline, CharacterTitleInline, CharacterMediaInline]
@@ -259,7 +307,8 @@ class CharacterAdmin(admin.ModelAdmin):
 
 @admin.register(Creator)
 class CreatorAdmin(admin.ModelAdmin):
-    list_display = ["name", "slug", "image_url"]
+    list_display = [avatar_preview, "name", "slug", "image_url"]
+    list_filter = [AvatarStatusFilter]
     search_fields = ["name", "slug"]
     prepopulated_fields = {"slug": ("name",)}
 

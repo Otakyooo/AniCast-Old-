@@ -25,7 +25,10 @@ class CharacterSyncResult:
 
 
 def _character_roles(anime_id: int) -> list[dict]:
-    query = '{animes(ids:"' + str(anime_id) + '"){characterRoles{rolesEn character{id name russian}}}}'
+    query = (
+        '{animes(ids:"' + str(anime_id) + '"){characterRoles{rolesEn character{'
+        'id name russian poster{originalUrl main2xUrl}}}}}'
+    )
     try:
         result = subprocess.run(
             [
@@ -77,9 +80,14 @@ def sync_title_characters(title: Title) -> CharacterSyncResult:
         slug = _slug(character_id, english or russian)
         character, created = Character.objects.get_or_create(
             slug=slug,
-            defaults={"name": russian or english},
+            defaults={"name": russian or english, "image_url": ""},
         )
         result.created += int(created)
+        poster = raw.get("poster") if isinstance(raw.get("poster"), dict) else {}
+        image_url = str(poster.get("originalUrl") or poster.get("main2xUrl") or "")
+        if image_url and "missing_" not in image_url and character.image_url != image_url:
+            character.image_url = image_url
+            character.save(update_fields=["image_url"])
         for language, name in (("en", english), ("ru", russian)):
             if name:
                 CharacterTranslation.objects.update_or_create(

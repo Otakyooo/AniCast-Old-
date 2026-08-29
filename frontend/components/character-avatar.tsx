@@ -18,6 +18,7 @@ export function CharacterAvatar({
     alt={alt}
     fill
     sizes={sizes}
+    quality={92}
     referrerPolicy="no-referrer"
     style={{ objectFit: "cover", objectPosition: "50% 18%" }}
   />;

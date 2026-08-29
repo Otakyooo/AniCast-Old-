@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from accounts.models import User
 from catalog.admin import ProviderAdminForm, SourceAdminForm
-from catalog.models import Episode, Genre, Provider, Source, SourceReport, Title
+from catalog.models import Character, Creator, Episode, Genre, Provider, Source, SourceReport, Title, TitleCharacter
 
 
 @pytest.fixture
@@ -30,6 +30,9 @@ def test_staff_index_renders_editor_dashboard(staff_client):
         availability="provider_error",
     )
     SourceReport.objects.create(source=broken, reporter=reporter, reason="unavailable")
+    hero = Character.objects.create(name="No Art Hero", slug="no-art-hero")
+    TitleCharacter.objects.create(title=title, character=hero, role="protagonist")
+    Creator.objects.create(name="No Art Author", slug="no-art-author")
 
     response = staff_client.get("/staff/")
     assert response.status_code == 200
@@ -39,6 +42,9 @@ def test_staff_index_renders_editor_dashboard(staff_client):
     assert dashboard["Источники с ошибкой провайдера"]["value"] == 1
     assert dashboard["Эпизоды без даты выхода"]["value"] >= 1
     assert dashboard["Постеры ниже максимума"]["value"] >= 1
+    assert dashboard["Персонажи без аватара"]["value"] == 1
+    assert dashboard["Главные герои без аватара"]["value"] == 1
+    assert dashboard["Авторы без фото"]["value"] == 1
 
     html = response.content.decode()
     assert 'aria-label="Сводка редактора"' in html

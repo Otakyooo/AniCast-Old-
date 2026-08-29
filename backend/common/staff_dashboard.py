@@ -10,11 +10,12 @@ audit trail of every ModelAdmin action stays untouched.
 from typing import Any
 
 from django.contrib import admin
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.urls import path, reverse
 
 from catalog import posters
-from catalog.models import Episode, Source, SourceReport, Title
+from catalog.models import Character, Creator, Episode, Source, SourceReport, Title, TitleCharacter
 from community.models import TitleReview
 
 
@@ -93,6 +94,18 @@ def build_dashboard() -> list[dict[str, Any]]:
     pending_reviews = TitleReview.objects.filter(status=TitleReview.Status.PENDING).count()
     tiers = _poster_tier_counts()
     below_maximum = tiers["fallback"] + tiers["missing"]
+    missing_avatar = Q(image_url="") | Q(image_url__isnull=True) | Q(image_url__icontains="missing_original")
+    characters_total = Character.objects.count()
+    characters_missing = Character.objects.filter(missing_avatar).count()
+    creators_total = Creator.objects.count()
+    creators_missing = Creator.objects.filter(missing_avatar).count()
+    main_links = TitleCharacter.objects.filter(role__in=("protagonist", "antagonist"))
+    main_total = main_links.values("character_id").distinct().count()
+    main_missing = main_links.filter(
+        Q(character__image_url="")
+        | Q(character__image_url__isnull=True)
+        | Q(character__image_url__icontains="missing_original")
+    ).values("character_id").distinct().count()
 
     return [
         {
@@ -129,6 +142,27 @@ def build_dashboard() -> list[dict[str, Any]]:
             "hint": f"s:{tiers['fallback']} · нет:{tiers['missing']} · k:{tiers['kitsu']} · l:{tiers['large']}",
             "tone": "warn" if below_maximum else "ok",
             "url": _changelist("admin:catalog_title_changelist"),
+        },
+        {
+            "label": "Персонажи без аватара",
+            "value": characters_missing,
+            "hint": f"из {characters_total} персонажей",
+            "tone": "warn" if characters_missing else "ok",
+            "url": _changelist("admin:catalog_character_changelist", "avatar=missing"),
+        },
+        {
+            "label": "Главные герои без аватара",
+            "value": main_missing,
+            "hint": f"из {main_total} уникальных главных героев",
+            "tone": "danger" if main_missing else "ok",
+            "url": _changelist("admin:catalog_character_changelist", "avatar=missing&importance=main"),
+        },
+        {
+            "label": "Авторы без фото",
+            "value": creators_missing,
+            "hint": f"из {creators_total} авторов",
+            "tone": "warn" if creators_missing else "ok",
+            "url": _changelist("admin:catalog_creator_changelist", "avatar=missing"),
         },
         *_system_cards(),
     ]

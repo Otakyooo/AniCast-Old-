@@ -324,6 +324,7 @@ export default async function CatalogDetailPage({
               src={item.poster_url}
               alt={t("title.cover", { name: item.name })}
               fill
+              quality={92}
               sizes="(max-width: 767px) 45vw, 280px"
               referrerPolicy="no-referrer"
               priority
