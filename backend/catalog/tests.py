@@ -408,7 +408,7 @@ def test_global_search_groups_titles_characters_and_franchises(catalog_data):
     assert body["query"] == "sky"
     assert [item["slug"] for item in body["titles"]] == ["sky-test"]
     assert [item["slug"] for item in body["characters"]] == ["sky-hero"]
-    assert [item["slug"] for item in body["franchises"]] == ["sky-saga"]
+    assert body["franchises"] == []
     assert body["titles"][0]["poster_url"] == catalog_data.poster_url
     empty = client.get("/api/v1/search/?q=nothing-matches").json()
     assert empty["titles"] == [] and empty["characters"] == [] and empty["franchises"] == []
@@ -435,6 +435,7 @@ def test_global_search_bounds_the_query_and_group_sizes(catalog_data):
 @pytest.mark.django_db
 def test_franchise_list_supports_search(catalog_data):
     Franchise.objects.create(name="Other Worlds", slug="other-worlds")
+    Title.objects.create(name="Sky Sequel", slug="sky-sequel", franchise=catalog_data.franchise)
     results = APIClient().get("/api/v1/franchises/?q=test").json()["results"]
     assert [item["slug"] for item in results] == ["test-franchise"]
 
@@ -717,11 +718,15 @@ def test_franchise_list_and_detail_are_ordered(catalog_data):
     Franchise.objects.create(name="Alpha Editorial", slug="alpha-editorial", sort_order=0)
     response = APIClient().get("/api/v1/franchises/")
     assert response.status_code == 200
-    assert [item["slug"] for item in response.json()["results"]][:2] == ["alpha-editorial", "test-franchise"]
+    # A single title is not useful as a franchise navigation group.
+    assert response.json()["results"] == []
+    Title.objects.create(name="Sky Sequel", slug="sky-sequel", franchise=catalog_data.franchise)
+    response = APIClient().get("/api/v1/franchises/")
+    assert [item["slug"] for item in response.json()["results"]] == ["test-franchise"]
     detail = APIClient().get("/api/v1/franchises/test-franchise/")
     assert detail.status_code == 200
-    assert detail.json()["title_count"] == 1
-    assert detail.json()["titles"][0]["slug"] == "sky-test"
+    assert detail.json()["title_count"] == 2
+    assert [item["slug"] for item in detail.json()["titles"]] == ["sky-sequel", "sky-test"]
     assert APIClient().get("/api/v1/franchises/missing/").status_code == 404
 
 

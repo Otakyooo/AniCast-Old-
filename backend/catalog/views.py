@@ -426,7 +426,7 @@ class FranchiseListView(ListAPIView):
     pagination_class = CatalogPagination
 
     def get_queryset(self):
-        queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related(
+        queryset = Franchise.objects.annotate(title_count=Count("titles")).filter(title_count__gt=1).prefetch_related(
             "translations", Prefetch("titles", queryset=Title.objects.only("franchise_id", "poster_url", "year"))
         ).order_by(
             "sort_order", "name"
@@ -494,6 +494,7 @@ class GlobalSearchView(APIView):
         franchises = (
             Franchise.objects.filter(Q(name__icontains=query) | Q(translations__name__icontains=query))
             .annotate(title_count=Count("titles", distinct=True))
+            .filter(title_count__gt=1)
             .prefetch_related(
                 "translations", Prefetch("titles", queryset=Title.objects.only("franchise_id", "poster_url", "year"))
             )
@@ -515,7 +516,9 @@ class FranchiseDetailView(RetrieveAPIView):
         "translations",
         Prefetch(
             "titles",
-            queryset=Title.objects.prefetch_related("translations", "genres", "genres__translations").order_by("year", "name", "slug"),
+            queryset=Title.objects.prefetch_related("translations", "genres", "genres__translations").order_by(
+                F("year").asc(nulls_last=True), "name", "slug"
+            ),
         ),
     )
 
