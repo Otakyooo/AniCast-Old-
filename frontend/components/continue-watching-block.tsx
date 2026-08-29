@@ -66,6 +66,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
               fill
               priority
               sizes="(max-width: 520px) 92px, 164px"
+              quality={92}
               referrerPolicy="no-referrer"
             />
           </div>
@@ -131,6 +132,7 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
                     alt=""
                     fill
                     sizes="(max-width: 767px) 45vw, 260px"
+                    quality={92}
                     referrerPolicy="no-referrer"
                   />
                 ) : (

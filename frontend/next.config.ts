@@ -19,10 +19,11 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
-    // Shikimori originals are small web-sized files: the optimizer would
-    // upscale and recompress them (q75), visibly degrading line art.
-    unoptimized: true,
+    // Generate a DPR-aware srcset instead of asking the browser to resample
+    // one large JPEG into fractional grid dimensions.
+    qualities: [92],
     remotePatterns: [
+      { protocol: "https", hostname: "anicast.online", pathname: "/api/v1/media/posters/**" },
       { protocol: "https", hostname: "shikimori.one", pathname: "/system/**" },
       { protocol: "https", hostname: "shikimori.io", pathname: "/system/**" },
       { protocol: "https", hostname: "shikimori.one", pathname: "/uploads/**" },

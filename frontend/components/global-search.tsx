@@ -260,6 +260,7 @@ export function GlobalSearch() {
                                 alt=""
                                 fill
                                 sizes="40px"
+                                quality={92}
                                 referrerPolicy="no-referrer"
                               />
                             ) : (

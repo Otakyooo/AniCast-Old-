@@ -29,7 +29,7 @@ export default async function FranchisesPage({ searchParams }: { searchParams: P
     </form>
     {data.results.length ? <div className={styles.grid}>{data.results.map((item) => (
       <Link className={styles.card} href={`/franchises/${item.slug}`} key={item.slug}>
-        <span className={styles.posters} aria-hidden="true">{item.poster_urls.map((poster, index) => <span key={poster} className={styles.poster}><Image src={poster} alt="" fill sizes="110px" referrerPolicy="no-referrer" style={{ zIndex: item.poster_urls.length - index }} /></span>)}</span>
+        <span className={styles.posters} aria-hidden="true">{item.poster_urls.map((poster, index) => <span key={poster} className={styles.poster}><Image src={poster} alt="" fill sizes="110px" quality={92} referrerPolicy="no-referrer" style={{ zIndex: item.poster_urls.length - index }} /></span>)}</span>
         <span className={styles.cardBody}><span className="eyebrow">{t("franchise.label")}</span><strong>{item.name}</strong><small>{item.year_from ? (item.year_to && item.year_to !== item.year_from ? `${item.year_from}–${item.year_to}` : item.year_from) : ""} · {t("franchise.count", { count: item.title_count })}</small></span>
         <span className={styles.arrow}>→</span>
       </Link>

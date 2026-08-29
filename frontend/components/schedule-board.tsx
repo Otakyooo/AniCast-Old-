@@ -217,6 +217,7 @@ export function ScheduleBoard({
                         alt=""
                         fill
                         sizes="72px"
+                        quality={92}
                         referrerPolicy="no-referrer"
                       />
                     ) : (

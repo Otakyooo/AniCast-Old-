@@ -202,7 +202,7 @@
   transition: border-color 140ms ease, transform 140ms ease;
 }
 
-.resumeCard:hover { border-color: var(--border); background: var(--surface-card); transform: translateY(-2px) }
+.resumeCard:hover { border-color: var(--border); background: var(--surface-card) }
 .resumeCard:active { transform: none }
 
 .resumeFrame {
@@ -271,7 +271,7 @@
   transition: border-color 140ms ease, transform 140ms ease;
 }
 
-.scheduleCard:hover { border-color: var(--primary); transform: translateY(-1px) }
+.scheduleCard:hover { border-color: var(--primary) }
 .scheduleCard:active { transform: none }
 
 .schedulePoster {

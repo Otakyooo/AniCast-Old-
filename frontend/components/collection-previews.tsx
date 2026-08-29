@@ -43,7 +43,7 @@ export function CollectionPreviews() {
               {collection.items.slice(0, 4).map((item) =>
                 item.title.poster_url ? (
                   <span className={styles.posterThumb} key={item.title.slug}>
-                    <Image className={styles.posterThumbImage} src={item.title.poster_url} alt="" fill sizes="72px" referrerPolicy="no-referrer" />
+                    <Image className={styles.posterThumbImage} src={item.title.poster_url} alt="" fill sizes="72px" quality={92} referrerPolicy="no-referrer" />
                   </span>
                 ) : (
                   <span className={styles.posterThumb} key={item.title.slug}>

@@ -73,6 +73,7 @@ export function ScheduleStrip({
                     alt=""
                     fill
                     sizes="64px"
+                    quality={92}
                     referrerPolicy="no-referrer"
                   />
                 ) : (

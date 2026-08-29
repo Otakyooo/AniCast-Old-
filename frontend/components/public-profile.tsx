@@ -38,7 +38,7 @@ export async function PublicProfile({ data }: { data: PublicProfileData }) {
               <Link className={styles.collectionCard} href={`/collections/${data.profile.public_id}/${collection.slug}`} key={collection.slug}>
                 <div className={styles.mosaic} aria-hidden="true">
                   {collection.preview_titles.length ? collection.preview_titles.map((title) => (
-                    title.poster_url ? <Image key={title.slug} src={title.poster_url} alt="" fill={false} width={90} height={126} referrerPolicy="no-referrer" /> : <span key={title.slug}>{title.name.slice(0, 1)}</span>
+                    title.poster_url ? <Image key={title.slug} src={title.poster_url} alt="" fill={false} width={90} height={126} quality={92} referrerPolicy="no-referrer" /> : <span key={title.slug}>{title.name.slice(0, 1)}</span>
                   )) : <span className={styles.emptyMosaic}>＋</span>}
                 </div>
                 <div className={styles.collectionBody}>

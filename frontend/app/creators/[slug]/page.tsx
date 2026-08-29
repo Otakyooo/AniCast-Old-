@@ -44,7 +44,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
       <header className={styles.header}>
         <span className={styles.portrait} aria-hidden="true">
           {creator.image_url ? (
-            <Image src={creator.image_url} alt="" fill sizes="92px" referrerPolicy="no-referrer" priority />
+            <Image src={creator.image_url} alt="" fill sizes="92px" quality={92} referrerPolicy="no-referrer" priority />
           ) : <User size={38} weight="bold" />}
         </span>
         <div>

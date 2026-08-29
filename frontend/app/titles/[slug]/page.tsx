@@ -170,7 +170,7 @@ function CreditCard({ credit }: { credit: TitleCreditEntry }) {
     <Link className={styles.creditCard} href={`/creators/${credit.creator.slug}`}>
       <span className={styles.creditAvatar} aria-hidden="true">
         {credit.creator.image_url ? (
-          <Image src={credit.creator.image_url} alt="" fill sizes="44px" referrerPolicy="no-referrer" />
+          <Image src={credit.creator.image_url} alt="" fill sizes="44px" quality={92} referrerPolicy="no-referrer" />
         ) : <User size={22} weight="bold" />}
       </span>
       <span><strong>{credit.creator.name}</strong><small>{credit.role_label}</small></span>

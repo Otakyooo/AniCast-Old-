@@ -453,7 +453,7 @@ summary:focus-visible {
   transition: border-color 140ms ease, transform 140ms ease;
 }
 
-.catalog-card:hover { border-color: var(--primary); transform: translateY(-2px) }
+.catalog-card:hover { border-color: var(--primary) }
 .catalog-card:active { transform: none; background: var(--surface-2) }
 .catalog-card-body { padding: 15px; min-width: 0 }
 
@@ -485,7 +485,7 @@ summary:focus-visible {
   background: transparent;
 }
 
-.catalog-card-media:hover { border-color: transparent; transform: translateY(-3px) }
+.catalog-card-media:hover { border-color: transparent }
 .catalog-card-media .poster-wrap { overflow: hidden; border-radius: 8px; background: var(--surface-card) }
 .catalog-card-media .catalog-card-body { padding: 10px 0 0 }
 .catalog-card-media .card-kicker { display: none }

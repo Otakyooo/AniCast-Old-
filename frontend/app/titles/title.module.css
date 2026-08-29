@@ -370,7 +370,7 @@
   transition: border-color 140ms ease, transform 140ms ease;
 }
 
-.castCard:hover { border-color: var(--primary); transform: translateY(-1px) }
+.castCard:hover { border-color: var(--primary) }
 .castCard:active { transform: none }
 
 .castAvatar {
@@ -426,7 +426,7 @@
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
-.creditCard:hover { border-color: var(--primary); background: var(--surface-2); transform: translateY(-1px) }
+.creditCard:hover { border-color: var(--primary); background: var(--surface-2) }
 .creditCard:active { transform: none }
 
 .creditAvatar {
