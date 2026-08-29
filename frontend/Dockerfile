@@ -19,5 +19,9 @@ ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Next's standalone tracer sees the musl sharp binding but misses the
+# dynamically loaded libvips package. Without it the production image
+# silently falls back to serving full-size originals from /_next/image.
+COPY --from=deps /app/node_modules/@img/sharp-libvips-linuxmusl-x64 ./node_modules/@img/sharp-libvips-linuxmusl-x64
 EXPOSE 3000
 CMD ["node", "server.js"]
