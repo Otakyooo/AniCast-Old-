@@ -10,7 +10,6 @@ import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { BreadcrumbsJsonLd } from "../../../components/breadcrumbs-jsonld";
-import { ShareButton } from "../../../components/share-button";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
@@ -285,6 +284,7 @@ export default async function CatalogDetailPage({
             air_date: watchEpisode.air_date,
             sources: watchEpisode.sources ?? [],
           }}
+          trackProgress={query.episode !== undefined}
         />
       );
     }
@@ -361,7 +361,6 @@ export default async function CatalogDetailPage({
             <span>{item.year ?? t("title.yearUnknown")}</span>
             <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
             {item.duration_minutes ? <span>{t("title.durationValue", { minutes: item.duration_minutes })}</span> : null}
-            {item.franchise && <Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link>}
           </div>
           {genres.length > 0 && (
             <div className={styles.heroGenres}>
@@ -370,9 +369,8 @@ export default async function CatalogDetailPage({
               ))}
             </div>
           )}
-          <ShareButton path={`/titles/${item.slug}`} title={item.name} />
         </div>
-        <TitleActions slug={item.slug} firstEpisode={firstEpisode} />
+        <TitleActions slug={item.slug} />
       </article>
 
       <nav className={styles.tabs} aria-label={t("title.tabOverview")}>

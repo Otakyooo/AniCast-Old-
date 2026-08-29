@@ -10,26 +10,20 @@ import {
   type LibraryEntry,
   type LibraryStatus,
 } from "../lib/library";
-import { getContinueWatching, resumeEpisode } from "../lib/continue-watching";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
 interface TitleActionsProps {
   slug: string;
-  /** Lowest existing episode number, or null when the title has no episodes. */
-  firstEpisode: number | null;
 }
 
 /**
- * Primary actions of the title hero: watch/continue, library and favorite.
- *
- * The resume target comes from the recorded progress endpoint, so "Continue"
- * only appears when the viewer actually opened an episode of this title.
+ * Library and favorite actions. Playback already lives on the overview, so a
+ * second watch/continue action in the hero would only duplicate the player.
  */
-export function TitleActions({ slug, firstEpisode }: TitleActionsProps) {
+export function TitleActions({ slug }: TitleActionsProps) {
   const { t } = useI18n();
   const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
-  const [resumeNumber, setResumeNumber] = useState<number | null>(null);
   const [guest, setGuest] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +31,6 @@ export function TitleActions({ slug, firstEpisode }: TitleActionsProps) {
   useEffect(() => {
     const controller = new AbortController();
     setEntry(undefined);
-    setResumeNumber(null);
     setGuest(false);
     setError("");
 
@@ -48,15 +41,6 @@ export function TitleActions({ slug, firstEpisode }: TitleActionsProps) {
         if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
         else setError(t("common.error"));
       });
-
-    getContinueWatching(controller.signal)
-      .then((entries) => {
-        if (entries === null) return;
-        const match = entries.find((item) => item.title.slug === slug);
-        if (!match) return;
-        setResumeNumber(resumeEpisode(match)?.number ?? null);
-      })
-      .catch(() => undefined);
 
     return () => controller.abort();
   }, [slug, t]);
@@ -86,23 +70,12 @@ export function TitleActions({ slug, firstEpisode }: TitleActionsProps) {
     }
   }
 
-  const watchNumber = resumeNumber ?? firstEpisode;
   const isFavorite = entry?.is_favorite ?? false;
   const inLibrary = Boolean(entry);
 
   return (
     <div className={styles.actions}>
       <div className={styles.actionRow}>
-        {watchNumber === null ? (
-          <button className={styles.watch} type="button" disabled>
-            {t("title.noEpisodesYet")}
-          </button>
-        ) : (
-          <Link className={styles.watch} href={`/titles/${slug}?episode=${watchNumber}`}>
-            {resumeNumber ? t("title.continueEpisode", { number: resumeNumber }) : t("title.watchFirst")}
-          </Link>
-        )}
-
         {guest ? (
           <Link className={styles.secondaryAction} href="/login">{t("common.login")}</Link>
         ) : (

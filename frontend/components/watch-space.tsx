@@ -40,6 +40,7 @@ export function WatchSpace({
   currentNumber,
   episode,
   embedded = false,
+  trackProgress = false,
 }: {
   slug: string;
   titleName: string;
@@ -50,6 +51,7 @@ export function WatchSpace({
   currentNumber: number;
   episode: WatchEpisode;
   embedded?: boolean;
+  trackProgress?: boolean;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -126,6 +128,7 @@ export function WatchSpace({
       title={`${selectedName} · ${t("episode.number", { number: currentNumber })}`}
       slug={slug}
       episodeNumber={currentNumber}
+      trackProgress={trackProgress}
     />
   ) : chosen ? (
     <section className={`${styles.playerShell} ${styles.playerPreview}`}>
