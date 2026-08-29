@@ -71,6 +71,11 @@ def _creator(name: str) -> Creator:
 
 
 def _sync_credits(title: Title, material: dict) -> int:
+    # Exact per-work roles are authoritative. Provider buckets such as
+    # ``directors`` also contain episode directors and must not reintroduce
+    # duplicate generic credits after the Shikimori staff sync.
+    if TitleCredit.objects.filter(title=title, source="shikimori").exists():
+        return TitleCredit.objects.filter(title=title, source="shikimori").count()
     active: set[tuple[int, str]] = set()
     position = 0
     for field, role in CREDIT_FIELDS.items():

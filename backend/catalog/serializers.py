@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .i18n import translated_value
+from .i18n import request_language, translated_value
 from .models import Character, Creator, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -172,9 +172,13 @@ class TitleDetailSerializer(TitleSerializer):
         return count if count is not None else obj.character_links.count()
 
     def get_credits(self, obj):
+        language = request_language(self.context)
         return [
             {
                 "role": credit.role,
+                "role_label": (
+                    credit.role_en if language == "en" else credit.role_ru
+                ) or credit.role.replace("_", " ").title(),
                 "sort_order": credit.sort_order,
                 "creator": {
                     "name": credit.creator.name,
@@ -216,9 +220,13 @@ class CreatorDetailSerializer(serializers.ModelSerializer):
         fields = ["name", "slug", "image_url", "title_credits"]
 
     def get_title_credits(self, obj):
+        language = request_language(self.context)
         return [
             {
                 "role": credit.role,
+                "role_label": (
+                    credit.role_en if language == "en" else credit.role_ru
+                ) or credit.role.replace("_", " ").title(),
                 "sort_order": credit.sort_order,
                 "title": TitleSerializer(credit.title, context=self.context).data,
             }
@@ -284,6 +292,9 @@ class FranchiseSummarySerializer(serializers.ModelSerializer):
     title_count = serializers.IntegerField(read_only=True)
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    poster_urls = serializers.SerializerMethodField()
+    year_from = serializers.SerializerMethodField()
+    year_to = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
@@ -291,9 +302,23 @@ class FranchiseSummarySerializer(serializers.ModelSerializer):
     def get_description(self, obj):
         return translated_value(obj, "description", self.context)
 
+    def _titles(self, obj):
+        return list(obj.titles.all())
+
+    def get_poster_urls(self, obj):
+        return [title.poster_url for title in self._titles(obj) if title.poster_url][:3]
+
+    def get_year_from(self, obj):
+        years = [title.year for title in self._titles(obj) if title.year]
+        return min(years) if years else None
+
+    def get_year_to(self, obj):
+        years = [title.year for title in self._titles(obj) if title.year]
+        return max(years) if years else None
+
     class Meta:
         model = Franchise
-        fields = ["name", "slug", "description", "title_count"]
+        fields = ["name", "slug", "description", "title_count", "poster_urls", "year_from", "year_to"]
 
 
 class FranchiseTitleSerializer(serializers.ModelSerializer):

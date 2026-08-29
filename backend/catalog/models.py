@@ -239,7 +239,12 @@ class TitleCredit(models.Model):
     ]
     title = models.ForeignKey(Title, related_name="credits", on_delete=models.CASCADE)
     creator = models.ForeignKey(Creator, related_name="title_credits", on_delete=models.CASCADE)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    # ``role`` is a stable source key. Exact per-work labels come from the
+    # metadata source because production credits are more specific than the
+    # five legacy buckets (for example episode director or series composition).
+    role = models.CharField(max_length=80)
+    role_ru = models.CharField(max_length=200, blank=True)
+    role_en = models.CharField(max_length=200, blank=True)
     source = models.CharField(max_length=32, default="manual")
     sort_order = models.PositiveIntegerField(default=0)
 

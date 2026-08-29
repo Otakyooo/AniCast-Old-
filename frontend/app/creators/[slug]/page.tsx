@@ -59,7 +59,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
           {creator.title_credits.map((credit) => (
             <article className={styles.work} key={`${credit.title.slug}-${credit.role}`}>
               <CatalogCard item={credit.title} variant="media" />
-              <span>{t(`credit.${credit.role}`)}</span>
+              <span>{credit.role_label}</span>
             </article>
           ))}
         </div>

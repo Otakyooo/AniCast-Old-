@@ -66,6 +66,7 @@ export interface TitleCastEntry {
 
 export interface TitleCreditEntry {
   role: "director" | "producer" | "writer" | "composer" | "designer" | string;
+  role_label: string;
   sort_order: number;
   creator: { name: string; slug: string; image_url: string };
 }
@@ -130,14 +131,14 @@ export interface ScheduleResponse {
   results: ScheduleItem[];
 }
 
-export interface FranchiseSummary { name: string; slug: string; description: string; title_count: number }
+export interface FranchiseSummary { name: string; slug: string; description: string; title_count: number; poster_urls: string[]; year_from: number | null; year_to: number | null }
 export interface FranchiseDetail extends FranchiseSummary { titles: CatalogItem[] }
 export interface FranchiseResponse { count: number; next: string | null; previous: string | null; results: FranchiseSummary[] }
 
 export interface CharacterSummary { name: string; slug: string; original_name: string; description: string; image_url: string; title_count: number }
 export interface CharacterDetail extends CharacterSummary { title_links: Array<{ title: CatalogItem; role: string; sort_order: number }> }
 export interface CharacterResponse { count: number; next: string | null; previous: string | null; results: CharacterSummary[] }
-export interface CreatorDetail { name: string; slug: string; image_url: string; title_credits: Array<{ role: string; sort_order: number; title: CatalogItem }> }
+export interface CreatorDetail { name: string; slug: string; image_url: string; title_credits: Array<{ role: string; role_label: string; sort_order: number; title: CatalogItem }> }
 
 export interface GlobalSearchResponse {
   query: string;

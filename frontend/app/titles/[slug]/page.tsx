@@ -166,7 +166,7 @@ function CastCard({ entry, t }: { entry: TitleCastEntry; t: Translator }) {
   );
 }
 
-function CreditCard({ credit, t }: { credit: TitleCreditEntry; t: Translator }) {
+function CreditCard({ credit }: { credit: TitleCreditEntry }) {
   return (
     <Link className={styles.creditCard} href={`/creators/${credit.creator.slug}`}>
       <span className={styles.creditAvatar} aria-hidden="true">
@@ -174,7 +174,7 @@ function CreditCard({ credit, t }: { credit: TitleCreditEntry; t: Translator }) 
           <Image src={credit.creator.image_url} alt="" fill sizes="44px" referrerPolicy="no-referrer" />
         ) : <User size={22} weight="bold" />}
       </span>
-      <span><strong>{credit.creator.name}</strong><small>{t(`credit.${credit.role}`)}</small></span>
+      <span><strong>{credit.creator.name}</strong><small>{credit.role_label}</small></span>
       <ArrowUpRight className={styles.creditArrow} aria-hidden="true" size={17} />
     </Link>
   );
@@ -224,7 +224,10 @@ export default async function CatalogDetailPage({
   const castCount = item.characters_count ?? cast.length;
   const castPageCount = Math.max(1, Math.ceil(castCount / 60));
   const credits = item.credits ?? [];
-  const mainCredits = credits.filter((credit) => credit.role === "director" || credit.role === "writer" || credit.role === "producer").slice(0, 6);
+  // The API orders exact per-work credits by creative importance. The overview
+  // intentionally stays editorial: three people, while the full list remains
+  // available on the people tab.
+  const mainCredits = credits.slice(0, 3);
   const relatedTitles = item.related_titles ?? [];
   // Main characters for the overview: heroes and antagonists only.
   const mainCast = cast
@@ -357,6 +360,8 @@ export default async function CatalogDetailPage({
             </span>
             <span>{item.year ?? t("title.yearUnknown")}</span>
             <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
+            {item.duration_minutes ? <span>{t("title.durationValue", { minutes: item.duration_minutes })}</span> : null}
+            {item.franchise && <Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link>}
           </div>
           {genres.length > 0 && (
             <div className={styles.heroGenres}>
@@ -387,30 +392,12 @@ export default async function CatalogDetailPage({
 
       {tab === "overview" && (
         <div className={styles.panel}>
-          <div className={styles.overviewLead}>
-            <section className={`${styles.block} ${styles.overviewCard} ${styles.descriptionCard}`}>
+          {item.synopsis && (
+            <section className={`${styles.block} ${styles.descriptionCard}`}>
               <h2>{t("title.description")}</h2>
-              <p>{item.synopsis || t("title.descriptionMissing")}</p>
+              <p>{item.synopsis}</p>
             </section>
-            <section className={`${styles.block} ${styles.overviewCard}`}>
-              <h2>{t("title.details")}</h2>
-              <dl className={styles.detailsList}>
-                <div><dt>{t("catalog.format")}</dt><dd>{t(`type.${item.title_type ?? "anime"}`)}</dd></div>
-                {item.duration_minutes ? (
-                  <div><dt>{t("title.duration")}</dt><dd>{t("title.durationValue", { minutes: item.duration_minutes })}</dd></div>
-                ) : null}
-                {item.franchise && (
-                  <div>
-                    <dt>{t("title.franchiseLabel")}</dt>
-                    <dd><Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link></dd>
-                  </div>
-                )}
-                {item.original_name && (
-                  <div><dt>{t("title.originalName")}</dt><dd>{item.original_name}</dd></div>
-                )}
-              </dl>
-            </section>
-          </div>
+          )}
           {mainCredits.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
@@ -418,7 +405,7 @@ export default async function CatalogDetailPage({
                 {credits.length > mainCredits.length && <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.peopleAll")}</Link>}
               </div>
               <div className={styles.creditGrid}>
-                {mainCredits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} t={t} />)}
+                {mainCredits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} />)}
               </div>
             </section>
           )}
@@ -519,7 +506,7 @@ export default async function CatalogDetailPage({
             <h2>{t("title.authors")}</h2>
             {credits.length ? (
               <div className={styles.creditGrid}>
-                {credits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} t={t} />)}
+                {credits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} />)}
               </div>
             ) : <p className="muted">{t("title.noAuthors")}</p>}
           </section>
