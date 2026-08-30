@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Play } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import {
   deleteLibraryEntry,
@@ -15,13 +16,11 @@ import styles from "../app/titles/title.module.css";
 
 interface TitleActionsProps {
   slug: string;
+  watchHref?: string;
 }
 
-/**
- * Library and favorite actions. Playback already lives on the overview, so a
- * second watch/continue action in the hero would only duplicate the player.
- */
-export function TitleActions({ slug }: TitleActionsProps) {
+/** Primary playback link plus authenticated library and favorite actions. */
+export function TitleActions({ slug, watchHref }: TitleActionsProps) {
   const { t } = useI18n();
   const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
   const [guest, setGuest] = useState(false);
@@ -76,6 +75,12 @@ export function TitleActions({ slug }: TitleActionsProps) {
   return (
     <div className={styles.actions}>
       <div className={styles.actionRow}>
+        {watchHref && (
+          <Link className={styles.watch} href={watchHref}>
+            <Play aria-hidden="true" weight="fill" size={18} />
+            {t("watch.title")}
+          </Link>
+        )}
         {guest ? (
           <Link className={styles.secondaryAction} href="/login">{t("common.login")}</Link>
         ) : (

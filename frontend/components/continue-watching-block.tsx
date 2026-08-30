@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import type { CatalogItem } from "../lib/api";
 import { getContinueWatching, resumeEpisode, type ContinueWatchingEntry } from "../lib/continue-watching";
 import { getLibraryEntry, LibraryApiError, putLibraryEntry, type LibraryEntry, type LibraryStatus } from "../lib/library";
+import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
@@ -118,9 +119,9 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
   const total = displayTitle?.episodes_count;
   const primaryHref = heroEntry && heroTarget
-    ? `/titles/${heroEntry.title.slug}?episode=${heroTarget.number}`
+    ? titleWatchHref(heroEntry.title.slug, heroTarget.number)
     : displayTitle?.episodes_count
-      ? `/titles/${displayTitle.slug}?episode=1`
+      ? titleWatchHref(displayTitle.slug)
       : displayTitle ? `/titles/${displayTitle.slug}` : "/catalog";
   const metadata = displayTitle
     ? [displayTitle.year, displayTitle.title_type ? t(`type.${displayTitle.title_type}`) : null, total ? t("home.episodeCount", { count: total }) : null].filter(Boolean)
@@ -206,7 +207,7 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
         if (!target) return null;
         return (
           <li key={entry.title.slug}>
-            <Link className={styles.resumeCard} href={`/titles/${entry.title.slug}?episode=${target.number}`}>
+            <Link className={styles.resumeCard} href={titleWatchHref(entry.title.slug, target.number)}>
               <span className={styles.resumeFrame}>
                 {entry.title.poster_url ? (
                   <Image

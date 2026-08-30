@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SITE_URL } from "./site.ts";
-import { catalogPageExists, catalogSeoState, titleSchemaType, websiteJsonLd } from "./seo.ts";
+import {
+  catalogPageExists,
+  catalogSeoState,
+  legacyTitleWatchRedirectHref,
+  titleSchemaType,
+  titleWatchHref,
+  websiteJsonLd,
+} from "./seo.ts";
 
 test("catalog base and pagination remain self-canonical and indexable", () => {
   assert.deepEqual(catalogSeoState({}), { canonical: "/catalog", index: true });
@@ -31,4 +38,18 @@ test("schema helpers describe the site and distinguish movies", () => {
     url: SITE_URL,
     inLanguage: "ru",
   });
+});
+
+test("watch links keep playback state away from the canonical title URL", () => {
+  assert.equal(
+    titleWatchHref("31240-rezero-kara-hajimeru-isekai-seikatsu", 1, "306fb52e8ee8170c"),
+    "/titles/31240-rezero-kara-hajimeru-isekai-seikatsu/watch?episode=1&voice=306fb52e8ee8170c",
+  );
+  assert.equal(
+    legacyTitleWatchRedirectHref("title", { episode: "3", voice: " dub " }),
+    "/titles/title/watch?episode=3&voice=dub",
+  );
+  assert.equal(legacyTitleWatchRedirectHref("title", { voice: "dub" }), "/titles/title/watch?episode=1&voice=dub");
+  assert.equal(legacyTitleWatchRedirectHref("title", { episode: "invalid" }), "/titles/title/watch?episode=1");
+  assert.equal(legacyTitleWatchRedirectHref("title", {}), null);
 });

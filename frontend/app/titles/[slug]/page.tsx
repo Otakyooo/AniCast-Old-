@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
@@ -13,24 +13,20 @@ import { BreadcrumbsJsonLd } from "../../../components/breadcrumbs-jsonld";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
-import { WatchSpace } from "../../../components/watch-space";
 import {
   apiErrorStatus,
   getCatalogItem,
   getCatalogItemEpisodes,
-  getEpisode,
   getFirstEpisodeNumber,
   getSimilarTitles,
-  getWatchNavigation,
   type CatalogItem,
   type Episode,
   type TitleCastEntry,
   type TitleCreditEntry,
-  type WatchNavigation,
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { titleRating } from "../../../lib/rating";
-import { titleSchemaType } from "../../../lib/seo";
+import { legacyTitleWatchRedirectHref, titleSchemaType, titleWatchHref } from "../../../lib/seo";
 import { getI18n } from "../../../i18n/server";
 import { intlLocale } from "../../../i18n/config";
 import styles from "../title.module.css";
@@ -143,7 +139,7 @@ function EpisodeCard({
       </div>
       {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
       {sources.some((source) => source.playback_available) && (
-        <Link className="secondary" href={`/titles/${slug}?episode=${episode.number}`}>{t("watch.title")}</Link>
+        <Link className="secondary" href={titleWatchHref(slug, episode.number)}>{t("watch.title")}</Link>
       )}
       <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
     </li>
@@ -188,6 +184,8 @@ export default async function CatalogDetailPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
+  const legacyWatchTarget = legacyTitleWatchRedirectHref(slug, query);
+  if (legacyWatchTarget) permanentRedirect(legacyWatchTarget);
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawCharactersPage = Number(query.characters_page);
@@ -240,55 +238,6 @@ export default async function CatalogDetailPage({
       ? Promise.resolve(Math.min(...episodes.map((episode) => episode.number)))
       : getFirstEpisodeNumber(slug),
   ]);
-  let watchSpace: React.ReactNode = null;
-  if (tab === "overview" && episodesCount > 0 && firstEpisode !== null) {
-    const loadedNavigation = await getWatchNavigation(slug).catch(() => null);
-    const navigation: WatchNavigation = loadedNavigation ?? {
-      episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
-      source_groups: [],
-    };
-    const episodeNumbers = navigation.episode_numbers.length
-      ? navigation.episode_numbers
-      : Array.from({ length: episodesCount }, (_, index) => index + 1);
-    const rawRequested = Number(query.episode);
-    const fallbackNumber = Number(episodeNumbers[0] ?? firstEpisode);
-    let watchNumber = Number.isInteger(rawRequested) && episodeNumbers.includes(rawRequested)
-      ? rawRequested
-      : fallbackNumber;
-    let watchEpisode;
-    try {
-      watchEpisode = await getEpisode(slug, watchNumber);
-    } catch (error) {
-      if (apiErrorStatus(error) !== 404) watchEpisode = null;
-      else {
-        watchNumber = fallbackNumber;
-        try { watchEpisode = await getEpisode(slug, watchNumber); }
-        catch { watchEpisode = null; }
-      }
-    }
-    if (watchEpisode) {
-      watchSpace = (
-        <WatchSpace
-          embedded
-          slug={slug}
-          titleName={item.name}
-          episodesCount={episodesCount}
-          episodeNumbers={episodeNumbers}
-          sourceGroups={navigation.source_groups}
-          requestedSourceKey={query.voice}
-          currentNumber={watchNumber}
-          episode={{
-            number: watchEpisode.number,
-            name: watchEpisode.name,
-            synopsis: watchEpisode.synopsis,
-            air_date: watchEpisode.air_date,
-            sources: watchEpisode.sources ?? [],
-          }}
-          trackProgress={query.episode !== undefined}
-        />
-      );
-    }
-  }
   const rating = titleRating(item);
   const { t, locale } = await getI18n();
   const dayFormatter = new Intl.DateTimeFormat(intlLocale[locale], {
@@ -371,7 +320,10 @@ export default async function CatalogDetailPage({
             </div>
           )}
         </div>
-        <TitleActions slug={item.slug} />
+        <TitleActions
+          slug={item.slug}
+          watchHref={firstEpisode !== null ? titleWatchHref(item.slug, firstEpisode) : undefined}
+        />
       </article>
 
       <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
@@ -419,12 +371,6 @@ export default async function CatalogDetailPage({
               <div className={styles.castGrid}>
                 {mainCast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
               </div>
-            </section>
-          )}
-          {watchSpace && (
-            <section className={styles.watchSection}>
-              <h2>{t("watch.title")}</h2>
-              {watchSpace}
             </section>
           )}
           {relatedTitles.length > 0 && (

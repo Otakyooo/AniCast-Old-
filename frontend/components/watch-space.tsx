@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer } from "./provider-player";
 import type { Source, WatchSourceGroup } from "../lib/api";
+import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
@@ -22,12 +23,6 @@ const EPISODES_PER_RANGE = 100;
 function cleanSourceName(name: string, providerName = "") {
   const prefix = providerName ? `${providerName} · ` : "";
   return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
-}
-
-function episodeHref(slug: string, number: number, sourceKey: string) {
-  const query = new URLSearchParams({ episode: String(number) });
-  if (sourceKey) query.set("voice", sourceKey);
-  return `/titles/${slug}?${query}`;
 }
 
 export function WatchSpace({
@@ -117,7 +112,7 @@ export function WatchSpace({
 
   function chooseGroup(key: string) {
     setSelectedGroupKey(key);
-    router.replace(episodeHref(slug, currentNumber, key), { scroll: false });
+    router.replace(titleWatchHref(slug, currentNumber, key), { scroll: false });
   }
 
   const player = chosen?.playback_mode === "iframe_embed" ? (
@@ -237,7 +232,7 @@ export function WatchSpace({
               <Link
                 key={number}
                 className={className}
-                href={episodeHref(slug, number, selectedGroupKey)}
+                href={titleWatchHref(slug, number, selectedGroupKey)}
                 aria-current={active ? "page" : undefined}
                 aria-label={t("episode.number", { number })}
               >
@@ -264,12 +259,12 @@ export function WatchSpace({
 
         <nav className={styles.watchNav} aria-label={t("watch.neighborEpisodes")}>
           {previousNumber ? (
-            <Link className={styles.neighborLink} href={episodeHref(slug, previousNumber, selectedGroupKey)}>
+            <Link className={styles.neighborLink} href={titleWatchHref(slug, previousNumber, selectedGroupKey)}>
               ← {t("watch.prev")}
             </Link>
           ) : <span />}
           {nextNumber ? (
-            <Link className={styles.neighborLink} href={episodeHref(slug, nextNumber, selectedGroupKey)}>
+            <Link className={styles.neighborLink} href={titleWatchHref(slug, nextNumber, selectedGroupKey)}>
               {t("watch.next")} →
             </Link>
           ) : <span />}
