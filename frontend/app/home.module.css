@@ -8,6 +8,7 @@
 /* ---------- Resume hero (design spec §4.2) ---------- */
 
 .resumeHero {
+  position: relative;
   display: grid;
   grid-template-columns: 164px minmax(0, 1fr);
   align-items: center;
@@ -18,11 +19,36 @@
   padding: 20px clamp(22px, 3vw, 38px) 20px 20px;
   border: 1px solid var(--border);
   border-radius: 14px;
+  overflow: hidden;
   background: var(--surface-elevated);
+  isolation: isolate;
+}
+
+.resumeHeroBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.resumeHeroBackdrop:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--home-hero-overlay);
+}
+
+.resumeHeroBackdropArt {
+  object-fit: cover;
+  object-position: 72% 26%;
+  filter: blur(6px) saturate(.82) contrast(.96);
+  transform: scale(1.06);
 }
 
 .resumeHeroArtFrame {
   position: relative;
+  z-index: 1;
   width: 164px;
   aspect-ratio: 2 / 3;
   overflow: hidden;
@@ -39,6 +65,8 @@
 }
 
 .resumeHeroBody {
+  position: relative;
+  z-index: 1;
   display: grid;
   align-content: center;
   gap: 12px;
@@ -377,11 +405,13 @@
 }
 
 @media (max-width: 520px) {
-  .resumeHero { grid-template-columns: 92px minmax(0, 1fr); gap: 14px; padding: 14px }
-  .resumeHeroArtFrame { width: 92px }
+  .resumeHero { grid-template-columns: 1fr; gap: 14px; min-height: 318px; padding: 24px 18px 18px }
+  .resumeHeroBackdrop:after { background: var(--home-hero-overlay-mobile) }
+  .resumeHeroBackdropArt { object-position: 68% 18%; filter: blur(3px) saturate(.76) contrast(.94); transform: scale(1.045) }
+  .resumeHeroArtFrame { display: none }
+  .resumeHeroBody { align-content: end; min-height: 274px }
   .resumeHeroEyebrow { font-size: 10px }
   .resumeHeroTitle { font-size: 24px }
   .heroGenres { display: none }
-  .resumeHeroActions { grid-column: 1 / -1 }
   .resumeHeroCta, .resumeHeroSecondary { min-height: 42px; padding: 10px 13px }
 }

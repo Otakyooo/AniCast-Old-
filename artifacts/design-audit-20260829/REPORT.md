@@ -269,3 +269,15 @@ password requirements регистрации и slug hint коллекции с�
 объявляют подтверждённый success через `status`, error через `alert` и сохраняют
 введённый текст при отказе. Native validation регистрации переводит фокус на
 первое невалидное обязательное поле; password description присутствует в DOM.
+
+## Approved interface iteration 1 — atmospheric home hero
+
+После подтверждения пользователя hero главной получил декоративное продолжение
+featured poster под адаптивным overlay. На desktop отдельный чёткий постер
+сохранён слева, а размытый artwork заполняет ранее пустую правую часть. На mobile
+отдельная poster card скрывается и тот же artwork становится фоном hero; данные,
+CTA, loading/guest/error behavior и DOM reading order не менялись. При отсутствии
+poster сохраняется прежняя `--surface-elevated` поверхность.
+
+Production captures на 390 и 1440 px: horizontal overflow — 0, Axe — 0.
+Подтверждения: `15-home-hero-mobile.png`, `15-home-hero-desktop.png`.

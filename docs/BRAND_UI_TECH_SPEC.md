@@ -66,6 +66,8 @@
   `--media-edge-gradient`, `--shadow-overlay`, `--shadow-illustration`.
 - `--primary-surface-gradient`, `--avatar-control-gradient`,
   `--surface-gradient`, `--collection-initial-gradient`.
+- `--home-hero-overlay`, `--home-hero-overlay-mobile` — читаемые desktop/mobile
+  overlays для декоративного artwork в hero главной.
 
 Совместимые алиасы существующей системы:
 
