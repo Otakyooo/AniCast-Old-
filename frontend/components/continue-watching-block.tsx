@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Play, Plus } from "@phosphor-icons/react";
+import { Check, Play, Plus } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { CatalogItem } from "../lib/api";
 import { getContinueWatching, resumeEpisode, type ContinueWatchingEntry } from "../lib/continue-watching";
+import { getLibraryEntry, LibraryApiError, putLibraryEntry, type LibraryEntry, type LibraryStatus } from "../lib/library";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
@@ -28,6 +29,77 @@ function useContinueWatching(): State {
     return () => controller.abort();
   }, []);
   return state;
+}
+
+function HeroLibraryAction({ slug, initialStatus }: { slug: string; initialStatus: LibraryStatus }) {
+  const { t } = useI18n();
+  const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
+  const [guest, setGuest] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setEntry(undefined);
+    setGuest(false);
+    setError("");
+
+    getLibraryEntry(slug, controller.signal)
+      .then(setEntry)
+      .catch((reason) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
+        else setError(t("common.error"));
+      });
+
+    return () => controller.abort();
+  }, [retryKey, slug, t]);
+
+  async function addToLibrary() {
+    setPending(true);
+    setError("");
+    try {
+      setEntry(await putLibraryEntry(slug, { status: initialStatus, is_favorite: false }));
+    } catch (reason) {
+      if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
+      else setError(t("common.error"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (guest) {
+    return <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href="/login"><Plus aria-hidden="true" size={20} />{t("home.signInToSave")}</Link>;
+  }
+
+  if (entry) {
+    return <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href="/library"><Check aria-hidden="true" weight="bold" size={20} />{t("title.inLibrary")}</Link>;
+  }
+
+  if (entry === undefined && error) {
+    return (
+      <span className={styles.heroLibraryState}>
+        <button className={`secondary inline-button ${styles.resumeHeroSecondary}`} type="button" onClick={() => setRetryKey((value) => value + 1)}>{t("common.retry")}</button>
+        <span className={styles.heroActionError} role="alert">{error}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className={styles.heroLibraryState}>
+      <button
+        className={`secondary inline-button ${styles.resumeHeroSecondary}`}
+        type="button"
+        disabled={pending || entry === undefined}
+        onClick={addToLibrary}
+      >
+        <Plus aria-hidden="true" size={20} />
+        {pending ? t("home.addingLibrary") : entry === undefined ? t("common.loading") : t("title.addLibrary")}
+      </button>
+      {error && <span className={styles.heroActionError} role="alert">{error}</span>}
+    </span>
+  );
 }
 
 /**
@@ -86,9 +158,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
               <Play aria-hidden="true" weight="fill" size={19} />
               {heroEntry && heroTarget ? t("home.continueEpisode", { number: heroTarget.number }) : t("home.watchFeatured")}
             </Link>
-            {displayTitle && <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href={`/titles/${displayTitle.slug}`}>
-              <Plus aria-hidden="true" size={20} />{t("title.addLibrary")}
-            </Link>}
+            {displayTitle && <HeroLibraryAction slug={displayTitle.slug} initialStatus={heroEntry ? "watching" : "planned"} />}
           </div>
           {heroEntry && heroTarget && total ? (
             <div className={styles.heroProgress}>

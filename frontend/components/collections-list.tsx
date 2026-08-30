@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import styles from "../app/collections/collections.module.css";
 import { CollectionsApiError, createCollection, getCollections, type CollectionSummary } from "../lib/collections";
 import { useI18n } from "./i18n-provider";
@@ -14,6 +14,7 @@ export function CollectionsList() {
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const slugHintId = useId();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -42,7 +43,7 @@ export function CollectionsList() {
   return <>
     <form className={`${styles.panel} ${styles.form}`} onSubmit={create}>
       <label>{t("collections.name")}<input value={name} maxLength={120} required onChange={(event) => setName(event.target.value)} placeholder={t("collections.namePlaceholder")} /></label>
-      <label>{t("collections.slug")}<input value={slug} maxLength={80} required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" onChange={(event) => setSlug(event.target.value.toLowerCase())} placeholder={t("collections.slugPlaceholder")} /><small>{t("collections.slugHint")}</small></label>
+      <label>{t("collections.slug")}<input value={slug} maxLength={80} required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" aria-describedby={slugHintId} onChange={(event) => setSlug(event.target.value.toLowerCase())} placeholder={t("collections.slugPlaceholder")} /><small id={slugHintId}>{t("collections.slugHint")}</small></label>
       <div className={styles.actions}><button className={styles.primary} disabled={pending} type="submit">{pending ? t("collections.creating") : t("collections.create")}</button></div>
       {error && <span className={styles.error} role="alert">{error}</span>}
     </form>

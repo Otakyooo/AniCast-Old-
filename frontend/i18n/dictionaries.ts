@@ -71,7 +71,7 @@ Object.assign(ru, {
 });
 
 Object.assign(ru, {
-  "home.featuredEyebrow":"В центре внимания","home.watchFeatured":"Смотреть","home.episodeCount":"{count} эпизодов"
+  "home.featuredEyebrow":"В центре внимания","home.watchFeatured":"Смотреть","home.episodeCount":"{count} эпизодов","home.signInToSave":"Войти, чтобы сохранить","home.addingLibrary":"Добавляем..."
 });
 
 Object.assign(en, {
@@ -87,7 +87,7 @@ Object.assign(en, {
 });
 
 Object.assign(en, {
-  "home.featuredEyebrow":"Featured","home.watchFeatured":"Watch","home.episodeCount":"{count} episodes"
+  "home.featuredEyebrow":"Featured","home.watchFeatured":"Watch","home.episodeCount":"{count} episodes","home.signInToSave":"Sign in to save","home.addingLibrary":"Adding..."
 });
 
 Object.assign(ru, {
@@ -125,7 +125,8 @@ Object.assign(ru, {
   // Настройки: отдельный приватный маршрут (design freeze §17).
   "settings.title":"Настройки","settings.subtitle":"Публичный профиль, уведомления и язык интерфейса.","settings.languageHint":"Язык переключается кнопкой в шапке сайта и сохраняется в аккаунте.",
   // Представления внутри вкладки «Библиотека».
-  "library.viewTitles":"Тайтлы","library.viewCollections":"Коллекции",
+  "library.viewSwitch":"Представление библиотеки","library.filters":"Фильтры библиотеки","library.viewTitles":"Тайтлы","library.viewCollections":"Коллекции",
+  "notes.saving":"Сохраняем...","notes.deleting":"Удаляем...","notes.saved":"Заметка сохранена","notes.deleted":"Заметка удалена",
   // Единый сценарий просмотра: озвучка, доступные серии и плеер.
   "watch.navigation":"Выбор озвучки и серии","watch.voice":"Озвучка или субтитры","watch.noVoice":"Доступных озвучек пока нет",
   "watch.episodeCount":"{count} эп.","watch.episodeRange":"Диапазон серий",
@@ -148,7 +149,8 @@ Object.assign(en, {
   "profile.activityTitle":"Viewing activity","profile.activitySubtitle":"Episodes marked during the last 12 months","profile.activityLabel":"Monthly viewing activity chart","profile.activityCount":"Episodes: {count}",
   "profile.guest":"Guest",
   "settings.title":"Settings","settings.subtitle":"Public profile, notifications and interface language.","settings.languageHint":"Switch the language with the header control; the choice is stored in your account.",
-  "library.viewTitles":"Titles","library.viewCollections":"Collections",
+  "library.viewSwitch":"Library view","library.filters":"Library filters","library.viewTitles":"Titles","library.viewCollections":"Collections",
+  "notes.saving":"Saving...","notes.deleting":"Deleting...","notes.saved":"Note saved","notes.deleted":"Note deleted",
   "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.noVoice":"No playable voice-overs yet",
   "watch.episodeCount":"{count} eps.","watch.episodeRange":"Episode range",
   "watch.episodeUnavailable":"This episode is not available in the selected voice-over","watch.voiceUnavailable":"Episode {number} is not available in “{name}”. Choose an available episode.",
@@ -184,6 +186,7 @@ Object.assign(ru, {
   "social.profileDescription":"Профиль {name} в сообществе AniCast: публичные коллекции и рецензии.",
   "social.follow":"Подписаться",
   "social.unfollow":"Отписаться",
+  "social.followError":"Не удалось изменить подписку. Попробуйте ещё раз.",
   "social.signInToFollow":"Войти, чтобы подписаться",
   "social.editOwnProfile":"Настроить профиль",
   "social.followers":"Подписчики",
@@ -223,6 +226,7 @@ Object.assign(en, {
   "social.profileDescription":"{name}'s AniCast community profile, public collections and reviews.",
   "social.follow":"Follow",
   "social.unfollow":"Unfollow",
+  "social.followError":"Could not update the follow. Please try again.",
   "social.signInToFollow":"Sign in to follow",
   "social.editOwnProfile":"Edit profile",
   "social.followers":"Followers",

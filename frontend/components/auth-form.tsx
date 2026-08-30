@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useId, useState } from "react";
 import { register, setLanguageCookie, signIn } from "../lib/auth";
 import styles from "../app/auth.module.css";
 import { useI18n } from "./i18n-provider";
@@ -13,6 +13,7 @@ export function AuthForm({ mode, returnTo = "/account" }: { mode: "login" | "reg
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const isRegister = mode === "register";
+  const passwordHintId = useId();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,8 +41,8 @@ export function AuthForm({ mode, returnTo = "/account" }: { mode: "login" | "reg
     <form className={styles.form} onSubmit={submit}>
       {isRegister && <label><span>{t("auth.displayName")}</span><input name="display_name" autoComplete="name" maxLength={80} /></label>}
       <label><span>Email</span><input name="email" type="email" autoComplete="email" required /></label>
-      <label><span>{t("auth.password")}</span><input name="password" type="password" autoComplete={isRegister ? "new-password" : "current-password"} minLength={10} required /></label>
-      {isRegister && <p className={styles.hint}>{t("auth.passwordHint")}</p>}
+      <label><span>{t("auth.password")}</span><input name="password" type="password" autoComplete={isRegister ? "new-password" : "current-password"} minLength={10} required aria-describedby={isRegister ? passwordHintId : undefined} /></label>
+      {isRegister && <p className={styles.hint} id={passwordHintId}>{t("auth.passwordHint")}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}
       <button className={styles.submit} type="submit" disabled={pending}>{pending ? t("auth.wait") : isRegister ? t("auth.create") : t("common.login")}</button>
       <p className={styles.switch}>{isRegister ? t("auth.haveAccount") : t("auth.new")} <Link href={isRegister ? "/login" : "/register"}>{isRegister ? t("common.login") : t("auth.create")}</Link></p>

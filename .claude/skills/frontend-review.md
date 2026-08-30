@@ -1,18 +1,39 @@
 # Frontend Review
 
-Ревью Next.js/React/TypeScript UI перед merge.
+Ревью пользовательского интерфейса AniCast перед merge или release.
+
+## Контекст
+
+Прочитать `docs/FRONTEND_DESIGN_RULES.md` и
+`docs/BRAND_UI_TECH_SPEC.md`. Проверять наблюдаемый flow, а не только изменённые
+строки JSX/CSS.
 
 ## Проверки
 
-1. Проверить component boundaries, server/client usage и routing.
-2. Проверить loading, error, empty, success и повторное действие для каждого async flow.
-3. Проверить типы props/API, обработку stale data и race conditions.
-4. Проверить accessibility: semantic HTML, keyboard navigation, labels, focus и contrast.
-5. Проверить responsive layout для desktop и mobile.
-6. Запустить `npm run lint`, `npm run typecheck` и `npm run build`.
+1. Пройти основную задачу пользователя и один отказ: empty, unavailable,
+   validation или backend error.
+2. Проверить component boundaries, Server/Client Components, routing, типы API,
+   stale responses и быстрые повторные действия.
+3. Проверить default, hover, `focus-visible`, pending, disabled, success, error и
+   retry состояния затронутых контролов.
+4. Убедиться, что UI не сообщает success до backend, не теряет полезный ввод и не
+   скрывает частичный результат как полный.
+5. Проверить native semantics, доступные имена, keyboard-only flow, focus order,
+   contrast и объявления динамических статусов.
+6. Проверить узкий mobile и широкий desktop, длинные названия и обе локали для
+   локализованного flow.
+7. Сопоставить цвета, иконки, spacing и hierarchy с проектными токенами и
+   существующими общими компонентами.
+8. Запустить `npm run lint`, `npm run typecheck`, `npm test` и `npm run build` из
+   `frontend/`.
 
-## Антипаттерны
+## Приоритет замечаний
 
-- Business logic в JSX без выделенного service/API слоя.
-- `any`, скрытые type assertions и состояние, недоступное клавиатурой.
-- UI, который показывает success до подтверждения backend.
+- Blocking: невозможно завершить главный flow, теряются данные, результат показан
+  неверно или flow недоступен.
+- Significant: нарушены recovery, responsive layout, hierarchy, consistency или
+  зафиксированное проектное правило.
+- Polish: улучшение без материального влияния на выполнение задачи.
+
+Не считать browser, keyboard или screen-reader gate пройденным, если он фактически
+не выполнялся. Не превращать ревью в несвязанный массовый рефакторинг.

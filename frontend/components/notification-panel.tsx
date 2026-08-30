@@ -75,7 +75,7 @@ export function NotificationPanel({ botUsername }: { botUsername?: string }) {
       <h3>{t("notifications.title")}</h3>
       <p>{connected ? t("notifications.connected", { bot: botUsername }) : t("notifications.description")}</p>
       <button type="button" disabled={pending || connected === undefined} onClick={connected ? disconnect : connect}>{pending ? t("notifications.pending") : connected ? t("notifications.disconnect") : t("notifications.connect")}</button>
-      {error && <span>{error}</span>}
+      {error && <span role="alert">{error}</span>}
       {connected && (
         <div className={styles.section}>
           <h4>{t("notifications.digestTitle")}</h4>

@@ -20,7 +20,7 @@ export async function SiteHeader({ active }: { active: NavSection }) {
   const hasSessionCookie = Boolean((await cookies()).get("sessionid")?.value);
   const linkClass = (section: NavSection) => section === active ? "active" : undefined;
 
-  return <>
+  return (
     <header className="global-nav">
       <div className="global-nav-inner">
         <BrandLockup className="global-brand" priority />
@@ -37,6 +37,18 @@ export async function SiteHeader({ active }: { active: NavSection }) {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Kept after <main> in the page DOM so keyboard users encounter page content
+ * before this visually fixed mobile-only navigation.
+ */
+export async function MobileBottomNav({ active }: { active: NavSection }) {
+  const { t } = await getI18n();
+  const linkClass = (section: NavSection) => section === active ? "active" : undefined;
+
+  return (
     <nav className="mobile-bottom-nav" aria-label={t("nav.main")}>
       <Link className={linkClass("home")} href="/"><House aria-hidden="true" size={20} />{t("nav.home")}</Link>
       <Link className={linkClass("catalog")} href="/catalog"><SquaresFour aria-hidden="true" size={20} />{t("nav.catalog")}</Link>
@@ -44,5 +56,5 @@ export async function SiteHeader({ active }: { active: NavSection }) {
       <MobileSearchLink />
       <Link className={linkClass("profile")} href="/account"><UserCircle aria-hidden="true" size={21} />{t("nav.profile")}</Link>
     </nav>
-  </>;
+  );
 }

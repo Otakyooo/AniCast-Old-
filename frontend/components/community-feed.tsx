@@ -21,9 +21,9 @@ export function CommunityFeed() {
 
   if (!reviews || following === undefined) return <div className="empty-state">{t("common.loading")}</div>;
 
-  const tabs = following !== null && <div className={styles.feedTabs} role="tablist" aria-label={t("social.feedTabs")}>
-    <button className={mode === "all" ? styles.feedTabActive : ""} type="button" role="tab" aria-selected={mode === "all"} onClick={() => setMode("all")}>{t("social.feedAll")}</button>
-    <button className={mode === "following" ? styles.feedTabActive : ""} type="button" role="tab" aria-selected={mode === "following"} onClick={() => setMode("following")}>{t("social.feedFollowing")}</button>
+  const tabs = following !== null && <div className={styles.feedTabs} role="group" aria-label={t("social.feedTabs")}>
+    <button className={mode === "all" ? styles.feedTabActive : ""} type="button" aria-pressed={mode === "all"} onClick={() => setMode("all")}>{t("social.feedAll")}</button>
+    <button className={mode === "following" ? styles.feedTabActive : ""} type="button" aria-pressed={mode === "following"} onClick={() => setMode("following")}>{t("social.feedFollowing")}</button>
   </div>;
 
   if (mode === "following" && following !== null) return <>{tabs}{following.length ? (

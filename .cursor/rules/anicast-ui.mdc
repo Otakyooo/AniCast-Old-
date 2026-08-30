@@ -1,0 +1,26 @@
+---
+description: AniCast-specific UI implementation and design-review rules for Next.js, React, TypeScript, and CSS Modules.
+globs: ["frontend/**/*.tsx", "frontend/**/*.ts", "frontend/**/*.css"]
+alwaysApply: false
+---
+
+# AniCast UI
+
+Before changing UI, read `docs/FRONTEND_DESIGN_RULES.md` and
+`docs/BRAND_UI_TECH_SPEC.md`. They override generic framework and design advice.
+
+- Preserve App Router, Server Components by default, CSS Modules, Phosphor Icons,
+  semantic CSS variables, and the existing i18n system.
+- Do not introduce Tailwind, shadcn/ui, a new palette, icon family, or UI dependency
+  unless the user explicitly requests that architectural change.
+- Inspect the closest existing route and shared component before adding a pattern.
+- Design applicable loading, empty, unavailable, pending, success, error, disabled,
+  focus, mobile, and retry states.
+- Never display success before backend confirmation or discard useful input after an
+  error.
+- Prefer native HTML semantics; preserve keyboard access, visible focus, logical DOM
+  order, meaningful labels, and AA contrast.
+- Keep cleanup scoped to the requested change and report unrelated design debt.
+
+For review, classify user-facing failures by impact and state which browser,
+keyboard, viewport, accessibility, and build checks were actually performed.

@@ -1,0 +1,185 @@
+{
+  "number": 2,
+  "slug": "catalog-desktop",
+  "healthContext": "Browse and filter titles",
+  "file": "/home/lama_admin/anicast/artifacts/design-audit-20260829/02-catalog-desktop.png",
+  "url": "https://anicast.online/catalog",
+  "title": "Каталог — AniCast",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "headings": [
+    "Каталог",
+    "Re:Zero. Жизнь с нуля в альтернативном мире",
+    "Ангельские ритмы!",
+    "Атака титанов",
+    "Атака титанов 2",
+    "Атака титанов 3",
+    "Атака титанов 3. Часть 2",
+    "Атака титанов: Финал",
+    "Атака титанов: Финал. Часть 2",
+    "Бездомный бог",
+    "Бездомный бог: Арагото",
+    "Безумный азарт",
+    "Блич",
+    "Вайолет Эвергарден",
+    "Ван-Пис",
+    "Ванпанчмен",
+    "Ванпанчмен 2",
+    "Великий из бродячих псов",
+    "Волейбол!!",
+    "Волейбол!! 2",
+    "Восхождение героя щита"
+  ],
+  "axe": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",
+      "nodes": [
+        {
+          "target": [
+            ".global-brand > .brand-wordmark > strong"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.29 (foreground color: #e04f3e, background color: #141e29, font size: 13.5pt (18px), font weight: bold). Expected contrast ratio of 4.5:1",
+          "html": "<strong>Cast</strong>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(1) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"6547-angel-beats\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(3) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(4) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(5) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(6) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(7) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(8) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"20507-noragami\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"30503-noragami-aragoto\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"34933-kakegurui\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"269-bleach\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(13) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"21-one-piece\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Выходит</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"30276-one-punch-man\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(16) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(17) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            "a[href$=\"20583-haikyuu\"] > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        },
+        {
+          "target": [
+            ".catalog-card:nth-child(19) > .catalog-card-body > .card-kicker"
+          ],
+          "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.02 (foreground color: #e04f3e, background color: #1b2330, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+          "html": "<span class=\"card-kicker\">Завершено</span>"
+        }
+      ]
+    }
+  ]
+}

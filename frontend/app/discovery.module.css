@@ -1,4 +1,4 @@
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}.card{display:grid;gap:10px;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.card:hover{border-color:var(--primary)}.avatar{display:grid;place-items:center;aspect-ratio:4/3;border-radius:9px;background:linear-gradient(135deg,#24303e,#161a24);font-size:46px;font-weight:800}.card h2,.card p{margin:0}.card p,.card small{color:var(--muted)}.card small{color:var(--primary)}.hero{display:grid;grid-template-columns:180px 1fr;gap:24px;margin-bottom:30px}.portrait{display:grid;place-items:center;min-height:220px;border-radius:14px;background:linear-gradient(135deg,#24303e,#161a24);font-size:72px;font-weight:800}.copy{display:grid;align-content:center;gap:12px}.copy h1,.copy p{margin:0}.filters{display:flex;gap:8px;margin-bottom:24px}.filters a{padding:9px 13px;border:1px solid var(--border);border-radius:8px}.mediaCard{display:grid;gap:10px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.mediaPreview{display:grid;place-items:center;aspect-ratio:16/9;border-radius:8px;background:#10141c;color:var(--primary);font-weight:700}.score{display:inline-block;padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--primary)}@media(max-width:640px){.hero{grid-template-columns:1fr}.portrait{min-height:160px}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}.card{display:grid;gap:10px;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.card:hover{border-color:var(--primary)}.avatar{display:grid;place-items:center;aspect-ratio:4/3;border-radius:9px;background:var(--poster-gradient);font-size:46px;font-weight:800}.card h2,.card p{margin:0}.card p,.card small{color:var(--muted)}.card small{color:var(--accent-text)}.hero{display:grid;grid-template-columns:180px 1fr;gap:24px;margin-bottom:30px}.portrait{display:grid;place-items:center;min-height:220px;border-radius:14px;background:var(--poster-gradient);font-size:72px;font-weight:800}.copy{display:grid;align-content:center;gap:12px}.copy h1,.copy p{margin:0}.filters{display:flex;gap:8px;margin-bottom:24px}.filters a{padding:9px 13px;border:1px solid var(--border);border-radius:8px}.mediaCard{display:grid;gap:10px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.mediaPreview{display:grid;place-items:center;aspect-ratio:16/9;border-radius:8px;background:var(--surface-media);color:var(--accent-text);font-weight:700}.score{display:inline-block;padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--accent-text)}@media(max-width:640px){.hero{grid-template-columns:1fr}.portrait{min-height:160px}}
 
 .loadMore {
   display: flex;
@@ -61,8 +61,8 @@
 }
 .notice button:hover { color: var(--primary); border-color: var(--primary) }
 .notice button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
-.avatarWrap{position:relative;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#24303e,#161a24);display:grid;place-items:center;font-size:46px;font-weight:800}
-.portraitWrap{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#24303e,#161a24);display:grid;place-items:center;font-size:72px;font-weight:800}
+.avatarWrap{position:relative;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:var(--poster-gradient);display:grid;place-items:center;font-size:46px;font-weight:800}
+.portraitWrap{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:var(--poster-gradient);display:grid;place-items:center;font-size:72px;font-weight:800}
 
 .searchRow {
   display: flex;
@@ -110,4 +110,4 @@
   .filters a { flex: 1; text-align: center }
   .searchRow input { max-width: none }
 }
-.filterActive { border-color: var(--primary); background: rgba(224, 79, 62, .16) }
+.filterActive { border-color: var(--primary); background: var(--primary-soft-strong) }

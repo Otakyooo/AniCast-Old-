@@ -30,7 +30,7 @@
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: linear-gradient(140deg, rgba(224, 79, 62, .38), var(--surface-2));
+  background: var(--avatar-control-gradient);
   color: var(--text);
   font-size: 13px;
   font-weight: 700;
@@ -57,7 +57,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-2);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, .45);
+  box-shadow: var(--shadow-overlay);
 }
 
 .identity {

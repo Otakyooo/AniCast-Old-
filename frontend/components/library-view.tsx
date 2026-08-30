@@ -61,13 +61,13 @@ export function LibraryView() {
   }
 
   return <>
-    <nav className={styles.viewSwitch} aria-label={t("library.eyebrow")}>
+    <nav className={styles.viewSwitch} aria-label={t("library.viewSwitch")}>
       <Link className={!collectionsView ? styles.viewActive : undefined} aria-current={!collectionsView ? "page" : undefined} href="/library">{t("library.viewTitles")}</Link>
       <Link className={collectionsView ? styles.viewActive : undefined} aria-current={collectionsView ? "page" : undefined} href="/library?view=collections">{t("library.viewCollections")}</Link>
     </nav>
 
     {collectionsView ? <CollectionsList /> : <>
-      <nav className={styles.filters}>{filters.map(([label, href]) => <Link className={href === activeHref ? styles.filterActive : undefined} aria-current={href === activeHref ? "page" : undefined} href={href} key={label}>{label}</Link>)}</nav>
+      <nav className={styles.filters} aria-label={t("library.filters")}>{filters.map(([label, href]) => <Link className={href === activeHref ? styles.filterActive : undefined} aria-current={href === activeHref ? "page" : undefined} href={href} key={label}>{label}</Link>)}</nav>
       {titlesBlock}
     </>}
   </>;

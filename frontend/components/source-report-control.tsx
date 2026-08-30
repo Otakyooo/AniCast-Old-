@@ -31,8 +31,8 @@ export function SourceReportControl({ sourceId }: { sourceId: number }) {
     } finally { setPending(false); }
   }
 
-  if (submitted) return <span className={styles.success}>{t("report.sent")}</span>;
-  if (guest) return <span className={styles.guest}><Link href="/login">{t("common.login")}</Link>: {t("report.guest")}</span>;
+  if (submitted) return <span className={styles.success} role="status">{t("report.sent")}</span>;
+  if (guest) return <span className={styles.guest} role="status"><Link href="/login">{t("common.login")}</Link>: {t("report.guest")}</span>;
   if (!open) return <button className={styles.open} type="button" onClick={() => setOpen(true)}>{t("report.open")}</button>;
   return <form className={styles.form} onSubmit={submit}>
     <label><span>{t("report.what")}</span><select name="reason" defaultValue="unavailable"><option value="unavailable">{t("report.unavailable")}</option><option value="wrong_content">{t("report.wrong")}</option><option value="geo_blocked">{t("report.geo")}</option><option value="quality">{t("report.quality")}</option><option value="other">{t("report.other")}</option></select></label>

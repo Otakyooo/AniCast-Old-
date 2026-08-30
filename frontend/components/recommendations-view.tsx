@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -158,7 +159,7 @@ export function RecommendationsView() {
                   aria-label={t("recommendations.dismiss")}
                   onClick={() => handleDismiss(item, index)}
                 >
-                  ✕
+                  <X aria-hidden="true" size={18} weight="bold" />
                 </button>
               </div>
             </div>

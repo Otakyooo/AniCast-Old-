@@ -12,6 +12,7 @@ export function FollowButton({ publicId, initialFollowers }: { publicId:string; 
   const [state, setState] = useState<FollowState | null>();
   const [followers, setFollowers] = useState(initialFollowers);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -28,6 +29,7 @@ export function FollowButton({ publicId, initialFollowers }: { publicId:string; 
   async function toggle() {
     if (!state || state.is_self) return;
     setPending(true);
+    setError("");
     try {
       if (state.is_following) {
         await unfollowProfile(publicId);
@@ -38,6 +40,8 @@ export function FollowButton({ publicId, initialFollowers }: { publicId:string; 
         setState(next);
         setFollowers(next.followers);
       }
+    } catch {
+      setError(t("social.followError"));
     } finally {
       setPending(false);
     }
@@ -54,5 +58,6 @@ export function FollowButton({ publicId, initialFollowers }: { publicId:string; 
       </button>
     )}
     <span>{t("social.followersCount", { count:followers })}</span>
+    {error && <span className={styles.followError} role="alert">{error}</span>}
   </div>;
 }

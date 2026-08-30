@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { DiceFive } from "@phosphor-icons/react";
 import type { MouseEvent } from "react";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/catalog/catalog.module.css";
@@ -29,7 +30,7 @@ export function RandomTitleButton({ count }: { count: number }) {
       disabled={count < 1}
       title={t("catalog.random")}
     >
-      <span aria-hidden="true">🎲</span>
+      <DiceFive aria-hidden="true" size={20} weight="bold" />
       <span>{t("catalog.random")}</span>
     </button>
   );

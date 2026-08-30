@@ -173,7 +173,7 @@ function CreditCard({ credit }: { credit: TitleCreditEntry }) {
           <Image src={credit.creator.image_url} alt="" fill sizes="44px" quality={92} referrerPolicy="no-referrer" />
         ) : <User size={22} weight="bold" />}
       </span>
-      <span><strong>{credit.creator.name}</strong><small>{credit.role_label}</small></span>
+      <span className={styles.creditBody}><strong>{credit.creator.name}</strong><small>{credit.role_label}</small></span>
       <ArrowUpRight className={styles.creditArrow} aria-hidden="true" size={17} />
     </Link>
   );
@@ -341,7 +341,7 @@ export default async function CatalogDetailPage({
             {(Object.entries(item.localized_names ?? { ru: item.name, ja: item.original_name ?? "" }) as Array<[string, string]>).filter(([, name]) => name).map(([language, name], index) => (
               <div className={index === 0 ? styles.titleNamePrimary : styles.titleNameSecondary} key={language}>
                 <span>{language.toUpperCase()}</span>
-                {index === 0 ? <h1 className={styles.heroTitle}>{name}</h1> : <p className={styles.heroOriginal}>{name}</p>}
+                {index === 0 ? <h1 className={styles.heroTitle} lang={language}>{name}</h1> : <p className={styles.heroOriginal} lang={language}>{name}</p>}
               </div>
             ))}
           </div>

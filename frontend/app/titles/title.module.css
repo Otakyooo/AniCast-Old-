@@ -21,13 +21,13 @@
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: linear-gradient(145deg, #24303e, #141e2a 72%);
+  background: var(--poster-gradient);
 }
 
 .heroImage { object-fit: cover }
 
 .heroPosterFallback {
-  color: #fff;
+  color: var(--text);
   font-size: clamp(48px, 9vw, 88px);
   font-weight: 800;
 }
@@ -74,6 +74,11 @@
   overflow-wrap: anywhere;
 }
 
+.titleNames :where(h1, p)[lang="ja"] {
+  font-family: "Noto Sans JP Variable", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  font-variant-east-asian: proportional-width;
+}
+
 .heroMeta {
   display: flex;
   flex-wrap: wrap;
@@ -95,18 +100,18 @@
   align-items: center;
   gap: 5px;
   padding: 6px 11px;
-  border: 1px solid rgba(182, 147, 51, .55);
+  border: 1px solid var(--favorite-border-soft);
   border-radius: 999px;
-  color: #ffe29a;
+  color: var(--favorite);
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.metaRating:hover { border-color: #b69333 }
+.metaRating:hover { border-color: var(--favorite-border) }
 
 .metaOngoing {
-  border-color: rgba(50, 196, 141, .45) !important;
+  border-color: var(--success-border) !important;
   color: var(--success) !important;
 }
 
@@ -181,13 +186,13 @@
 
 .actionActive {
   border-color: var(--primary);
-  background: rgba(224, 79, 62, .16);
+  background: var(--primary-soft-strong);
 }
 
 .favoriteActive {
-  border-color: #b69333;
-  background: #4a3812;
-  color: #ffe29a;
+  border-color: var(--favorite-border);
+  background: var(--favorite-surface);
+  color: var(--favorite);
 }
 
 .watch:disabled,
@@ -381,8 +386,8 @@
   height: 64px;
   place-items: center;
   border-radius: 999px;
-  background: linear-gradient(145deg, #24303e, #141e2a 72%);
-  color: #fff;
+  background: var(--poster-gradient);
+  color: var(--text);
   font-size: 22px;
   font-weight: 800;
 }
@@ -436,7 +441,7 @@
   height: 44px;
   place-items: center;
   border-radius: 10px;
-  background: rgba(224, 79, 62, .14);
+  background: var(--primary-soft);
   color: var(--primary-hover);
   font-size: 17px;
   font-weight: 800;
@@ -445,7 +450,7 @@
 
 .creditAvatar img { object-fit: cover }
 
-.creditCard > span:last-child { display: grid; gap: 3px; min-width: 0 }
+.creditBody { display: grid; gap: 3px; min-width: 0 }
 .creditCard strong { overflow-wrap: anywhere }
 .creditCard small { color: var(--muted) }
 .creditArrow { color: var(--muted-2); transition: color 140ms ease, transform 140ms ease }
@@ -528,7 +533,7 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: #080b12;
+  background: var(--surface-media);
 }
 
 .watchPlayer { min-width: 0 }
@@ -598,7 +603,7 @@
 }
 
 .voiceButton:hover { background: var(--surface-2) }
-.voiceButtonActive { border-color: rgba(224, 79, 62, .45); background: rgba(224, 79, 62, .14) }
+.voiceButtonActive { border-color: var(--primary-border); background: var(--primary-soft) }
 .voiceButtonActive strong { color: var(--primary-hover) }
 .voiceButton span { color: var(--muted); font-size: 11px }
 
@@ -691,9 +696,9 @@
   min-width: 42px;
   min-height: 42px;
   place-items: center;
-  border: 1px solid #303746;
+  border: 1px solid var(--border-control);
   border-radius: 8px;
-  background: #202632;
+  background: var(--surface-control);
   color: var(--text);
   font-size: 13px;
   font-weight: 700;
@@ -703,14 +708,14 @@
 
 a.episodeButton:hover {
   border-color: var(--primary);
-  background: #292f3d;
+  background: var(--surface-control-hover);
   transform: translateY(-1px);
 }
 
 .episodeButtonActive {
   border-color: var(--primary);
   background: var(--primary);
-  box-shadow: 0 0 0 2px rgba(224, 79, 62, .2);
+  box-shadow: 0 0 0 2px var(--primary-ring);
   color: var(--on-primary);
 }
 
@@ -727,9 +732,9 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
 .watchWarning {
   margin: 0;
   padding: 11px 13px;
-  border: 1px solid rgba(242, 184, 75, .35);
+  border: 1px solid var(--warning-border-subtle);
   border-radius: 9px;
-  background: rgba(242, 184, 75, .08);
+  background: var(--warning-soft-subtle);
   color: var(--warning);
   font-size: 13px;
 }
@@ -754,7 +759,7 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: #080b12;
+  background: var(--surface-media);
 }
 
 .playerBar {
@@ -791,7 +796,7 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
   z-index: 1;
   display: grid;
   place-items: center;
-  background: #080b12;
+  background: var(--surface-media);
   color: var(--muted);
   pointer-events: none;
 }
@@ -814,7 +819,7 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
   aspect-ratio: 16 / 9;
   place-items: center;
   padding: 24px;
-  background: #080b12;
+  background: var(--surface-media);
 }
 
 .playerLaunch {
@@ -840,7 +845,7 @@ a.episodeButtonActive:hover { background: var(--primary-hover) }
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: #080b12;
+  background: var(--surface-media);
   color: var(--muted);
   text-align: center;
 }

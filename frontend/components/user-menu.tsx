@@ -32,6 +32,7 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
 
   useEffect(() => {
@@ -47,7 +48,10 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     }
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -89,9 +93,9 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
       <LanguageSwitcher />
       <div className={styles.menuWrap}>
         <button
+          ref={triggerRef}
           className={styles.avatar}
           type="button"
-          aria-haspopup="menu"
           aria-expanded={open}
           aria-controls={menuId}
           aria-label={open ? t("nav.closeMenu") : t("nav.openMenu")}
@@ -100,22 +104,22 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
           <span aria-hidden="true">{user ? initials(user) : "•"}</span>
         </button>
         {open && (
-          <div className={styles.menu} id={menuId} role="menu">
+          <div className={styles.menu} id={menuId}>
             <div className={styles.identity}>
               <strong>{user?.display_name || t("account.viewer")}</strong>
               {user?.email && <small>{user.email}</small>}
             </div>
-            <Link className={styles.item} href="/account" role="menuitem" onClick={() => setOpen(false)}>
+            <Link className={styles.item} href="/account" onClick={() => setOpen(false)}>
               {t("nav.myAccount")}
             </Link>
             {/* Spec §3.3: Профиль, Настройки, Выйти; library quick link allowed. */}
-            <Link className={styles.item} href="/library" role="menuitem" onClick={() => setOpen(false)}>
+            <Link className={styles.item} href="/library" onClick={() => setOpen(false)}>
               {t("nav.libraryShort")}
             </Link>
-            <Link className={styles.item} href="/settings" role="menuitem" onClick={() => setOpen(false)}>
+            <Link className={styles.item} href="/settings" onClick={() => setOpen(false)}>
               {t("settings.title")}
             </Link>
-            <button className={styles.logout} type="button" role="menuitem" disabled={pending} onClick={logout}>
+            <button className={styles.logout} type="button" disabled={pending} onClick={logout}>
               {pending ? t("auth.wait") : t("nav.logout")}
             </button>
           </div>

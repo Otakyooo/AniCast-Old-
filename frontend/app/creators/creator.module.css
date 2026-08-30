@@ -15,10 +15,10 @@
   width: 92px;
   height: 92px;
   place-items: center;
-  border: 1px solid rgba(224, 79, 62, .38);
+  border: 1px solid var(--primary-border);
   border-radius: 22px;
-  background: rgba(224, 79, 62, .14);
-  color: var(--primary-hover);
+  background: var(--primary-soft);
+  color: var(--accent-text);
   font-size: 34px;
   font-weight: 800;
   overflow: hidden;

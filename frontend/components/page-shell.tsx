@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SiteHeader, type NavSection } from "./site-header";
+import { MobileBottomNav, SiteHeader, type NavSection } from "./site-header";
 import { SiteFooter } from "./site-footer";
 
 interface PageShellProps {
@@ -37,6 +37,7 @@ export async function PageShell({ active, back, heading, children }: PageShellPr
         )}
         {children}
       </main>
+      <MobileBottomNav active={active} />
       <SiteFooter />
     </div>
   );

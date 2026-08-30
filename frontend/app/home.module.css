@@ -26,10 +26,10 @@
   width: 164px;
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .12);
+  border: 1px solid var(--border-media);
   border-radius: 9px;
-  background: #0b1118;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, .3);
+  background: var(--surface-media);
+  box-shadow: var(--shadow-media);
 }
 
 .resumeHeroArt {
@@ -48,7 +48,7 @@
 
 .resumeHeroEyebrow {
   margin: 0;
-  color: var(--primary);
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .14em;
@@ -57,7 +57,7 @@
 
 .resumeHeroTitle {
   margin: 0;
-  color: #fff;
+  color: var(--text);
   font-size: clamp(30px, 3vw, 42px);
   line-height: 1.08;
   letter-spacing: -.025em;
@@ -67,7 +67,7 @@
 
 .resumeHeroMeta {
   margin: 0;
-  color: rgba(235, 238, 245, .82);
+  color: var(--muted);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
@@ -83,10 +83,10 @@
 
 .heroGenres li {
   padding: 5px 9px;
-  border: 1px solid rgba(168, 177, 189, .3);
+  border: 1px solid var(--border-muted);
   border-radius: 6px;
-  background: rgba(11, 19, 28, .28);
-  color: rgba(243, 237, 226, .9);
+  background: var(--background-soft);
+  color: var(--text);
   font-size: 12px;
 }
 
@@ -95,7 +95,7 @@
   max-width: 530px;
   overflow: hidden;
   margin: 0;
-  color: rgba(243, 237, 226, .76);
+  color: var(--muted);
   font-size: 15px;
   line-height: 1.55;
   -webkit-box-orient: vertical;
@@ -130,17 +130,36 @@
 .resumeHeroCta:hover { background: var(--primary-hover) }
 
 .resumeHeroSecondary {
-  border: 1px solid rgba(255, 255, 255, .38);
+  border: 1px solid var(--border-emphasis);
   background: transparent;
-  color: #fff !important;
+  color: var(--text) !important;
+  cursor: pointer;
 }
 
-.resumeHeroSecondary:hover { border-color: rgba(255, 255, 255, .7); background: rgba(20, 30, 42, .75) }
+.resumeHeroSecondary:hover { border-color: var(--muted); background: var(--surface-elevated-soft) }
+
+.resumeHeroSecondary:disabled { border-color: var(--border); color: var(--muted) !important }
+
+.heroLibraryState {
+  display: grid;
+  flex: 1 1 180px;
+  align-items: start;
+}
+
+.heroLibraryState .resumeHeroSecondary { width: 100% }
+
+.heroActionError {
+  max-width: 260px;
+  margin-top: 6px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
 
 .heroProgress { display: grid; gap: 7px; max-width: 420px }
-.heroProgress > span { overflow: hidden; height: 3px; border-radius: 2px; background: rgba(168, 177, 189, .28) }
+.heroProgress > span { overflow: hidden; height: 3px; border-radius: 2px; background: var(--border-muted) }
 .heroProgress i { display: block; height: 100%; border-radius: inherit; background: var(--primary) }
-.heroProgress small, .catalogFact { color: rgba(243, 237, 226, .66); font-size: 12px }
+.heroProgress small, .catalogFact { color: var(--muted); font-size: 12px }
 
 .shelfHeading {
   display: grid;
@@ -210,13 +229,13 @@
   display: grid;
   aspect-ratio: 2 / 3;
   place-items: center;
-  background: linear-gradient(145deg, #24303e, #141e2a 72%);
+  background: var(--poster-gradient);
 }
 
 .resumeFrameArt { object-fit: cover; object-position: 50% 18% }
 
 .resumeFallback {
-  color: #fff;
+  color: var(--text);
   font-size: 40px;
   font-weight: 800;
 }
@@ -248,7 +267,7 @@
   display: block;
   height: 3px;
   border-radius: 2px;
-  background: var(--surface-3, #232a37);
+  background: var(--surface-progress);
 }
 
 .resumeProgressBar {
@@ -282,7 +301,7 @@
   height: 90px;
   place-items: center;
   border-radius: 8px;
-  background: linear-gradient(145deg, #24303e, #141e2a 72%);
+  background: var(--poster-gradient);
 }
 
 .schedulePoster .resumeFallback { font-size: 26px }
@@ -324,14 +343,14 @@
 }
 
 .scheduleNow {
-  border-color: rgba(50, 196, 141, .5);
-  background: rgba(50, 196, 141, .14);
+  border-color: var(--success-border);
+  background: var(--success-soft);
   color: var(--success);
 }
 
 .scheduleSoon {
-  border-color: rgba(242, 184, 75, .5);
-  background: rgba(242, 184, 75, .12);
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
   color: var(--warning);
 }
 

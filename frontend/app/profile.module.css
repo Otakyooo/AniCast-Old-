@@ -21,20 +21,19 @@
 .banner {
   position: relative;
   height: clamp(150px, 22vw, 216px);
-  background:
-    radial-gradient(circle at 78% 18%, rgba(224, 79, 62, .5) 0, transparent 42%),
-    radial-gradient(circle at 12% 85%, rgba(64, 46, 158, .55) 0, transparent 48%),
-    linear-gradient(135deg, #1b2330 0%, #0b131c 70%);
+  background: var(--profile-banner);
 }
 
 .banner::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(0deg, rgba(7, 9, 14, .55) 0%, transparent 60%);
+  background: var(--profile-banner-overlay);
 }
 
 .header {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-end;
   gap: 20px;
@@ -50,9 +49,9 @@
   place-items: center;
   border: 4px solid var(--background);
   border-radius: 24px;
-  background: linear-gradient(145deg, rgba(224, 79, 62, .45), rgba(224, 79, 62, .08));
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
-  color: #fff;
+  background: var(--profile-avatar-gradient);
+  box-shadow: var(--shadow-profile-avatar);
+  color: var(--text);
   font-size: 40px;
   font-weight: 800;
 }
@@ -217,7 +216,7 @@
   bottom: 0;
   left: 0;
   border-radius: 7px;
-  background: linear-gradient(180deg, #ff6a4d, var(--primary));
+  background: var(--profile-activity-gradient);
 }
 
 /* Clickable strip entries deep-link into the filtered library view. */
@@ -296,7 +295,7 @@ a.genreRow:hover {
   display: block;
   height: 100%;
   border-radius: 5px;
-  background: linear-gradient(90deg, var(--primary), rgba(224, 79, 62, .55));
+  background: var(--profile-genre-gradient);
 }
 
 .genreCount {

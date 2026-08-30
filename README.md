@@ -20,6 +20,7 @@ Production secrets хранятся только во внешних `.env`; в 
 - [Статус реализации](docs/IMPLEMENTATION_STATUS.md) — что реально работает в production;
 - [Эксплуатация](docs/OPERATIONS.md) — бэкапы, импорт, Kodik, деплой и rollback;
 - [Бренд и цветовая система](docs/BRAND_UI_TECH_SPEC.md) — production-ассеты, токены и правила применения;
+- [Правила проектирования интерфейса](docs/FRONTEND_DESIGN_RULES.md) — UX, состояния, адаптивность, доступность и design QA;
 - [SEO-процесс](docs/SEO_OPERATIONS.md) — матрица индексирования, release gate, KPI и рабочий цикл;
 - `docs/*v2.0.docx` — продуктовая концепция и архитектурная спецификация.
 

@@ -27,7 +27,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-2);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, .45);
+  box-shadow: var(--shadow-overlay);
 }
 
 .hint {
@@ -79,8 +79,8 @@
   height: 56px;
   place-items: center;
   border-radius: 6px;
-  background: linear-gradient(145deg, #24303e, #141e2a 72%);
-  color: #fff;
+  background: var(--poster-gradient);
+  color: var(--text);
   font-size: 16px;
   font-weight: 800;
 }
@@ -122,7 +122,7 @@
   padding: 11px 8px;
   border-top: 1px solid var(--border);
   border-radius: 0 0 9px 9px;
-  color: var(--primary);
+  color: var(--accent-text);
   font-size: 13px;
   text-align: center;
 }

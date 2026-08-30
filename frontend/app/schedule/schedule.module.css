@@ -58,11 +58,11 @@
 
 .dayTabActive {
   border-color: var(--primary);
-  background: rgba(224, 79, 62, .16);
+  background: var(--primary-soft-strong);
   color: var(--text);
 }
 
-.dayTabToday .dayTabDate { color: var(--primary) }
+.dayTabToday .dayTabDate { color: var(--accent-text) }
 
 .dayTabName {
   font-size: 11px;
@@ -160,13 +160,13 @@
   height: 78px;
   place-items: center;
   border-radius: 8px;
-  background: linear-gradient(145deg, #24303e, #141e2a 72%);
+  background: var(--poster-gradient);
 }
 
 .posterImage { object-fit: cover }
 
 .posterFallback {
-  color: #fff;
+  color: var(--text);
   font-size: 24px;
   font-weight: 800;
 }
@@ -201,7 +201,7 @@
   padding: 4px 8px;
   border-radius: 6px;
   background: var(--surface-2);
-  color: var(--primary);
+  color: var(--accent-text);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -244,10 +244,10 @@
   white-space: nowrap;
 }
 
-.statusReleased { border-color: rgba(164, 172, 185, .35); color: var(--muted) }
-.statusAiring { border-color: rgba(50, 196, 141, .5); background: rgba(50, 196, 141, .14); color: var(--success) }
-.statusSoon { border-color: rgba(242, 184, 75, .5); background: rgba(242, 184, 75, .12); color: var(--warning) }
-.statusUpcoming { border-color: rgba(224, 79, 62, .45); color: var(--primary) }
+.statusReleased { border-color: var(--border-muted); color: var(--muted) }
+.statusAiring { border-color: var(--success-border); background: var(--success-soft); color: var(--success-text) }
+.statusSoon { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning) }
+.statusUpcoming { border-color: var(--primary-border); color: var(--accent-text) }
 .statusUnknown { border-color: var(--border); color: var(--muted-2) }
 
 .emptyWeek { display: grid; gap: 16px }

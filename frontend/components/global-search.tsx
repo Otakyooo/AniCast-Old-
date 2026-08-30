@@ -44,10 +44,8 @@ export function GlobalSearch() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const titlesHeadingId = `${panelId}-titles`;
-  const charactersHeadingId = `${panelId}-characters`;
-  const franchisesHeadingId = `${panelId}-franchises`;
   const trimmed = query.trim();
 
   useEffect(() => {
@@ -102,8 +100,12 @@ export function GlobalSearch() {
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        const collapsedHeader = window.matchMedia("(max-width: 1199px)").matches;
         close();
-        inputRef.current?.blur();
+        window.requestAnimationFrame(() => {
+          if (collapsedHeader) triggerRef.current?.focus();
+          else inputRef.current?.focus();
+        });
       }
     }
     document.addEventListener("mousedown", onPointerDown);
@@ -144,6 +146,16 @@ export function GlobalSearch() {
   }, []);
 
   function onInputKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      const collapsedHeader = window.matchMedia("(max-width: 1199px)").matches;
+      close();
+      window.requestAnimationFrame(() => {
+        if (collapsedHeader) triggerRef.current?.focus();
+      });
+      return;
+    }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (options.length === 0) return;
@@ -181,6 +193,7 @@ export function GlobalSearch() {
   return (
     <div className={`${styles.wrap} ${expanded ? styles.wrapExpanded : ""}`} ref={containerRef}>
       <button
+        ref={triggerRef}
         className={styles.trigger}
         type="button"
         aria-label={expanded ? t("nav.closeSearch") : t("nav.openSearch")}
@@ -240,8 +253,8 @@ export function GlobalSearch() {
             {state.kind === "ready" && hasResults(state.data) && (
               <>
                 {state.data.titles.length > 0 && (
-                  <section className={styles.group} role="group" aria-labelledby={titlesHeadingId}>
-                    <h3 id={titlesHeadingId}>{t("search.titles")}</h3>
+                  <section className={styles.group} role="group" aria-label={t("search.titles")}>
+                    <h3 role="presentation" aria-hidden="true">{t("search.titles")}</h3>
                     {state.data.titles.map((item, groupIndex) => {
                       const index = starts.titles + groupIndex;
                       return (
@@ -288,8 +301,8 @@ export function GlobalSearch() {
                   </section>
                 )}
                 {state.data.characters.length > 0 && (
-                  <section className={styles.group} role="group" aria-labelledby={charactersHeadingId}>
-                    <h3 id={charactersHeadingId}>{t("search.characters")}</h3>
+                  <section className={styles.group} role="group" aria-label={t("search.characters")}>
+                    <h3 role="presentation" aria-hidden="true">{t("search.characters")}</h3>
                     {state.data.characters.map((character, groupIndex) => {
                       const index = starts.characters + groupIndex;
                       return (
@@ -313,8 +326,8 @@ export function GlobalSearch() {
                   </section>
                 )}
                 {state.data.franchises.length > 0 && (
-                  <section className={styles.group} role="group" aria-labelledby={franchisesHeadingId}>
-                    <h3 id={franchisesHeadingId}>{t("search.franchises")}</h3>
+                  <section className={styles.group} role="group" aria-label={t("search.franchises")}>
+                    <h3 role="presentation" aria-hidden="true">{t("search.franchises")}</h3>
                     {state.data.franchises.map((franchise, groupIndex) => {
                       const index = starts.franchises + groupIndex;
                       return (

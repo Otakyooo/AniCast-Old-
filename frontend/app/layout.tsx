@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { I18nProvider } from "../components/i18n-provider";
 import { SITE_URL } from "../lib/site";
 import { getI18n } from "../i18n/server";
+import "@fontsource-variable/noto-sans-jp";
 import "./globals.css";
 
 export const viewport: Viewport = {
