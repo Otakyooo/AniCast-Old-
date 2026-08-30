@@ -1,6 +1,22 @@
 # AniCast — статус реализации
 
-Дата: 25 августа 2026
+Дата: 30 августа 2026
+
+## Единый плеер и настройки Kodik — 2026-08-30
+
+- desktop-просмотр собран в один блок: видео слева, постоянно доступный поисковый список серий справа, переходы назад/вперёд и компактный выбор озвучки под видео; календарная сетка, второй селект и заголовок поверх iframe удалены;
+- mobile использует те же данные без отдельной страницы: стрелки и текущая серия остаются под рукой, серии и озвучки открываются нативными bottom-sheet dialog с Escape/focus return и целями не меньше 44 px; длинные тайтлы больше не превращаются в сетку из сотен кнопок;
+- варианты сгруппированы как озвучка/субтитры/оригинал и показывают честное покрытие (`1120 из 1176 серий`, диапазоны и исключения), а не процент запусков; основной вариант выбирается в порядке explicit URL → серверный рейтинг → первый playable source;
+- Kodik `translation_id` стал стабильным `provider_variant_id`, из него строится непрозрачный `selection_key`; прежние `?voice=` hash распознаются через `legacy_key` и заменяются в URL без перезагрузки, поэтому обе ранее опубликованные ссылки Re:Zero продолжают работать;
+- iframe получает episode-specific URL с `hide_selectors=true` и без `only_episode`: интерфейсом управляет AniCast, но rollback на прошлый pass-through backend остаётся рабочим; signed resolver, rights checks и allowlist `kodikplayer.com` не ослаблены;
+- история открытия теперь записывается только после доверенного `kodik_player_video_started` от точного origin Kodik и текущего iframe window, а не при простой выдаче playback URL;
+- SEO-состояние просмотра остаётся на `/titles/<slug>?episode=&voice=#watch` с canonical на чистый тайтл; удалённый `/titles/<slug>/watch` отвечает 404 без redirect и не создаёт дубль страницы.
+
+Настройки сайта в кабинете Kodik проверены для `*.anicast.online` с поддоменами; применены цвета AniCast и радиус 8 px. Глобальные selector/autosave/auto-switch параметры не менялись ради безопасного отката — внутренние селекторы скрываются на уровне Source URL. Credentials и внутренний идентификатор сайта не сохранены в репозитории.
+
+Проверка: backend `242 passed`, Ruff, Django check, migration drift и mypy изменённых файлов — чисто; frontend typecheck/lint, `44/44` unit и production build — успешно; `scripts/validate.sh` с rollback/promotion тестом и `git diff --check` прошли. Browser QA выполнен на mock API (1440×900, 390×844) и повторён против production в Chromium: legacy-link migration, desktop rail, voice coverage, mobile dialog/search, отсутствие horizontal overflow, настоящий Kodik iframe без внутренних селекторов и восстановленный Death Parade.
+
+Production: commit `4053ac9`, verified dump `backups/db/anicast-20260830T221119Z.dump`, образы `anicast-backend:local-4053ac9` и `anicast-frontend:local-4053ac9`. Полный `sync_kodik --all --apply --limit 100` завершился без ошибок: 100 тайтлов, 29 088 сохранённых источников; у всех Kodik Source есть `hide_selectors=true`, ни у одного нет `only_episode`. Точки отката: backend `local-e684002`, frontend `local-bce024a`.
 
 ## Рекомендации: причины, честный скоринг и «Не интересно» — 2026-08-26
 
