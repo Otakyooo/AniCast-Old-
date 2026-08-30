@@ -206,7 +206,12 @@ def sync_title(
                     outcome.skipped += 1
                     continue
                 raw_url = episode_data.get("link") if isinstance(episode_data, dict) else episode_data
-                url = normalize_player_url(raw_url)
+                # Keep the episode-specific Kodik URL so older backend
+                # versions can resolve it during a rollback. Selector hiding
+                # is an ordinary, non-secret player query parameter persisted
+                # in the URL; no provider configuration or only_episode mode
+                # is required.
+                url = normalize_player_url(raw_url, hide_selectors=True)
                 candidate = Source(provider=provider, url=url or "")
                 if number < 1 or url is None or not source_url_allowed(candidate):
                     outcome.skipped += 1

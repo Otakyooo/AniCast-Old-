@@ -163,6 +163,8 @@ def test_watch_navigation_groups_playable_sources_by_voice_over(authorized_sourc
     assert group["name"] == "Playback Source"
     assert group["kind"] == first_source.kind
     assert group["provider_name"] == "Playback Provider"
+    assert group["provider_variant_id"] is None
+    assert group["legacy_key"] == group["key"]
     assert group["episode_numbers"] == [1, 2]
     assert group["episodes_count"] == 2
     assert group["popularity_percent"] == 0
@@ -171,6 +173,37 @@ def test_watch_navigation_groups_playable_sources_by_voice_over(authorized_sourc
     assert episode["sources"][0]["selection_key"] == group["key"]
     assert episode["sources"][0]["provider_name"] == "Playback Provider"
     assert "url" not in group
+
+
+@pytest.mark.django_db
+def test_kodik_watch_key_survives_translation_rename_and_exposes_legacy_alias(authorized_source):
+    source, provider, _ = authorized_source
+    provider.slug = "kodik"
+    provider.name = "Kodik"
+    provider.allowed_hosts = ["kodikplayer.com"]
+    provider.playback_adapter = "iframe_embed"
+    provider.save(update_fields=["slug", "name", "allowed_hosts", "playback_adapter"])
+    source.external_id = "serial-1:s1:t610"
+    source.name = "Kodik · AniLibria.TV"
+    source.url = "https://kodikplayer.com/seria/1/redacted/720p?hide_selectors=true"
+    source.save(update_fields=["external_id", "name", "url"])
+
+    client = APIClient()
+    before = client.get("/api/v1/titles/playback-test/watch-navigation/").json()["source_groups"][0]
+    episode_source = client.get("/api/v1/titles/playback-test/episodes/1/").json()["sources"][0]
+
+    assert before["provider_variant_id"] == "610"
+    assert episode_source["provider_variant_id"] == "610"
+    assert before["key"] == episode_source["selection_key"]
+    assert before["legacy_key"] != before["key"]
+
+    source.name = "Kodik · AniLibria Renamed"
+    source.save(update_fields=["name"])
+    after = client.get("/api/v1/titles/playback-test/watch-navigation/").json()["source_groups"][0]
+
+    assert after["key"] == before["key"]
+    assert after["provider_variant_id"] == before["provider_variant_id"]
+    assert after["legacy_key"] != before["legacy_key"]
 
 
 @pytest.mark.django_db
@@ -554,7 +587,7 @@ def test_iframe_playback_uses_signed_resolver_and_rechecks_rights(authorized_sou
     provider.allowed_hosts = ["kodikplayer.com"]
     provider.playback_adapter = "iframe_embed"
     provider.save(update_fields=["allowed_hosts", "playback_adapter"])
-    source.url = "https://kodikplayer.com/seria/1/redacted/720p"
+    source.url = "https://kodikplayer.com/seria/1/redacted/720p?hide_selectors=true"
     source.save(update_fields=["url"])
 
     issued = APIClient().get(f"/api/v1/sources/{source.id}/playback/")
@@ -562,11 +595,14 @@ def test_iframe_playback_uses_signed_resolver_and_rechecks_rights(authorized_sou
     assert issued.json()["mode"] == "iframe_embed"
     assert issued.json()["url"].startswith("/api/v1/playback/")
     assert source.url not in issued.json()["url"]
+    assert provider.playback_config == {}
     episode = APIClient().get("/api/v1/titles/playback-test/episodes/1/").json()
     assert episode["sources"][0]["playback_mode"] == "iframe_embed"
     assert "url" not in episode["sources"][0]
     resolved = APIClient().get(issued.json()["url"])
     assert resolved.status_code == 302
+    # Persisting the public player option in Source.url keeps the resolver
+    # compatible with the previous pass-through iframe adapter on rollback.
     assert resolved.url == source.url
     source.refresh_from_db()
     assert source.playback_count == 1

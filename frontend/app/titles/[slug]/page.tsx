@@ -276,7 +276,6 @@ export default async function CatalogDetailPage({
             synopsis: watchEpisode.synopsis,
             sources: watchEpisode.sources ?? [],
           }}
-          trackProgress={query.episode !== undefined}
         />
       );
     } catch {

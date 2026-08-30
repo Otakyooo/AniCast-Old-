@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { safePlaybackTarget } from "./playback.ts";
+import { isTrustedKodikPlayerEvent, safePlaybackTarget } from "./playback.ts";
 
 const expires_at = "2026-08-25T20:00:00Z";
 
@@ -24,4 +24,18 @@ test("safePlaybackTarget rejects raw, cross-origin and unknown targets", () => {
   for (const payload of invalid) {
     assert.throws(() => safePlaybackTarget(payload, "https://anicast.online"));
   }
+});
+
+test("Kodik events require the exact origin, iframe window and event key", () => {
+  const frameWindow = {};
+  const trusted = {
+    origin: "https://kodikplayer.com",
+    source: frameWindow,
+    data: { key: "kodik_player_video_started" },
+  };
+  assert.equal(isTrustedKodikPlayerEvent(trusted, frameWindow, "kodik_player_video_started"), true);
+  assert.equal(isTrustedKodikPlayerEvent({ ...trusted, origin: "https://evil.example" }, frameWindow, "kodik_player_video_started"), false);
+  assert.equal(isTrustedKodikPlayerEvent({ ...trusted, source: {} }, frameWindow, "kodik_player_video_started"), false);
+  assert.equal(isTrustedKodikPlayerEvent({ ...trusted, data: { key: "kodik_player_play" } }, frameWindow, "kodik_player_video_started"), false);
+  assert.equal(isTrustedKodikPlayerEvent({ ...trusted, data: null }, frameWindow, "kodik_player_video_started"), false);
 });

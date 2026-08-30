@@ -19,6 +19,9 @@ PLAYBACK_TOKEN_SALT = "catalog.playback.v1"
 MAX_PLAYBACK_TTL_SECONDS = 300
 HOST_LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 SENSITIVE_CONFIG_KEYS = {"api_key", "authorization", "credential", "password", "secret", "token"}
+KODIK_SOURCE_EXTERNAL_ID = re.compile(
+    r"^(?:movie|serial)-\d+:s\d+:t(?P<translation_id>\d+)$"
+)
 
 
 @dataclass(frozen=True)
@@ -178,8 +181,40 @@ def playback_available(source: Source) -> bool:
     )
 
 
-def source_selection_key_parts(provider_slug: str, kind: str, name: str) -> str:
+def legacy_source_selection_key_parts(provider_slug: str, kind: str, name: str) -> str:
     value = f"{provider_slug}\0{kind}\0{name}".encode()
+    return blake2s(value, digest_size=8).hexdigest()
+
+
+def source_provider_variant_id_parts(provider_slug: str, external_id: str) -> str | None:
+    """Return a provider-stable playback variant without exposing content ids.
+
+    Kodik stores one translation id across all episode-specific Source rows.
+    The display title may be renamed by the provider, so it must never be the
+    durable identity used by a shared watch URL.
+    """
+
+    if provider_slug != "kodik":
+        return None
+    match = KODIK_SOURCE_EXTERNAL_ID.fullmatch(external_id)
+    return match.group("translation_id") if match else None
+
+
+def source_provider_variant_id(source: Source) -> str | None:
+    provider_slug = source.provider.slug if source.provider else "manual"
+    return source_provider_variant_id_parts(provider_slug, source.external_id)
+
+
+def source_selection_key_parts(
+    provider_slug: str,
+    kind: str,
+    name: str,
+    external_id: str = "",
+) -> str:
+    provider_variant_id = source_provider_variant_id_parts(provider_slug, external_id)
+    if provider_variant_id is None:
+        return legacy_source_selection_key_parts(provider_slug, kind, name)
+    value = f"{provider_slug}\0{kind}\0variant:{provider_variant_id}".encode()
     return blake2s(value, digest_size=8).hexdigest()
 
 
@@ -187,7 +222,7 @@ def source_selection_key(source: Source) -> str:
     """Stable, opaque key used to keep a voice-over selected between episodes."""
 
     provider_slug = source.provider.slug if source.provider else "manual"
-    return source_selection_key_parts(provider_slug, source.kind, source.name)
+    return source_selection_key_parts(provider_slug, source.kind, source.name, source.external_id)
 
 
 def playback_source_queryset():

@@ -45,6 +45,25 @@ def test_normalize_player_url_upgrades_protocol_relative_links():
     assert normalize_player_url("//evil.example/seria/1/hash/720p") is None
 
 
+def test_normalize_player_url_hides_selectors_without_only_episode_and_preserves_query():
+    configured = normalize_player_url(
+        "https://kodikplayer.com/seria/1/hash/720p?quality=720p&hide_selectors=false&only_episode=true",
+        hide_selectors=True,
+    )
+
+    assert configured == (
+        "https://kodikplayer.com/seria/1/hash/720p?quality=720p&hide_selectors=true"
+    )
+    assert normalize_player_url(configured, hide_selectors=True) == configured
+
+
+def test_normalize_player_url_rejects_player_options_that_exceed_source_limit():
+    nearly_full = "https://kodikplayer.com/seria/1/hash/720p?value=" + ("x" * 150)
+
+    assert len(nearly_full) <= 200
+    assert normalize_player_url(nearly_full, hide_selectors=True) is None
+
+
 @pytest.mark.django_db
 def test_sync_kodik_is_dry_run_first_and_keeps_rights_manual(monkeypatch):
     title = Title.objects.create(name="Attack", slug="16498-shingeki-no-kyojin")
@@ -72,6 +91,8 @@ def test_sync_kodik_is_dry_run_first_and_keeps_rights_manual(monkeypatch):
     assert [source.episode.number for source in sources] == [1, 2]
     assert all(source.provider == provider for source in sources)
     assert all(source.external_id == "serial-1:s1:t610" for source in sources)
+    assert all(source.url.endswith("?hide_selectors=true") for source in sources)
+    assert provider.playback_config == {}
     assert RightsGrant.objects.filter(source__in=sources).exists() is False
 
     renamed = kodik_result()

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getPlayback, type PlaybackMode } from "../lib/api";
 import { recordEpisodeOpen } from "../lib/history";
-import { safePlaybackTarget } from "../lib/playback";
+import { isTrustedKodikPlayerEvent, safePlaybackTarget } from "../lib/playback";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
@@ -18,18 +18,18 @@ export function ProviderPlayer({
   title,
   slug,
   episodeNumber,
-  trackProgress,
 }: {
   sourceId: number;
   playbackMode: PlaybackMode;
   title: string;
   slug: string;
   episodeNumber: number;
-  trackProgress: boolean;
 }) {
   const { t } = useI18n();
   const [state, setState] = useState<PlayerState>({ kind: "loading" });
   const [frameLoaded, setFrameLoaded] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const recordedPlaybackRef = useRef("");
 
   useEffect(() => {
     let active = true;
@@ -41,11 +41,31 @@ export function ProviderPlayer({
         throw new Error("Playback mode changed");
       }
       if (!active) return;
-      if (trackProgress) void recordEpisodeOpen(slug, episodeNumber).catch(() => undefined);
       setState({ kind: "ready", src: target.url });
     }).catch(() => { if (active) setState({ kind: "error" }); });
     return () => { active = false; };
-  }, [episodeNumber, playbackMode, slug, sourceId, trackProgress]);
+  }, [episodeNumber, playbackMode, sourceId]);
+
+  useEffect(() => {
+    const playbackKey = `${sourceId}:${episodeNumber}`;
+    recordedPlaybackRef.current = "";
+
+    function handlePlayerMessage(event: MessageEvent) {
+      if (
+        recordedPlaybackRef.current === playbackKey
+        || !isTrustedKodikPlayerEvent(
+          event,
+          frameRef.current?.contentWindow,
+          "kodik_player_video_started",
+        )
+      ) return;
+      recordedPlaybackRef.current = playbackKey;
+      void recordEpisodeOpen(slug, episodeNumber).catch(() => undefined);
+    }
+
+    window.addEventListener("message", handlePlayerMessage);
+    return () => window.removeEventListener("message", handlePlayerMessage);
+  }, [episodeNumber, slug, sourceId]);
 
   async function retry() {
     setState({ kind: "loading" });
@@ -61,11 +81,9 @@ export function ProviderPlayer({
   return (
     <section
       className={styles.playerShell}
+      aria-label={title}
       aria-busy={state.kind === "loading" || (state.kind === "ready" && !frameLoaded)}
     >
-      <div className={styles.playerBar}>
-        <strong>{title}</strong>
-      </div>
       <div className={styles.playerFrameWrap}>
         {(state.kind === "loading" || (state.kind === "ready" && !frameLoaded)) && (
           <span className={styles.playerLoading} role="status">{t("common.loading")}</span>
@@ -80,6 +98,7 @@ export function ProviderPlayer({
         )}
         {state.kind === "ready" && (
           <iframe
+            ref={frameRef}
             className={styles.playerFrame}
             src={state.src}
             title={t("source.playerTitle", { name: title })}

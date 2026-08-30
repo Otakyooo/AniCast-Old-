@@ -137,6 +137,12 @@ Object.assign(ru, {
   "watch.playEpisode":"Смотреть серию {number}","watch.noPlayer":"Для этой серии нет доступного плеера",
   "watch.chooseAvailableEpisode":"Выберите серию из списка или другую озвучку.",
   "watch.kind.dub":"озвучка","watch.kind.sub":"субтитры","watch.kind.raw":"оригинал",
+  "watch.voiceShort":"Озвучка","watch.voiceTriggerMeta":"{label} · {coverage}","watch.coverageCount":"{count} из {total} серий",
+  "watch.currentEpisode":"Сейчас","watch.episodeCounter":"Серия {number} из {total}","watch.availableEpisodeCount":"Доступно серий: {count}",
+  "watch.episodeSearch":"Поиск серии","watch.episodeSearchPlaceholder":"Введите номер серии","watch.episodeSearchEmpty":"Серии с таким номером здесь нет.",
+  "watch.episodeDialogTitle":"Выбор серии","watch.closeChooser":"Закрыть выбор",
+  "watch.voiceDialogTitle":"Озвучка и субтитры","watch.voiceDialogHint":"Выберите вариант для просмотра","watch.selectedVoice":"Выбрано",
+  "watch.voiceGroup.dub":"Озвучка","watch.voiceGroup.sub":"Субтитры","watch.voiceGroup.raw":"Оригинал",
 });
 
 Object.assign(en, {
@@ -162,6 +168,12 @@ Object.assign(en, {
   "watch.playEpisode":"Watch episode {number}","watch.noPlayer":"No playable source for this episode",
   "watch.chooseAvailableEpisode":"Choose an episode from the list or another voice-over.",
   "watch.kind.dub":"dub","watch.kind.sub":"subtitles","watch.kind.raw":"original",
+  "watch.voiceShort":"Voice-over","watch.voiceTriggerMeta":"{label} · {coverage}","watch.coverageCount":"{count} of {total} episodes",
+  "watch.currentEpisode":"Now","watch.episodeCounter":"Episode {number} of {total}","watch.availableEpisodeCount":"Episodes available: {count}",
+  "watch.episodeSearch":"Search episodes","watch.episodeSearchPlaceholder":"Enter episode number","watch.episodeSearchEmpty":"There is no episode with that number here.",
+  "watch.episodeDialogTitle":"Choose an episode","watch.closeChooser":"Close chooser",
+  "watch.voiceDialogTitle":"Voice-over and subtitles","watch.voiceDialogHint":"Choose a version to watch","watch.selectedVoice":"Selected",
+  "watch.voiceGroup.dub":"Voice-over","watch.voiceGroup.sub":"Subtitles","watch.voiceGroup.raw":"Original",
 });
 
 Object.assign(ru, {

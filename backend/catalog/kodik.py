@@ -4,7 +4,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.conf import settings
 
@@ -110,10 +110,20 @@ def player_url_allowed(value: object) -> bool:
     )
 
 
-def normalize_player_url(value: object) -> str | None:
+def normalize_player_url(value: object, *, hide_selectors: bool = False) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = f"https:{value}" if value.startswith("//") else value
-    if len(normalized) > SOURCE_URL_MAX_LENGTH:
+    if len(normalized) > SOURCE_URL_MAX_LENGTH or not player_url_allowed(normalized):
         return None
-    return normalized if player_url_allowed(normalized) else None
+    if not hide_selectors:
+        return normalized
+    parsed = urlsplit(normalized)
+    query = [
+        (key, query_value)
+        for key, query_value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.casefold() not in {"hide_selectors", "only_episode"}
+    ]
+    query.append(("hide_selectors", "true"))
+    configured = urlunsplit(parsed._replace(query=urlencode(query)))
+    return configured if len(configured) <= SOURCE_URL_MAX_LENGTH and player_url_allowed(configured) else None

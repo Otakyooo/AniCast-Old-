@@ -19,12 +19,13 @@ class SourceSerializer(serializers.ModelSerializer):
     playback_available = serializers.SerializerMethodField()
     playback_mode = serializers.SerializerMethodField()
     provider_name = serializers.CharField(source="provider.name", read_only=True, default="")
+    provider_variant_id = serializers.SerializerMethodField()
     selection_key = serializers.SerializerMethodField()
 
     class Meta:
         model = Source
         fields = [
-            "id", "name", "kind", "provider_name", "selection_key", "availability",
+            "id", "name", "kind", "provider_name", "provider_variant_id", "selection_key", "availability",
             "availability_reason", "is_available", "playback_available", "playback_mode",
         ]
 
@@ -44,6 +45,11 @@ class SourceSerializer(serializers.ModelSerializer):
         from .playback import source_selection_key
 
         return source_selection_key(obj)
+
+    def get_provider_variant_id(self, obj):
+        from .playback import source_provider_variant_id
+
+        return source_provider_variant_id(obj)
 
 
 class EpisodeSerializer(serializers.ModelSerializer):

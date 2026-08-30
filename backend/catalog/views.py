@@ -33,9 +33,11 @@ from .models import (
 )
 from .playback import (
     issue_playback,
+    legacy_source_selection_key_parts,
     playback_sources_prefetch,
     playback_url_allowed,
     resolve_playback,
+    source_provider_variant_id_parts,
     source_selection_key_parts,
     validate_provider_configuration,
 )
@@ -237,23 +239,28 @@ class WatchNavigationView(APIView):
                 provider_id__in=provider_context,
             )
             .filter(rights_filter)
-            .values_list("provider_id", "episode__number", "name", "kind", "url", "playback_count")
+            .values_list(
+                "provider_id", "episode__number", "name", "kind", "external_id", "url", "playback_count"
+            )
             .distinct()
             .order_by("kind", "name", "provider_id", "episode__number")
         )
         groups = {}
-        for provider_id, episode_number, name, kind, url, playback_count in rows:
+        for provider_id, episode_number, name, kind, external_id, url, playback_count in rows:
             provider_slug, provider_name, allowed_hosts = provider_context[provider_id]
             if not playback_url_allowed(url, allowed_hosts):
                 continue
-            key = source_selection_key_parts(provider_slug, kind, name)
+            provider_variant_id = source_provider_variant_id_parts(provider_slug, external_id)
+            key = source_selection_key_parts(provider_slug, kind, name, external_id)
             group = groups.setdefault(
                 key,
                 {
                     "key": key,
+                    "legacy_key": legacy_source_selection_key_parts(provider_slug, kind, name),
                     "name": name,
                     "kind": kind,
                     "provider_name": provider_name,
+                    "provider_variant_id": provider_variant_id,
                     "episode_numbers": set(),
                     "playback_count": 0,
                 },
@@ -268,9 +275,11 @@ class WatchNavigationView(APIView):
             numbers = sorted(group["episode_numbers"])
             source_groups.append({
                 "key": group["key"],
+                "legacy_key": group["legacy_key"],
                 "name": group["name"],
                 "kind": group["kind"],
                 "provider_name": group["provider_name"],
+                "provider_variant_id": group["provider_variant_id"],
                 "episode_numbers": numbers,
                 "episodes_count": len(numbers),
                 "popularity_percent": round(group["playback_count"] * 100 / total_playbacks) if total_playbacks else 0,

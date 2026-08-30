@@ -10,6 +10,7 @@ export interface Source {
   name: string;
   kind: string;
   provider_name?: string;
+  provider_variant_id?: string | null;
   selection_key: string;
   availability: "available" | "unavailable" | "geo_blocked" | "expired" | "provider_error" | string;
   availability_reason?: string;
@@ -43,6 +44,8 @@ export interface EpisodeDetail extends Episode {
 
 export interface WatchSourceGroup {
   key: string;
+  legacy_key?: string | null;
+  provider_variant_id?: string | null;
   name: string;
   kind: string;
   provider_name: string;

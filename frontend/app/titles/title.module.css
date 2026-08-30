@@ -521,147 +521,6 @@
   padding-bottom: 28px;
 }
 
-.watchStage {
-  position: relative;
-  width: min(100%, 1200px);
-  margin-inline: auto;
-  padding-right: 300px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface-media);
-}
-
-.watchPlayer { min-width: 0 }
-.watchPlayer .playerShell,
-.watchPlayer .watchEmpty { border: 0; border-radius: 0 }
-.watchPlayer .watchEmpty { min-height: 280px }
-.watchPlayer .playerFrameWrap { min-height: 0; aspect-ratio: 16 / 9 }
-.watchPlayer .playerBar { min-height: 48px; padding-block: 8px }
-
-.voiceRail {
-  position: absolute;
-  inset-block: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  width: 300px;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--surface-1);
-  scrollbar-color: var(--border) transparent;
-  scrollbar-width: thin;
-}
-
-.voiceSelect {
-  display: grid;
-  gap: 7px;
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.voiceSelect > label,
-.episodePicker > span {
-  color: var(--muted-2);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-.voiceSelect select,
-.episodeSelect select {
-  width: 100%;
-  min-width: 0;
-  min-height: 42px;
-  padding: 0 34px 0 11px;
-  border: 1px solid var(--border-control);
-  border-radius: 9px;
-  background: var(--surface-control);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease;
-}
-
-.voiceSelect select:hover,
-.episodeSelect select:hover { border-color: var(--primary); background: var(--surface-control-hover) }
-.voiceSelect select:disabled,
-.episodeSelect select:disabled { color: var(--muted-2); cursor: not-allowed }
-
-.voiceCoverage {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.voiceCoverage summary {
-  cursor: pointer;
-  transition: color 140ms ease;
-}
-
-.voiceCoverage summary:hover { color: var(--text) }
-.voiceCoverage summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
-.voiceCoverage p { margin: 6px 0 0; color: var(--muted-2) }
-
-.voiceSelect select:focus-visible,
-.episodeSelect select:focus-visible,
-.episodePickerControls a:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.episodePicker {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.episodePickerControls {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.episodePickerControls > a,
-.episodePickerControls > span {
-  display: grid;
-  width: 40px;
-  height: 42px;
-  place-items: center;
-  border: 1px solid var(--border-control);
-  border-radius: 8px;
-  background: var(--surface-control);
-  color: var(--text);
-  transition: border-color 140ms ease, background 140ms ease;
-}
-
-.episodePickerControls > a:hover { border-color: var(--primary); background: var(--surface-control-hover) }
-.episodePickerControls > span[aria-disabled="true"] { color: var(--muted-2); opacity: .45 }
-.episodePickerControls svg { width: 18px; height: 18px }
-
-.episodeSelect { min-width: 0 }
-
-.episodeSelect > span {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-  white-space: nowrap;
-}
-
 .watchSynopsis {
   max-width: 820px;
   margin: -2px 0 0;
@@ -687,18 +546,6 @@
   border-radius: 14px;
   background: var(--surface-media);
 }
-
-.playerBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  background: var(--surface-1);
-}
-
-.playerBar > strong { overflow-wrap: anywhere }
-.playerBar > span { color: var(--muted); font-size: 12px; text-transform: uppercase }
 
 .playerFrameWrap {
   position: relative;
@@ -784,8 +631,417 @@
   .playerFrameWrap { min-height: 180px }
 }
 
+/* ---------- Player navigation: one AniCast controller, no calendar grid ---------- */
+
+.watchStage {
+  position: relative;
+  width: min(100%, 1200px);
+  margin-inline: auto;
+  padding-right: 310px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-media);
+}
+
+.watchPlayer { min-width: 0 }
+
+.watchPlayer .playerShell,
+.watchPlayer .watchEmpty {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+.watchPlayer .watchEmpty,
+.watchPlayer .playerPreviewBody { aspect-ratio: 16 / 9 }
+
+.watchControls {
+  display: grid;
+  grid-template-columns: 44px minmax(150px, 1fr) 44px minmax(190px, 260px);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-elevated);
+}
+
+.episodeStep,
+.currentEpisodeButton,
+.voiceTrigger,
+.dialogHeader button {
+  min-height: 44px;
+  border: 1px solid var(--border-control);
+  border-radius: 9px;
+  background: var(--surface-control);
+  color: var(--text);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.episodeStep {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+}
+
+.episodeStep svg { width: 19px; height: 19px }
+.episodeStep[aria-disabled="true"] { color: var(--muted-2); opacity: .45 }
+
+.currentEpisodeButton,
+.voiceTrigger {
+  min-width: 0;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.currentEpisodeButton {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.currentEpisodeButton strong,
+.voiceTrigger strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.currentEpisodeButton span,
+.voiceTrigger small {
+  color: var(--muted-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.voiceTrigger {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+}
+
+.voiceTrigger > svg { width: 20px; height: 20px; color: var(--accent-text) }
+.voiceTrigger > span { display: grid; gap: 2px; min-width: 0 }
+.voiceTrigger:disabled { color: var(--muted-2); cursor: not-allowed; opacity: .62 }
+
+.episodeStep[href]:hover,
+.currentEpisodeButton:hover,
+.voiceTrigger:hover:not(:disabled),
+.dialogHeader button:hover {
+  border-color: var(--primary);
+  background: var(--surface-control-hover);
+}
+
+.episodeStep:focus-visible,
+.currentEpisodeButton:focus-visible,
+.voiceTrigger:focus-visible,
+.episodeRailList a:focus-visible,
+.dialogEpisodeList a:focus-visible,
+.voiceOptions button:focus-visible,
+.dialogHeader button:focus-visible,
+.episodeSearch input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.watchControls .watchWarning {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.episodeRail {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  display: flex;
+  width: 310px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface-card);
+}
+
+.episodeRailHeader {
+  display: grid;
+  gap: 12px;
+  padding: 15px 14px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.episodeRailHeader > div,
+.dialogHeader > div { display: grid; gap: 3px; min-width: 0 }
+
+.episodeRailHeader h3,
+.dialogHeader h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.episodeRailHeader span,
+.dialogHeader span { color: var(--muted-2); font-size: 11px }
+
+.episodeSearch {
+  position: relative;
+  display: grid;
+  align-items: center;
+}
+
+.episodeSearch > svg {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  color: var(--muted-2);
+  pointer-events: none;
+}
+
+.episodeSearch label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}
+
+.episodeSearch input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px 0 39px;
+  border: 1px solid var(--border-control);
+  border-radius: 9px;
+  background: var(--surface-control);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.episodeSearch input::placeholder { color: var(--muted-2) }
+.episodeSearch input:hover { border-color: var(--primary) }
+
+.episodeRailList,
+.dialogEpisodeList {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
+}
+
+.episodeRailList { flex: 1 }
+
+.episodeRailList a,
+.dialogEpisodeList a {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.episodeRailList a:hover,
+.dialogEpisodeList a:hover {
+  border-color: var(--border-control);
+  background: var(--surface-control-hover);
+  color: var(--text);
+}
+
+.episodeRailList a[aria-current="page"],
+.dialogEpisodeList a[aria-current="page"] {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+.episodeRailList small,
+.dialogEpisodeList small {
+  color: var(--accent-text);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.episodeSearchEmpty {
+  margin: 0;
+  padding: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.watchDialog {
+  position: fixed;
+  width: min(620px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(760px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-card-opaque);
+  color: var(--text);
+  box-shadow: var(--shadow-overlay);
+}
+
+.watchDialog::backdrop { background: var(--background-translucent) }
+
+.dialogPanel {
+  display: flex;
+  max-height: min(760px, calc(100dvh - 32px));
+  min-height: 0;
+  flex-direction: column;
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-elevated);
+}
+
+.dialogHeader button {
+  display: grid;
+  width: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.dialogHeader button svg { width: 19px; height: 19px }
+.dialogPanel > .episodeSearch { margin: 14px 14px 6px }
+.dialogEpisodeList { gap: 2px; flex: 1; padding: 8px 14px 14px }
+
+.voiceGroups {
+  display: grid;
+  gap: 20px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
+}
+
+.voiceGroup { display: grid; gap: 8px }
+
+.voiceGroup h4 {
+  margin: 0;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.voiceOptions { display: grid; gap: 8px }
+
+.voiceOptions button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 68px;
+  padding: 11px 13px;
+  border: 1px solid var(--border-control);
+  border-radius: 10px;
+  background: var(--surface-control);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.voiceOptions button:hover { border-color: var(--primary); background: var(--surface-control-hover) }
+.voiceOptions .voiceOptionSelected { border-color: var(--primary-border); background: var(--primary-soft) }
+
+.voiceOptionCopy { display: grid; gap: 3px; min-width: 0 }
+.voiceOptionCopy strong { font-size: 14px; overflow-wrap: anywhere }
+.voiceOptionCopy > span { color: var(--muted); font-size: 12px }
+.voiceOptionCopy small { color: var(--muted-2); font-size: 11px; overflow-wrap: anywhere }
+
+.voiceSelectedMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.voiceSelectedMark svg { width: 16px; height: 16px }
+
 @media (max-width: 860px) {
   .watchStage { padding-right: 0 }
-  .watchPlayer .playerFrameWrap { min-height: 180px; aspect-ratio: 16 / 9 }
-  .voiceRail { position: static; width: auto; border-top: 1px solid var(--border); border-left: 0 }
+
+  .episodeRail { display: none }
+
+  .watchControls {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    padding: 8px;
+  }
+
+  .currentEpisodeButton { text-align: center }
+  .currentEpisodeButton span { display: none }
+
+  .voiceTrigger {
+    grid-column: 1 / -1;
+    padding-inline: 13px;
+  }
+
+  .watchDialog {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: min(82dvh, 720px);
+    margin: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .dialogPanel { max-height: min(82dvh, 720px) }
+}
+
+@media (max-width: 480px) {
+  .watchLayout { margin-inline: -1px; width: calc(100% + 2px) }
+  .watchStage { border-radius: 11px }
+  .voiceOptions button { grid-template-columns: minmax(0, 1fr) }
+  .voiceSelectedMark { justify-self: start }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .episodeStep,
+  .currentEpisodeButton,
+  .voiceTrigger,
+  .episodeRailList a,
+  .dialogEpisodeList a,
+  .voiceOptions button { transition: none }
 }
