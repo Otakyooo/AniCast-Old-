@@ -13,16 +13,20 @@ import { BreadcrumbsJsonLd } from "../../../components/breadcrumbs-jsonld";
 import { CommunityPanel } from "../../../components/community-panel";
 import { TitleCollectionControl } from "../../../components/title-collection-control";
 import { CatalogCard } from "../../../components/catalog-card";
+import { WatchSpace } from "../../../components/watch-space";
 import {
   apiErrorStatus,
   getCatalogItem,
   getCatalogItemEpisodes,
+  getEpisode,
   getFirstEpisodeNumber,
   getSimilarTitles,
+  getWatchNavigation,
   type CatalogItem,
   type Episode,
   type TitleCastEntry,
   type TitleCreditEntry,
+  type WatchNavigation,
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { titleRating } from "../../../lib/rating";
@@ -238,6 +242,44 @@ export default async function CatalogDetailPage({
       ? Promise.resolve(Math.min(...episodes.map((episode) => episode.number)))
       : getFirstEpisodeNumber(slug),
   ]);
+  let watchSpace: React.ReactNode = null;
+  if (tab === "overview" && episodesCount > 0 && firstEpisode !== null) {
+    const loadedNavigation = await getWatchNavigation(slug).catch(() => null);
+    const navigation: WatchNavigation = loadedNavigation ?? {
+      episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
+      source_groups: [],
+    };
+    const episodeNumbers = navigation.episode_numbers.length
+      ? navigation.episode_numbers
+      : Array.from({ length: episodesCount }, (_, index) => index + 1);
+    const watchNumber = Number(episodeNumbers[0] ?? firstEpisode);
+
+    try {
+      const watchEpisode = await getEpisode(slug, watchNumber);
+      watchSpace = (
+        <WatchSpace
+          embedded
+          slug={slug}
+          titleName={item.name}
+          episodesCount={episodesCount}
+          episodeNumbers={episodeNumbers}
+          sourceGroups={navigation.source_groups}
+          currentNumber={watchNumber}
+          episode={{
+            number: watchEpisode.number,
+            name: watchEpisode.name,
+            synopsis: watchEpisode.synopsis,
+            air_date: watchEpisode.air_date,
+            sources: watchEpisode.sources ?? [],
+          }}
+          trackProgress
+        />
+      );
+    } catch {
+      // Keep the title usable when playback data is temporarily unavailable.
+      // Episode links and the dedicated watch route remain recovery paths.
+    }
+  }
   const rating = titleRating(item);
   const { t, locale } = await getI18n();
   const dayFormatter = new Intl.DateTimeFormat(intlLocale[locale], {
@@ -343,6 +385,12 @@ export default async function CatalogDetailPage({
 
       {tab === "overview" && (
         <div className={styles.panel}>
+          {watchSpace && (
+            <section className={styles.watchSection}>
+              <h2>{t("watch.title")}</h2>
+              {watchSpace}
+            </section>
+          )}
           {item.synopsis && (
             <section className={`${styles.block} ${styles.descriptionCard}`}>
               <h2>{t("title.description")}</h2>
