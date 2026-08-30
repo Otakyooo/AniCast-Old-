@@ -129,10 +129,13 @@ Object.assign(ru, {
   "notes.saving":"Сохраняем...","notes.deleting":"Удаляем...","notes.saved":"Заметка сохранена","notes.deleted":"Заметка удалена",
   // Единый сценарий просмотра: озвучка, доступные серии и плеер.
   "watch.navigation":"Выбор озвучки и серии","watch.voice":"Озвучка или субтитры","watch.noVoice":"Доступных озвучек пока нет",
-  "watch.episodeCount":"{count} эп.","watch.episodeRange":"Диапазон серий","watch.episodePosition":"Серия {current} из {total}",
-  "watch.episodeUnavailable":"Этой серии нет в выбранной озвучке","watch.voiceUnavailable":"Серии {number} нет в варианте «{name}». Выберите доступную серию.",
-  "watch.neighborEpisodes":"Соседние доступные серии","watch.playEpisode":"Смотреть серию {number}","watch.noPlayer":"Для этой серии нет доступного плеера",
-  "watch.chooseAvailableEpisode":"Выберите активную кнопку серии или другую озвучку.",
+  "watch.voiceOption":"{name} · {coverage}","watch.voiceCoverage":"Доступно: {coverage}",
+  "watch.coverageUnknown":"покрытие уточняется","watch.coverageEmpty":"нет серий","watch.coverageSingle":"серия {number}","watch.coverageRanges":"серии {ranges}",
+  "watch.coverageExcept":"серии {first}–{last}, кроме {missing}","watch.coverageWithGaps":"{count} эп. · {first}–{last}, с пропусками",
+  "watch.chooseEpisode":"Выберите серию","watch.episodeUnavailableCurrent":"Серия {number} недоступна",
+  "watch.voiceUnavailable":"Серии {number} нет в варианте «{name}». Выберите доступную серию.",
+  "watch.playEpisode":"Смотреть серию {number}","watch.noPlayer":"Для этой серии нет доступного плеера",
+  "watch.chooseAvailableEpisode":"Выберите серию из списка или другую озвучку.",
   "watch.kind.dub":"озвучка","watch.kind.sub":"субтитры","watch.kind.raw":"оригинал",
 });
 
@@ -151,10 +154,13 @@ Object.assign(en, {
   "library.viewSwitch":"Library view","library.filters":"Library filters","library.viewTitles":"Titles","library.viewCollections":"Collections",
   "notes.saving":"Saving...","notes.deleting":"Deleting...","notes.saved":"Note saved","notes.deleted":"Note deleted",
   "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.noVoice":"No playable voice-overs yet",
-  "watch.episodeCount":"{count} eps.","watch.episodeRange":"Episode range","watch.episodePosition":"Episode {current} of {total}",
-  "watch.episodeUnavailable":"This episode is not available in the selected voice-over","watch.voiceUnavailable":"Episode {number} is not available in “{name}”. Choose an available episode.",
-  "watch.neighborEpisodes":"Adjacent available episodes","watch.playEpisode":"Watch episode {number}","watch.noPlayer":"No playable source for this episode",
-  "watch.chooseAvailableEpisode":"Choose an active episode button or another voice-over.",
+  "watch.voiceOption":"{name} · {coverage}","watch.voiceCoverage":"Available: {coverage}",
+  "watch.coverageUnknown":"coverage pending","watch.coverageEmpty":"no episodes","watch.coverageSingle":"episode {number}","watch.coverageRanges":"episodes {ranges}",
+  "watch.coverageExcept":"episodes {first}–{last}, except {missing}","watch.coverageWithGaps":"{count} eps · {first}–{last}, with gaps",
+  "watch.chooseEpisode":"Choose episode","watch.episodeUnavailableCurrent":"Episode {number} is unavailable",
+  "watch.voiceUnavailable":"Episode {number} is not available in “{name}”. Choose an available episode.",
+  "watch.playEpisode":"Watch episode {number}","watch.noPlayer":"No playable source for this episode",
+  "watch.chooseAvailableEpisode":"Choose an episode from the list or another voice-over.",
   "watch.kind.dub":"dub","watch.kind.sub":"subtitles","watch.kind.raw":"original",
 });
 

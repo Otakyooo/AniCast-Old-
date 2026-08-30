@@ -268,7 +268,6 @@ export default async function CatalogDetailPage({
       watchSpace = (
         <WatchSpace
           slug={slug}
-          episodesCount={episodesCount}
           episodeNumbers={episodeNumbers}
           sourceGroups={navigation.source_groups}
           requestedSourceKey={query.voice}
