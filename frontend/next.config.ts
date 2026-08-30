@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
       { source: "/recommendations", headers: noIndex },
       { source: "/collections", headers: noIndex },
       { source: "/collections/manage/:path*", headers: noIndex },
-      { source: "/titles/:slug/watch", headers: noIndex },
       { source: "/login", headers: noIndex },
       { source: "/register", headers: noIndex },
     ];

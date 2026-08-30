@@ -4,7 +4,6 @@ import { SITE_URL } from "./site.ts";
 import {
   catalogPageExists,
   catalogSeoState,
-  legacyTitleWatchRedirectHref,
   titleSchemaType,
   titleWatchHref,
   websiteJsonLd,
@@ -40,16 +39,11 @@ test("schema helpers describe the site and distinguish movies", () => {
   });
 });
 
-test("watch links keep playback state away from the canonical title URL", () => {
+test("watch links keep playback on the title page and preserve its state", () => {
   assert.equal(
     titleWatchHref("31240-rezero-kara-hajimeru-isekai-seikatsu", 1, "306fb52e8ee8170c"),
-    "/titles/31240-rezero-kara-hajimeru-isekai-seikatsu/watch?episode=1&voice=306fb52e8ee8170c",
+    "/titles/31240-rezero-kara-hajimeru-isekai-seikatsu?episode=1&voice=306fb52e8ee8170c#watch",
   );
-  assert.equal(
-    legacyTitleWatchRedirectHref("title", { episode: "3", voice: " dub " }),
-    "/titles/title/watch?episode=3&voice=dub",
-  );
-  assert.equal(legacyTitleWatchRedirectHref("title", { voice: "dub" }), "/titles/title/watch?episode=1&voice=dub");
-  assert.equal(legacyTitleWatchRedirectHref("title", { episode: "invalid" }), "/titles/title/watch?episode=1");
-  assert.equal(legacyTitleWatchRedirectHref("title", {}), null);
+  assert.equal(titleWatchHref("title", "invalid"), "/titles/title?episode=1#watch");
+  assert.equal(titleWatchHref("title", 3, " dub "), "/titles/title?episode=3&voice=dub#watch");
 });

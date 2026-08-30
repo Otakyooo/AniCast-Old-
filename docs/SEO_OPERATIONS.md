@@ -17,7 +17,8 @@ SEO для AniCast — это управляемый цикл «доступно
 | `/users/<public_id>` | `index, follow`, self-canonical | Только явно включённый публичный профиль с SSR-коллекциями и рецензиями |
 | Поиск, сортировка и фильтры `/catalog?...` | `noindex, follow`, canonical на `/catalog` | Не создавать индекс из комбинаций фасетов |
 | Архивные недели `/schedule?week=...` | `noindex, follow`, canonical на `/schedule` | Не создавать бесконечный календарь |
-| Watch и отдельные эпизоды | `noindex, follow`, canonical на тайтл | Дублируют основную карточку тайтла |
+| Playback-состояния `/titles/<slug>?episode=&voice=` | `index, follow`, canonical на чистый URL тайтла | Состояние встроенного плеера не создаёт отдельную посадочную страницу |
+| Отдельные эпизоды `/titles/<slug>/episodes/<number>` | `noindex, follow`, canonical на тайтл | Дублируют часть основной карточки тайтла |
 | Account, library, history, notes, settings, recommendations, auth, управление коллекциями | `X-Robots-Tag: noindex, follow` | Личные или служебные HTML-страницы |
 | `/api/`, `/staff`, `/auth` callbacks | `Disallow` в `robots.txt` | Служебные маршруты, не являющиеся посадочными |
 

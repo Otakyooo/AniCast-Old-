@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
@@ -30,7 +30,7 @@ import {
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { titleRating } from "../../../lib/rating";
-import { legacyTitleWatchRedirectHref, titleSchemaType, titleWatchHref } from "../../../lib/seo";
+import { titleSchemaType, titleWatchHref } from "../../../lib/seo";
 import { getI18n } from "../../../i18n/server";
 import { intlLocale } from "../../../i18n/config";
 import styles from "../title.module.css";
@@ -188,8 +188,6 @@ export default async function CatalogDetailPage({
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const legacyWatchTarget = legacyTitleWatchRedirectHref(slug, query);
-  if (legacyWatchTarget) permanentRedirect(legacyWatchTarget);
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawCharactersPage = Number(query.characters_page);
@@ -252,32 +250,40 @@ export default async function CatalogDetailPage({
     const episodeNumbers = navigation.episode_numbers.length
       ? navigation.episode_numbers
       : Array.from({ length: episodesCount }, (_, index) => index + 1);
-    const watchNumber = Number(episodeNumbers[0] ?? firstEpisode);
+    const fallbackNumber = Number(episodeNumbers[0] ?? firstEpisode);
+    const rawRequestedNumber = Number(query.episode);
+    let watchNumber = Number.isInteger(rawRequestedNumber) && episodeNumbers.includes(rawRequestedNumber)
+      ? rawRequestedNumber
+      : fallbackNumber;
 
     try {
-      const watchEpisode = await getEpisode(slug, watchNumber);
+      let watchEpisode;
+      try {
+        watchEpisode = await getEpisode(slug, watchNumber);
+      } catch (error) {
+        if (apiErrorStatus(error) !== 404 || watchNumber === fallbackNumber) throw error;
+        watchNumber = fallbackNumber;
+        watchEpisode = await getEpisode(slug, fallbackNumber);
+      }
       watchSpace = (
         <WatchSpace
-          embedded
           slug={slug}
-          titleName={item.name}
           episodesCount={episodesCount}
           episodeNumbers={episodeNumbers}
           sourceGroups={navigation.source_groups}
+          requestedSourceKey={query.voice}
           currentNumber={watchNumber}
           episode={{
-            number: watchEpisode.number,
-            name: watchEpisode.name,
             synopsis: watchEpisode.synopsis,
-            air_date: watchEpisode.air_date,
             sources: watchEpisode.sources ?? [],
           }}
-          trackProgress
+          trackProgress={query.episode !== undefined}
         />
       );
     } catch {
       // Keep the title usable when playback data is temporarily unavailable.
-      // Episode links and the dedicated watch route remain recovery paths.
+      // Episode details remain available while the embedded player can retry
+      // on the next request.
     }
   }
   const rating = titleRating(item);
@@ -364,7 +370,7 @@ export default async function CatalogDetailPage({
         </div>
         <TitleActions
           slug={item.slug}
-          watchHref={firstEpisode !== null ? titleWatchHref(item.slug, firstEpisode) : undefined}
+          watchHref={watchSpace ? "#watch" : firstEpisode !== null ? titleWatchHref(item.slug, firstEpisode) : undefined}
         />
       </article>
 
@@ -386,7 +392,7 @@ export default async function CatalogDetailPage({
       {tab === "overview" && (
         <div className={styles.panel}>
           {watchSpace && (
-            <section className={styles.watchSection}>
+            <section className={styles.watchSection} id="watch">
               <h2>{t("watch.title")}</h2>
               {watchSpace}
             </section>

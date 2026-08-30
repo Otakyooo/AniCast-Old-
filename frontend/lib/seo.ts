@@ -7,34 +7,17 @@ export const NO_INDEX_ROBOTS = {
   follow: true,
 } as const;
 
-type SearchValue = string | string[] | undefined;
-
-function firstSearchValue(value: SearchValue) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
 function episodeNumber(value: string | number | undefined) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
-/** Stable, non-indexable playback URL; voice is UI state, not a content page. */
+/** Playback stays on the canonical title page; episode and voice are UI state. */
 export function titleWatchHref(slug: string, episode: string | number = 1, voice?: string) {
   const query = new URLSearchParams({ episode: String(episodeNumber(episode)) });
   const normalizedVoice = voice?.trim();
   if (normalizedVoice) query.set("voice", normalizedVoice);
-  return `/titles/${encodeURIComponent(slug)}/watch?${query}`;
-}
-
-/** Move legacy playback query parameters away from the indexable title URL. */
-export function legacyTitleWatchRedirectHref(
-  slug: string,
-  query: { episode?: SearchValue; voice?: SearchValue },
-) {
-  const rawEpisode = firstSearchValue(query.episode);
-  const rawVoice = firstSearchValue(query.voice);
-  if (rawEpisode === undefined && rawVoice === undefined) return null;
-  return titleWatchHref(slug, rawEpisode, rawVoice);
+  return `/titles/${encodeURIComponent(slug)}?${query}#watch`;
 }
 
 /**
