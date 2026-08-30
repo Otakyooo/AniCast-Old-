@@ -128,7 +128,7 @@ Object.assign(ru, {
   "library.viewSwitch":"Представление библиотеки","library.filters":"Фильтры библиотеки","library.viewTitles":"Тайтлы","library.viewCollections":"Коллекции",
   "notes.saving":"Сохраняем...","notes.deleting":"Удаляем...","notes.saved":"Заметка сохранена","notes.deleted":"Заметка удалена",
   // Единый сценарий просмотра: озвучка, доступные серии и плеер.
-  "watch.navigation":"Выбор озвучки и серии","watch.voice":"Озвучка или субтитры","watch.noVoice":"Доступных озвучек пока нет",
+  "watch.navigation":"Выбор озвучки и серии","watch.voice":"Озвучка или субтитры","watch.voicesTab":"Озвучки","watch.noVoice":"Доступных озвучек пока нет",
   "watch.episodeCount":"{count} эп.","watch.episodeRange":"Диапазон серий",
   "watch.episodeUnavailable":"Этой серии нет в выбранной озвучке","watch.voiceUnavailable":"Серии {number} нет в варианте «{name}». Выберите доступную серию.",
   "watch.neighborEpisodes":"Соседние доступные серии","watch.playEpisode":"Смотреть серию {number}","watch.noPlayer":"Для этой серии нет доступного плеера",
@@ -151,7 +151,7 @@ Object.assign(en, {
   "settings.title":"Settings","settings.subtitle":"Public profile, notifications and interface language.","settings.languageHint":"Switch the language with the header control; the choice is stored in your account.",
   "library.viewSwitch":"Library view","library.filters":"Library filters","library.viewTitles":"Titles","library.viewCollections":"Collections",
   "notes.saving":"Saving...","notes.deleting":"Deleting...","notes.saved":"Note saved","notes.deleted":"Note deleted",
-  "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.noVoice":"No playable voice-overs yet",
+  "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.voicesTab":"Voice tracks","watch.noVoice":"No playable voice-overs yet",
   "watch.episodeCount":"{count} eps.","watch.episodeRange":"Episode range",
   "watch.episodeUnavailable":"This episode is not available in the selected voice-over","watch.voiceUnavailable":"Episode {number} is not available in “{name}”. Choose an available episode.",
   "watch.neighborEpisodes":"Adjacent available episodes","watch.playEpisode":"Watch episode {number}","watch.noPlayer":"No playable source for this episode",

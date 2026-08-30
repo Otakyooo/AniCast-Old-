@@ -72,6 +72,7 @@ export function WatchSpace({
     ? requestedSourceKey ?? ""
     : playableSources[0]?.selection_key ?? groups[0]?.key ?? "";
   const [selectedGroupKey, setSelectedGroupKey] = useState(preferredKey);
+  const [railView, setRailView] = useState<"voices" | "episodes">("episodes");
 
   useEffect(() => {
     setSelectedGroupKey(preferredKey);
@@ -100,9 +101,6 @@ export function WatchSpace({
   useEffect(() => setRangeIndex(currentRangeIndex), [currentRangeIndex]);
 
   const visibleEpisodes = episodeRanges[rangeIndex] ?? episodeNumbers;
-  const navigableNumbers = selectedGroup?.episode_numbers ?? episodeNumbers;
-  const previousNumber = [...navigableNumbers].reverse().find((number) => number < currentNumber);
-  const nextNumber = navigableNumbers.find((number) => number > currentNumber);
   const currentIsAvailable = availableNumbers.has(currentNumber);
 
   const kindLabel = (kind: string) => t(`watch.kind.${kind}`);
@@ -161,116 +159,102 @@ export function WatchSpace({
 
       <div className={styles.watchStage}>
         <div className={styles.watchPlayer}>{player}</div>
-        <aside className={styles.voiceRail} aria-label={t("watch.voice")}>
-          <div className={styles.voiceRailHead}>
-            <strong>{t("watch.voice")}</strong>
-            <span>{groups.length}</span>
+        <aside className={styles.voiceRail} aria-label={t("watch.navigation")}>
+          <div className={styles.railTabs} aria-label={t("watch.navigation")}>
+            <button
+              className={railView === "voices" ? styles.railTabActive : undefined}
+              type="button"
+              aria-pressed={railView === "voices"}
+              onClick={() => setRailView("voices")}
+            >
+              <span>{t("watch.voicesTab")}</span>
+              <b>{groups.length}</b>
+            </button>
+            <button
+              className={railView === "episodes" ? styles.railTabActive : undefined}
+              type="button"
+              aria-pressed={railView === "episodes"}
+              onClick={() => setRailView("episodes")}
+            >
+              <span>{t("title.episodes")}</span>
+              <b>{episodeNumbers.length}</b>
+            </button>
           </div>
-          <div className={styles.voiceList}>
-            {groups.map((group) => (
-              <button
-                className={`${styles.voiceButton} ${group.key === selectedGroupKey ? styles.voiceButtonActive : ""}`}
-                key={group.key}
-                type="button"
-                onClick={() => chooseGroup(group.key)}
-              >
-                <span className={styles.voiceButtonTop}>
-                  <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
-                  <b>{group.popularity_percent}%</b>
-                </span>
-                <span>{kindLabel(group.kind)} · {t("watch.choiceShare")}</span>
-              </button>
-            ))}
-            {!groups.length && <p className="muted">{t("watch.noVoice")}</p>}
-          </div>
+
+          {railView === "voices" ? (
+            <div className={styles.voiceList}>
+              {groups.map((group) => (
+                <button
+                  className={`${styles.voiceButton} ${group.key === selectedGroupKey ? styles.voiceButtonActive : ""}`}
+                  key={group.key}
+                  type="button"
+                  onClick={() => chooseGroup(group.key)}
+                >
+                  <span className={styles.voiceButtonTop}>
+                    <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
+                    <b>{group.popularity_percent}%</b>
+                  </span>
+                  <span>{kindLabel(group.kind)} · {t("watch.choiceShare")}</span>
+                </button>
+              ))}
+              {!groups.length && <p className="muted">{t("watch.noVoice")}</p>}
+            </div>
+          ) : (
+            <div className={styles.episodeRail}>
+              {episodeRanges.length > 1 && (
+                <label className={styles.episodeRangeField}>
+                  <span>{t("watch.episodeRange")}</span>
+                  <select value={rangeIndex} onChange={(event) => setRangeIndex(Number(event.target.value))}>
+                    {episodeRanges.map((range, index) => (
+                      <option key={range[0]} value={index}>{range[0]}–{range[range.length - 1]}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <nav className={styles.episodeGrid} aria-label={t("title.episodes")}>
+                {visibleEpisodes.map((number) => {
+                  const available = availableNumbers.has(number);
+                  const active = number === currentNumber;
+                  const className = [
+                    styles.episodeButton,
+                    active ? styles.episodeButtonActive : "",
+                    !available ? styles.episodeButtonUnavailable : "",
+                  ].filter(Boolean).join(" ");
+                  return available ? (
+                    <Link
+                      key={number}
+                      className={className}
+                      href={titleWatchHref(slug, number, selectedGroupKey)}
+                      aria-current={active ? "page" : undefined}
+                      aria-label={t("episode.number", { number })}
+                    >
+                      {number}
+                    </Link>
+                  ) : (
+                    <span
+                      key={number}
+                      className={className}
+                      aria-disabled="true"
+                      title={t("watch.episodeUnavailable")}
+                    >
+                      {number}
+                    </span>
+                  );
+                })}
+              </nav>
+            </div>
+          )}
+
+          {!currentIsAvailable && selectedGroup && (
+            <p className={styles.watchWarning} role="status">
+              {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
+            </p>
+          )}
         </aside>
       </div>
 
       {episode.synopsis && <p className={styles.watchSynopsis}>{episode.synopsis}</p>}
-
-      <section className={styles.watchNavigator} aria-label={t("watch.navigation")}>
-        <div className={styles.watchSelectors}>
-          <label className={styles.watchField}>
-            <span>{t("watch.voice")}</span>
-            <select
-              value={selectedGroupKey}
-              disabled={!groups.length}
-              onChange={(event) => chooseGroup(event.target.value)}
-            >
-              {!groups.length && <option value="">{t("watch.noVoice")}</option>}
-              {groups.map((group) => (
-                <option key={group.key} value={group.key}>
-                  {cleanSourceName(group.name, group.provider_name)} · {kindLabel(group.kind)} · {t("watch.episodeCount", { count: group.episodes_count })}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {episodeRanges.length > 1 && (
-            <label className={styles.watchField}>
-              <span>{t("watch.episodeRange")}</span>
-              <select value={rangeIndex} onChange={(event) => setRangeIndex(Number(event.target.value))}>
-                {episodeRanges.map((range, index) => (
-                  <option key={range[0]} value={index}>{range[0]}–{range[range.length - 1]}</option>
-                ))}
-              </select>
-            </label>
-          )}
-
-        </div>
-
-        <nav className={styles.episodeGrid} aria-label={t("title.episodes")}>
-          {visibleEpisodes.map((number) => {
-            const available = availableNumbers.has(number);
-            const active = number === currentNumber;
-            const className = [
-              styles.episodeButton,
-              active ? styles.episodeButtonActive : "",
-              !available ? styles.episodeButtonUnavailable : "",
-            ].filter(Boolean).join(" ");
-            return available ? (
-              <Link
-                key={number}
-                className={className}
-                href={titleWatchHref(slug, number, selectedGroupKey)}
-                aria-current={active ? "page" : undefined}
-                aria-label={t("episode.number", { number })}
-              >
-                {number}
-              </Link>
-            ) : (
-              <span
-                key={number}
-                className={className}
-                aria-disabled="true"
-                title={t("watch.episodeUnavailable")}
-              >
-                {number}
-              </span>
-            );
-          })}
-        </nav>
-
-        {!currentIsAvailable && selectedGroup && (
-          <p className={styles.watchWarning} role="status">
-            {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
-          </p>
-        )}
-
-        <nav className={styles.watchNav} aria-label={t("watch.neighborEpisodes")}>
-          {previousNumber ? (
-            <Link className={styles.neighborLink} href={titleWatchHref(slug, previousNumber, selectedGroupKey)}>
-              ← {t("watch.prev")}
-            </Link>
-          ) : <span />}
-          {nextNumber ? (
-            <Link className={styles.neighborLink} href={titleWatchHref(slug, nextNumber, selectedGroupKey)}>
-              {t("watch.next")} →
-            </Link>
-          ) : <span />}
-        </nav>
-      </section>
-
     </div>
   );
 }
