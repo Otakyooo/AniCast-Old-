@@ -161,12 +161,17 @@ def test_watch_navigation_groups_playable_sources_by_voice_over(authorized_sourc
         url="https://watch.example.com/subtitle/2",
     )
 
-    with django_assert_max_num_queries(5):
+    # Title lookup, catalog numbers, provider configuration and authorized
+    # source rows stay bounded regardless of the number of episodes.
+    with django_assert_max_num_queries(6):
         response = APIClient().get("/api/v1/titles/playback-test/watch-navigation/")
 
     assert response.status_code == 200
     body = response.json()
-    # Metadata-only episodes never become dead destinations in the player.
+    # Catalog metadata keeps its real gaps, while only playable episodes become
+    # destinations in the player. The old field remains a compatibility alias.
+    assert body["catalog_episode_numbers"] == [1, 2, 4]
+    assert body["playable_episode_numbers"] == [1, 2]
     assert body["episode_numbers"] == [1, 2]
     assert len(body["source_groups"]) == 1
     group = body["source_groups"][0]
@@ -218,7 +223,27 @@ def test_kodik_watch_key_survives_translation_rename_and_exposes_legacy_alias(au
 
 @pytest.mark.django_db
 def test_watch_navigation_returns_404_for_missing_title():
-    assert APIClient().get("/api/v1/titles/missing/watch-navigation/").status_code == 404
+    response = APIClient().get("/api/v1/titles/missing/watch-navigation/")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No Title matches the given query."
+
+
+@pytest.mark.django_db
+def test_watch_navigation_exposes_real_catalog_gaps_without_synthesizing_playback():
+    title = Title.objects.create(name="Metadata Only", slug="metadata-only")
+    Episode.objects.create(title=title, number=2)
+    Episode.objects.create(title=title, number=7)
+
+    response = APIClient().get("/api/v1/titles/metadata-only/watch-navigation/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "catalog_episode_numbers": [2, 7],
+        "playable_episode_numbers": [],
+        "episode_numbers": [],
+        "source_groups": [],
+    }
 
 
 @pytest.mark.django_db

@@ -128,6 +128,28 @@ def test_open_episode_creates_truthful_history_and_preserves_watched_state(users
 
 
 @pytest.mark.django_db
+def test_episode_progress_get_is_read_only_and_private(users, titles):
+    Episode.objects.create(title=titles[0], number=1, name="Start")
+    client = APIClient()
+    client.force_login(users[0])
+
+    assert client.get("/api/v1/episodes/first/1/progress/").status_code == 404
+    created = client.put(
+        "/api/v1/episodes/first/1/progress/",
+        {"is_watched": True},
+        format="json",
+    )
+    assert created.status_code == 201
+    progress = client.get("/api/v1/episodes/first/1/progress/")
+    assert progress.status_code == 200
+    assert progress.json()["is_watched"] is True
+
+    other = APIClient()
+    other.force_login(users[1])
+    assert other.get("/api/v1/episodes/first/1/progress/").status_code == 404
+
+
+@pytest.mark.django_db
 def test_history_is_private_and_ordered_by_last_open(users, titles):
     first = Episode.objects.create(title=titles[0], number=1)
     second = Episode.objects.create(title=titles[1], number=1)

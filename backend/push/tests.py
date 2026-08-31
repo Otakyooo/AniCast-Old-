@@ -14,7 +14,12 @@ from push.models import (
     TelegramNotificationChannel,
     TitleNotificationSubscription,
 )
-from push.tasks import dispatch_episode_notifications, dispatch_event_notifications, send_schedule_digest
+from push.tasks import (
+    dispatch_episode_notifications,
+    dispatch_event_notifications,
+    send_schedule_digest,
+    title_watch_path,
+)
 
 
 NOTIFY_SETTINGS = {
@@ -38,6 +43,10 @@ def notification_data(db):
     title = Title.objects.create(name="Notify Title", slug="notify-title", status="ongoing")
     episode = Episode.objects.create(title=title, number=1, air_date=timezone.localdate())
     return user, title, episode
+
+
+def test_title_watch_path_targets_canonical_title_player():
+    assert title_watch_path("notify-title", 12) == "/titles/notify-title?episode=12#watch"
 
 
 @override_settings(**NOTIFY_SETTINGS)
@@ -104,6 +113,7 @@ def test_delivery_task_is_idempotent(notification_data, monkeypatch):
     assert dispatch_episode_notifications()["sent"] == 1
     assert dispatch_episode_notifications()["sent"] == 0
     assert len(sent) == 1
+    assert "https://anicast.online/titles/notify-title?episode=1#watch" in sent[0][1]
     delivery = NotificationDelivery.objects.get(episode=episode)
     assert delivery.status == NotificationDelivery.Status.SENT
     assert delivery.attempts == 1
@@ -304,7 +314,7 @@ def test_report_final_status_notifies_but_reviewing_is_silent(notification_data,
     events = EventNotification.objects.all()
     assert events.count() == 1
     assert events.get().kind == EventNotification.Kind.REPORT_RESOLVED
-    assert f"/episodes/{episode.number}/" in events.get().url_path
+    assert events.get().url_path == f"/titles/{episode.title.slug}?episode={episode.number}#watch"
 
 
 @override_settings(TELEGRAM_NOTIFY_BOT_TOKEN="notify-token")

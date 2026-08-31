@@ -57,6 +57,11 @@ export interface WatchSourceGroup {
 }
 
 export interface WatchNavigation {
+  /** All real Episode rows, including future or metadata-only entries. */
+  catalog_episode_numbers?: number[];
+  /** Union of episodes with at least one currently authorized player. */
+  playable_episode_numbers?: number[];
+  /** Compatibility alias for playable_episode_numbers. */
   episode_numbers: number[];
   source_groups: WatchSourceGroup[];
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getHistory, HistoryApiError, type HistoryResponse } from "../lib/history";
+import { titleWatchHref } from "../lib/seo";
 import styles from "../app/history.module.css";
 import { useI18n } from "./i18n-provider";
 
@@ -27,5 +28,5 @@ export function HistoryView() {
   if (!history) return <div className="empty-state" role="status"><strong>{t("history.loading")}</strong></div>;
   if (!history.results.length) return <div className="empty-state"><strong>{t("history.empty")}</strong><span>{t("history.emptyText")}</span></div>;
 
-  return <div className={styles.historyGrid}>{history.results.map((entry) => <Link className={styles.historyCard} href={`/titles/${entry.title.slug}/episodes/${entry.episode.number}`} key={entry.episode.id}><span className={styles.number}>{t("episode.number", { number: entry.episode.number })}</span><strong>{entry.title.name}</strong><span>{entry.episode.name || t("episode.untitled")}</span><small>{entry.is_watched ? t("history.watched") : t("history.recent")}</small></Link>)}</div>;
+  return <div className={styles.historyGrid}>{history.results.map((entry) => <Link className={styles.historyCard} href={titleWatchHref(entry.title.slug, entry.episode.number)} key={entry.episode.id}><span className={styles.number}>{t("episode.number", { number: entry.episode.number })}</span><strong>{entry.title.name}</strong><span>{entry.episode.name || t("episode.untitled")}</span><small>{entry.is_watched ? t("history.watched") : t("history.recent")}</small></Link>)}</div>;
 }

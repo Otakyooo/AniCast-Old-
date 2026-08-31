@@ -4,6 +4,7 @@ import { SITE_URL } from "./site.ts";
 import {
   catalogPageExists,
   catalogSeoState,
+  titleOpenGraphType,
   titleSchemaType,
   titleWatchHref,
   websiteJsonLd,
@@ -29,6 +30,8 @@ test("catalog pages outside the real result range are noindex", () => {
 test("schema helpers describe the site and distinguish movies", () => {
   assert.equal(titleSchemaType("movie"), "Movie");
   assert.equal(titleSchemaType("anime"), "TVSeries");
+  assert.equal(titleOpenGraphType("movie"), "video.movie");
+  assert.equal(titleOpenGraphType("anime"), "video.tv_show");
   assert.deepEqual(websiteJsonLd("ru"), {
     "@context": "https://schema.org",
     "@type": "WebSite",

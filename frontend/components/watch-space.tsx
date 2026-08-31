@@ -14,14 +14,21 @@ import {
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer } from "./provider-player";
+import { EpisodeProgressControl } from "./episode-progress-control";
+import { SourceReportControl } from "./source-report-control";
 import type { Source, WatchSourceGroup } from "../lib/api";
+import type { PlaybackPresentation } from "../lib/title-template";
 import { summarizeEpisodeCoverage } from "../lib/episode-coverage";
 import { titleWatchHref } from "../lib/seo";
 import {
   filterEpisodeNumbers,
+  episodeNumberRanges,
+  episodeRangeIndex,
   firstRankedPlayableGroupKey,
+  mergeCurrentWatchSourceGroups,
   normalizeEpisodeNumbers,
   resolveRequestedGroupKey,
+  type ResolvedWatchSourceGroup,
   voiceSection,
 } from "../lib/watch-controls";
 import { useI18n } from "./i18n-provider";
@@ -33,7 +40,6 @@ interface WatchEpisode {
 }
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
-type ViewSourceGroup = WatchSourceGroup & { coverage_known: boolean };
 
 function cleanSourceName(name: string, providerName = "") {
   const prefix = providerName ? `${providerName} · ` : "";
@@ -68,7 +74,7 @@ function compactCoverage(numbers: number[], t: Translator, known: boolean) {
   });
 }
 
-function coverageCopy(group: ViewSourceGroup, totalEpisodes: number, t: Translator) {
+function coverageCopy(group: ResolvedWatchSourceGroup, totalEpisodes: number, t: Translator) {
   if (!group.coverage_known) {
     return { summary: t("watch.coverageUnknown"), detail: "" };
   }
@@ -81,56 +87,59 @@ function coverageCopy(group: ViewSourceGroup, totalEpisodes: number, t: Translat
 
 export function WatchSpace({
   slug,
-  episodeNumbers,
+  titleName,
+  playableEpisodeNumbers,
   sourceGroups,
   requestedSourceKey,
   currentNumber,
+  playbackPresentation,
+  navigationDegraded = false,
+  invalidEpisodeRequest = false,
   episode,
 }: {
   slug: string;
-  episodeNumbers: number[];
+  titleName: string;
+  playableEpisodeNumbers: number[];
   sourceGroups: WatchSourceGroup[];
   requestedSourceKey?: string;
   currentNumber: number;
+  playbackPresentation: PlaybackPresentation;
+  navigationDegraded?: boolean;
+  invalidEpisodeRequest?: boolean;
   episode: WatchEpisode;
 }) {
   const { t } = useI18n();
   const router = useRouter();
+  const singlePlayback = playbackPresentation === "single";
   const playableSources = useMemo(
     () => episode.sources.filter((source) => source.playback_available),
     [episode.sources],
   );
-  const groups = useMemo<ViewSourceGroup[]>(() => {
-    if (sourceGroups.length) {
-      return sourceGroups.map((group) => ({ ...group, coverage_known: true }));
-    }
-    const fallback = new Map<string, ViewSourceGroup>();
-    for (const source of playableSources) {
-      if (!source.selection_key || fallback.has(source.selection_key)) continue;
-      fallback.set(source.selection_key, {
-        key: source.selection_key,
-        name: source.name,
-        kind: source.kind,
-        provider_name: source.provider_name ?? "",
-        provider_variant_id: source.provider_variant_id,
-        episodes_count: 1,
-        episode_numbers: [currentNumber],
-        popularity_percent: 0,
-        coverage_known: false,
-      });
-    }
-    return [...fallback.values()];
-  }, [currentNumber, playableSources, sourceGroups]);
+  const playableSourceKeys = useMemo(
+    () => playableSources.map((source) => source.selection_key).filter(Boolean),
+    [playableSources],
+  );
+  const groups = useMemo(
+    () => mergeCurrentWatchSourceGroups(
+      sourceGroups,
+      playableSources,
+      currentNumber,
+      singlePlayback,
+    ),
+    [currentNumber, playableSources, singlePlayback, sourceGroups],
+  );
   const requestedGroup = resolveRequestedGroupKey(groups, requestedSourceKey);
   const preferredKey = requestedGroup?.key
     ?? firstRankedPlayableGroupKey(
       groups,
-      playableSources.map((source) => source.selection_key),
+      playableSourceKeys,
       currentNumber,
     );
   const [selectedGroupKey, setSelectedGroupKey] = useState(preferredKey);
   const [episodeQuery, setEpisodeQuery] = useState("");
+  const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
   const [voiceOptionsOpen, setVoiceOptionsOpen] = useState(false);
+  const [episodeDialogMounted, setEpisodeDialogMounted] = useState(false);
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileVoiceTriggerRef = useRef<HTMLButtonElement>(null);
@@ -145,37 +154,38 @@ export function WatchSpace({
     setSelectedGroupKey(preferredKey);
   }, [currentNumber, preferredKey]);
 
-  useEffect(() => {
-    if (!requestedGroup?.legacy) return;
-    // Selection is already resolved locally; a server navigation here can cancel playback loading.
-    window.history.replaceState(
-      window.history.state,
-      "",
-      titleWatchHref(slug, currentNumber, requestedGroup.key),
-    );
-  }, [currentNumber, requestedGroup?.key, requestedGroup?.legacy, slug]);
-
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? null;
   const selectedSources = playableSources.filter(
     (source) => source.selection_key === selectedGroupKey,
   );
   const chosen = selectedSources[0] ?? null;
-  const allEpisodeNumbers = useMemo(
-    () => normalizeEpisodeNumbers(episodeNumbers),
-    [episodeNumbers],
+  const playableNumbers = useMemo(
+    () => normalizeEpisodeNumbers(playableEpisodeNumbers),
+    [playableEpisodeNumbers],
   );
   const availableNumbers = useMemo(
-    () => new Set(selectedGroup?.episode_numbers ?? allEpisodeNumbers),
-    [allEpisodeNumbers, selectedGroup],
+    () => new Set(selectedGroup?.episode_numbers ?? playableNumbers),
+    [playableNumbers, selectedGroup],
   );
   const currentIsAvailable = availableNumbers.has(currentNumber);
   const availableEpisodeNumbers = useMemo(
-    () => allEpisodeNumbers.filter((number) => availableNumbers.has(number)),
-    [allEpisodeNumbers, availableNumbers],
+    () => playableNumbers.filter((number) => availableNumbers.has(number)),
+    [playableNumbers, availableNumbers],
   );
-  const visibleEpisodeNumbers = useMemo(
+  const episodeRanges = useMemo(
+    () => episodeNumberRanges(availableEpisodeNumbers),
+    [availableEpisodeNumbers],
+  );
+  const currentRangeIndex = episodeRangeIndex(episodeRanges, currentNumber);
+  const searchedEpisodeNumbers = useMemo(
     () => filterEpisodeNumbers(availableEpisodeNumbers, episodeQuery),
     [availableEpisodeNumbers, episodeQuery],
+  );
+  const visibleEpisodeNumbers = useMemo(
+    () => episodeQuery
+      ? searchedEpisodeNumbers
+      : episodeRanges[selectedRangeIndex]?.numbers ?? [],
+    [episodeQuery, episodeRanges, searchedEpisodeNumbers, selectedRangeIndex],
   );
   const previousNumber = availableEpisodeNumbers.filter((number) => number < currentNumber).at(-1);
   const nextNumber = availableEpisodeNumbers.find((number) => number > currentNumber);
@@ -183,8 +193,33 @@ export function WatchSpace({
     ? cleanSourceName(selectedGroup.name, selectedGroup.provider_name)
     : "";
   const selectedCoverageSummary = selectedGroup
-    ? coverageCopy(selectedGroup, allEpisodeNumbers.length, t).summary
+    ? singlePlayback
+      ? t(`watch.voiceGroup.${voiceSection(selectedGroup.kind)}`)
+      : coverageCopy(selectedGroup, playableNumbers.length, t).summary
     : "";
+  const invalidVoiceRequest = Boolean(requestedSourceKey && !requestedGroup);
+
+  useEffect(() => {
+    setSelectedRangeIndex(currentRangeIndex);
+  }, [currentRangeIndex, selectedGroupKey]);
+
+  useEffect(() => {
+    if (!invalidEpisodeRequest && !invalidVoiceRequest && !requestedGroup?.legacy) return;
+    // Normalize invalid and legacy UI state without a redirect or a second
+    // server navigation that could interrupt playback.
+    window.history.replaceState(
+      window.history.state,
+      "",
+      titleWatchHref(slug, currentNumber, selectedGroupKey),
+    );
+  }, [
+    currentNumber,
+    invalidEpisodeRequest,
+    invalidVoiceRequest,
+    requestedGroup?.legacy,
+    selectedGroupKey,
+    slug,
+  ]);
 
   useEffect(() => {
     if (
@@ -197,7 +232,7 @@ export function WatchSpace({
     const list = episodeRailContentRef.current;
     const item = currentEpisodeRef.current;
     list.scrollTop = Math.max(0, item.offsetTop - (list.clientHeight - item.clientHeight) / 2);
-  }, [currentNumber, episodeQuery, selectedGroupKey, voiceOptionsOpen]);
+  }, [currentNumber, episodeQuery, selectedGroupKey, selectedRangeIndex, voiceOptionsOpen]);
 
   useEffect(() => {
     if (!voiceOptionsOpen) return;
@@ -210,6 +245,12 @@ export function WatchSpace({
     window.addEventListener("keydown", closeVoiceOptions);
     return () => window.removeEventListener("keydown", closeVoiceOptions);
   }, [voiceOptionsOpen]);
+
+  useEffect(() => {
+    if (!episodeDialogMounted || !episodeDialogRef.current) return;
+    episodeDialogRef.current.showModal();
+    requestAnimationFrame(() => episodeDialogSearchRef.current?.focus());
+  }, [episodeDialogMounted]);
 
   function chooseGroup(key: string) {
     setSelectedGroupKey(key);
@@ -239,17 +280,19 @@ export function WatchSpace({
   }
 
   function openEpisodeChooser() {
+    if (!availableEpisodeNumbers.length) return;
     if (window.matchMedia("(max-width: 860px)").matches) {
       setVoiceOptionsOpen(false);
-      episodeDialogRef.current?.showModal();
-      requestAnimationFrame(() => episodeDialogSearchRef.current?.focus());
+      setEpisodeDialogMounted(true);
       return;
     }
     episodeRailSearchRef.current?.focus();
     episodeRailSearchRef.current?.select();
   }
 
-  const playerTitle = `${selectedName || t("watch.noVoice")} · ${t("episode.number", { number: currentNumber })}`;
+  const playerTitle = singlePlayback
+    ? `${titleName} · ${selectedName || t("watch.noVoice")}`
+    : `${selectedName || t("watch.noVoice")} · ${t("episode.number", { number: currentNumber })}`;
   const player = chosen?.playback_mode === "iframe_embed" ? (
     <ProviderPlayer
       key={chosen.id}
@@ -267,15 +310,17 @@ export function WatchSpace({
           playbackMode={chosen.playback_mode}
           slug={slug}
           episodeNumber={currentNumber}
-          label={t("watch.playEpisode", { number: currentNumber })}
+          label={singlePlayback ? t("watch.title") : t("watch.playEpisode", { number: currentNumber })}
           className={styles.playerLaunch}
         />
       </div>
     </section>
   ) : (
     <div className={styles.watchEmpty}>
-      <strong>{t("watch.noPlayer")}</strong>
-      <span>{t("watch.chooseAvailableEpisode")}</span>
+      <strong>{groups.length ? t("watch.noPlayer") : t("watch.noPlayableTitle")}</strong>
+      <span>{groups.length && !singlePlayback
+        ? t("watch.chooseAvailableEpisode")
+        : t("watch.noPlayableText")}</span>
     </div>
   );
 
@@ -296,12 +341,30 @@ export function WatchSpace({
     );
   });
 
+  const episodeRangeControl = (id: string) => episodeRanges.length > 1 && !episodeQuery ? (
+    <label className={styles.episodeRangeField} htmlFor={id}>
+      <span>{t("watch.episodeRange")}</span>
+      <select
+        id={id}
+        value={selectedRangeIndex}
+        onChange={(event) => setSelectedRangeIndex(Number(event.target.value))}
+      >
+        {episodeRanges.map((range, index) => (
+          <option value={index} key={`${range.first}-${range.last}`}>
+            {t("watch.episodeRangeOption", { first: range.first, last: range.last })}
+          </option>
+        ))}
+      </select>
+    </label>
+  ) : null;
+
   const voiceOptions = (id: string) => (
     <section id={id} className={styles.inlineVoicePanel} aria-label={t("watch.voiceOptionsTitle")}>
       <h4>{t("watch.voiceOptionsTitle")}</h4>
       <div className={styles.inlineVoiceOptions}>
         {groups.map((group) => {
-          const coverage = coverageCopy(group, allEpisodeNumbers.length, t);
+          const coverage = coverageCopy(group, playableNumbers.length, t);
+          const kind = t(`watch.voiceGroup.${voiceSection(group.kind)}`);
           const selected = group.key === selectedGroupKey;
           return (
             <button
@@ -313,11 +376,11 @@ export function WatchSpace({
             >
               <span className={styles.voiceOptionCopy}>
                 <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
-                <small>{t("watch.voiceOptionMeta", {
-                  kind: t(`watch.voiceGroup.${voiceSection(group.kind)}`),
+                <small>{singlePlayback ? kind : t("watch.voiceOptionMeta", {
+                  kind,
                   coverage: coverage.summary,
                 })}</small>
-                {coverage.detail && <small>{coverage.detail}</small>}
+                {!singlePlayback && coverage.detail && <small>{coverage.detail}</small>}
               </span>
               {selected && <Check className={styles.voiceSelectedIcon} aria-hidden="true" weight="bold" />}
             </button>
@@ -330,11 +393,29 @@ export function WatchSpace({
 
   return (
     <div className={styles.watchLayout}>
+      {(invalidEpisodeRequest || invalidVoiceRequest || navigationDegraded) && (
+        <div className={styles.watchNotices}>
+          {invalidEpisodeRequest && (
+            <p className={styles.watchNotice} role="status">
+              {t("watch.episodeRequestCorrected", { number: currentNumber })}
+            </p>
+          )}
+          {invalidVoiceRequest && (
+            <p className={styles.watchNotice} role="status">{t("watch.voiceRequestCorrected")}</p>
+          )}
+          {navigationDegraded && (
+            <p className={styles.watchNotice} role="status">
+              <span>{t("watch.navigationUnavailable")}</span>
+              <button type="button" onClick={() => router.refresh()}>{t("common.retry")}</button>
+            </p>
+          )}
+        </div>
+      )}
       <div className={styles.watchStage}>
         <div className={styles.watchPlayer}>{player}</div>
 
         <nav className={styles.watchControls} aria-label={t("watch.navigation")}>
-          {previousNumber !== undefined ? (
+          {!singlePlayback && (previousNumber !== undefined ? (
             <Link
               className={styles.episodeStep}
               href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
@@ -347,23 +428,21 @@ export function WatchSpace({
             <span className={styles.episodeStep} aria-disabled="true">
               <CaretLeft aria-hidden="true" weight="bold" />
             </span>
-          )}
+          ))}
 
-          <button
+          {!singlePlayback && <button
             ref={episodeTriggerRef}
             className={styles.currentEpisodeButton}
             type="button"
-            aria-haspopup="dialog"
+            aria-haspopup={availableEpisodeNumbers.length ? "dialog" : undefined}
+            disabled={!availableEpisodeNumbers.length}
             onClick={openEpisodeChooser}
           >
-            <strong>{t("watch.episodeCounter", {
-              number: currentNumber,
-              total: allEpisodeNumbers.length,
-            })}</strong>
-            <span>{t("watch.chooseEpisode")}</span>
-          </button>
+            <strong>{t("episode.number", { number: currentNumber })}</strong>
+            <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
+          </button>}
 
-          {nextNumber !== undefined ? (
+          {!singlePlayback && (nextNumber !== undefined ? (
             <Link
               className={styles.episodeStep}
               href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
@@ -376,7 +455,7 @@ export function WatchSpace({
             <span className={styles.episodeStep} aria-disabled="true">
               <CaretRight aria-hidden="true" weight="bold" />
             </span>
-          )}
+          ))}
 
           <button
             ref={mobileVoiceTriggerRef}
@@ -390,10 +469,12 @@ export function WatchSpace({
             <SpeakerHigh aria-hidden="true" weight="bold" />
             <span>
               <small>{selectedGroup
-                ? t("watch.voiceTriggerMeta", {
-                  label: t("watch.voiceShort"),
-                  coverage: selectedCoverageSummary,
-                })
+                ? singlePlayback
+                  ? selectedCoverageSummary
+                  : t("watch.voiceTriggerMeta", {
+                    label: t("watch.voiceShort"),
+                    coverage: selectedCoverageSummary,
+                  })
                 : t("watch.voiceShort")}</small>
               <strong>{selectedName || t("watch.noVoice")}</strong>
             </span>
@@ -406,14 +487,20 @@ export function WatchSpace({
             </div>
           )}
 
-          {!currentIsAvailable && selectedGroup && (
+          {!singlePlayback && !currentIsAvailable && selectedGroup && (
             <p className={styles.watchWarning} role="status">
               {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
             </p>
           )}
         </nav>
 
-        <aside className={styles.episodeRail} aria-label={t("watch.navigation")}>
+        <aside className={styles.episodeRail} aria-label={singlePlayback ? t("watch.voiceOptionsTitle") : t("watch.navigation")}>
+          {singlePlayback ? (
+            <div ref={episodeRailContentRef} className={styles.episodeRailContent}>
+              {voiceOptions("watch-voice-options-desktop")}
+            </div>
+          ) : (
+            <>
           <div className={styles.episodeRailHeader}>
             <button
               ref={railVoiceTriggerRef}
@@ -433,7 +520,7 @@ export function WatchSpace({
             </button>
           </div>
 
-          {!voiceOptionsOpen && (
+          {!voiceOptionsOpen && availableEpisodeNumbers.length > 0 && (
             <div className={styles.episodeRailTools}>
               {previousNumber !== undefined ? (
                 <Link
@@ -493,6 +580,7 @@ export function WatchSpace({
                   <h3>{t("title.episodes")}</h3>
                   <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
                 </div>
+                {episodeRangeControl("watch-episode-range")}
                 <ol className={styles.episodeRailList}>{episodeList()}</ol>
                 {!visibleEpisodeNumbers.length && (
                   <p className={styles.episodeSearchEmpty} role="status">{t("watch.episodeSearchEmpty")}</p>
@@ -500,16 +588,21 @@ export function WatchSpace({
               </>
             )}
           </div>
+            </>
+          )}
         </aside>
 
-        <dialog
+        {!singlePlayback && availableEpisodeNumbers.length > 0 && episodeDialogMounted && <dialog
           ref={episodeDialogRef}
           className={styles.watchDialog}
           aria-labelledby="watch-episode-dialog-title"
           onClick={(event) => {
             if (event.currentTarget === event.target) episodeDialogRef.current?.close();
           }}
-          onClose={() => episodeTriggerRef.current?.focus()}
+          onClose={() => {
+            setEpisodeDialogMounted(false);
+            episodeTriggerRef.current?.focus();
+          }}
         >
           <div className={styles.dialogPanel}>
             <header className={styles.dialogHeader}>
@@ -534,13 +627,26 @@ export function WatchSpace({
                 onChange={(event) => setEpisodeQuery(event.target.value)}
               />
             </form>
+            {episodeRangeControl("watch-episode-dialog-range")}
             <ol className={styles.dialogEpisodeList}>{episodeList(true)}</ol>
             {!visibleEpisodeNumbers.length && (
               <p className={styles.episodeSearchEmpty} role="status">{t("watch.episodeSearchEmpty")}</p>
             )}
           </div>
-        </dialog>
+        </dialog>}
 
+      </div>
+
+      <div className={styles.watchUtilityBar} aria-label={t(singlePlayback ? "watch.titleActions" : "watch.episodeActions")}>
+        <EpisodeProgressControl
+          slug={slug}
+          number={currentNumber}
+          compact
+          recordOnMount={false}
+          singlePlayback={singlePlayback}
+          className={styles.watchProgress}
+        />
+        {chosen && <SourceReportControl sourceId={chosen.id} key={chosen.id} />}
       </div>
 
       {episode.synopsis && <p className={styles.watchSynopsis}>{episode.synopsis}</p>}

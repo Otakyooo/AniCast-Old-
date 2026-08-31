@@ -21,6 +21,11 @@ MAX_EVENT_ATTEMPTS = 3
 DIGEST_MAX_LINES = 25
 
 
+def title_watch_path(slug: str, episode_number: int) -> str:
+    """Return the canonical title-page playback URL for an episode."""
+    return f"/titles/{slug}?episode={episode_number}#watch"
+
+
 @shared_task
 def dispatch_episode_notifications():
     if not settings.TELEGRAM_NOTIFY_BOT_TOKEN:
@@ -47,17 +52,18 @@ def dispatch_episode_notifications():
             language = subscription.user.preferred_language
             title_name = translated_value_for_language(episode.title, "name", language)
             episode_name = translated_value_for_language(episode, "name", language)
+            watch_url = f"{SITE_BASE_URL}{title_watch_path(episode.title.slug, episode.number)}"
             if language == "en":
                 message = (
                     f"New AniCast episode\n\n{title_name} — episode {episode.number}"
                     f"{f' · {episode_name}' if episode_name else ''}\n"
-                    f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}"
+                    f"{watch_url}"
                 )
             else:
                 message = (
                     f"Новый эпизод AniCast\n\n{title_name} — эпизод {episode.number}"
                     f"{f' · {episode_name}' if episode_name else ''}\n"
-                    f"https://anicast.online/titles/{episode.title.slug}/episodes/{episode.number}"
+                    f"{watch_url}"
                 )
             delivery.attempts += 1
             send_error: Exception | None = None
@@ -207,7 +213,7 @@ def notify_report_handled(report) -> None:
     episode = report.source.episode
     enqueue_event_notification(
         report.reporter, kind, context=report.source.name,
-        url_path=f"/titles/{episode.title.slug}/episodes/{episode.number}/",
+        url_path=title_watch_path(episode.title.slug, episode.number),
     )
 
 

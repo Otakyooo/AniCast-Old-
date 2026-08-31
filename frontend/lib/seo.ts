@@ -51,6 +51,10 @@ export function titleSchemaType(titleType?: string | null) {
   return titleType === "movie" ? "Movie" : "TVSeries";
 }
 
+export function titleOpenGraphType(titleType?: string | null) {
+  return titleType === "movie" ? "video.movie" as const : "video.tv_show" as const;
+}
+
 export function websiteJsonLd(locale: Locale) {
   return {
     "@context": "https://schema.org",

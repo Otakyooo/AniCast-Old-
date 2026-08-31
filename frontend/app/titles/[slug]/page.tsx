@@ -31,7 +31,8 @@ import {
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { hasCharacterArt } from "../../../lib/character-image";
 import { titleRating } from "../../../lib/rating";
-import { titleSchemaType, titleWatchHref } from "../../../lib/seo";
+import { NO_INDEX_ROBOTS, titleOpenGraphType, titleSchemaType, titleWatchHref } from "../../../lib/seo";
+import { resolveTitleEpisodeRequest, titleTemplateState } from "../../../lib/title-template";
 import { getI18n } from "../../../i18n/server";
 import { intlLocale } from "../../../i18n/config";
 import styles from "../title.module.css";
@@ -60,7 +61,12 @@ export async function generateMetadata({
     // unavailable state. The page component owns the 404: notFound() inside
     // generateMetadata races the render and can answer 200.
     if (apiErrorStatus(error) === 404) return { title: t("title.notFound") };
-    return { title: "AniCast", description: t("meta.description") };
+    return {
+      title: "AniCast",
+      description: t("meta.description"),
+      alternates: { canonical: `/titles/${encodeURIComponent(slug)}` },
+      robots: NO_INDEX_ROBOTS,
+    };
   }
 
   const description = metaDescription(item.synopsis, t("meta.description"));
@@ -69,7 +75,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: `/titles/${item.slug}` },
     openGraph: {
-      type: "video.tv_show",
+      type: titleOpenGraphType(item.title_type),
       url: `/titles/${item.slug}`,
       siteName: "AniCast",
       title: item.name,
@@ -86,6 +92,7 @@ export async function generateMetadata({
 
 /** schema.org TVSeries payload for rich search results. */
 function TitleJsonLd({ item }: { item: CatalogItem }) {
+  const template = titleTemplateState(item.title_type, item.episodes_count);
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": titleSchemaType(item.title_type),
@@ -98,7 +105,7 @@ function TitleJsonLd({ item }: { item: CatalogItem }) {
   if (item.poster_url) data.image = absoluteUrl(item.poster_url);
   if (item.year) data.datePublished = String(item.year);
   if (item.genres?.length) data.genre = item.genres.map((genre) => genre.name);
-  if (item.episodes_count) data.numberOfEpisodes = item.episodes_count;
+  if (template.structuredEpisodeCount) data.numberOfEpisodes = template.structuredEpisodeCount;
   if (item.rating_average && item.rating_count) {
     data.aggregateRating = {
       "@type": "AggregateRating",
@@ -207,12 +214,15 @@ export default async function CatalogDetailPage({
   const charactersPage = Number.isInteger(rawCharactersPage) && rawCharactersPage > 0 ? rawCharactersPage : 1;
   // An existing `?episodes_page=` link must still land on the episode list, so
   // pagination implies the episodes tab when no explicit tab is requested.
-  const tab: Tab = isTab(query.tab) ? query.tab : query.episodes_page ? "episodes" : "overview";
-  const characterPayloadPage = tab === "characters" ? charactersPage : 1;
-  const characterPayloadSize = tab === "characters" ? 60 : tab === "overview" ? 8 : 1;
+  const requestedTab: Tab = isTab(query.tab) ? query.tab : query.episodes_page ? "episodes" : "overview";
+  const characterPayloadPage = requestedTab === "characters" ? charactersPage : 1;
+  // A movie episode tab is normalized to Overview after the title type is
+  // known, so keep enough overview cast in that response.
+  const characterPayloadSize = requestedTab === "characters"
+    ? 60
+    : requestedTab === "overview" || requestedTab === "episodes" ? 8 : 1;
 
   let item;
-  let episodesPage = requestedPage;
   try {
     item = await getCatalogItemEpisodes(
       slug, requestedPage, 20, characterPayloadPage, characterPayloadSize,
@@ -220,20 +230,25 @@ export default async function CatalogDetailPage({
   } catch (error) {
     if (apiErrorStatus(error) !== 404) return <ApiUnavailableState />;
     // The API answers 404 both for a missing title and for an episode page past
-    // the end. Retry the first page so an existing title still renders instead
-    // of claiming the title does not exist.
+    // the end. Probe the first page only to distinguish those cases.
     if (requestedPage === 1) notFound();
     try {
-      item = await getCatalogItemEpisodes(slug, 1, 20, 1, characterPayloadSize);
-      episodesPage = 1;
+      await getCatalogItemEpisodes(slug, 1, 1, 1, 1);
     } catch (retryError) {
       if (apiErrorStatus(retryError) === 404) notFound();
       return <ApiUnavailableState />;
     }
+    // The title exists but the requested episode-list page does not. Serving
+    // page one here would create a soft duplicate at an arbitrary URL.
+    notFound();
   }
 
   const episodes = item.episodes ?? [];
   const episodesCount = item.episodes_count ?? episodes.length;
+  const template = titleTemplateState(item.title_type, episodesCount);
+  const tab: Tab = requestedTab === "episodes" && !template.showEpisodeTab
+    ? "overview"
+    : requestedTab;
   const pageCount = Math.max(1, Math.ceil(episodesCount / 20));
   const genres = item.genres ?? [];
   const cast = item.characters ?? [];
@@ -249,29 +264,46 @@ export default async function CatalogDetailPage({
   const mainCast = cast
     .filter((entry) => entry.role === "protagonist" || entry.role === "antagonist")
     .slice(0, 8);
-  const [similar, firstEpisode] = await Promise.all([
+  const [similar, firstEpisode, loadedNavigation] = await Promise.all([
     tab === "overview" ? getSimilarTitles(slug) : Promise.resolve([]),
     // The hero action must point at the real first episode regardless of which
     // episode page the viewer is on, so it is resolved independently.
-    episodesPage === 1 && episodes.length
+    requestedPage === 1 && episodes.length
       ? Promise.resolve(Math.min(...episodes.map((episode) => episode.number)))
       : getFirstEpisodeNumber(slug),
+    episodesCount > 0 ? getWatchNavigation(slug).catch(() => null) : Promise.resolve(null),
   ]);
   let watchSpace: React.ReactNode = null;
+  let watchLoadFailed = false;
+  const navigationPlayableNumbers = loadedNavigation?.playable_episode_numbers
+    ?? loadedNavigation?.episode_numbers
+    ?? [];
+  let watchActionHref = tab !== "overview" && navigationPlayableNumbers.length
+    ? titleWatchHref(item.slug, navigationPlayableNumbers[0])
+    : undefined;
+  let watchRetryNumber = firstEpisode;
   if (tab === "overview" && episodesCount > 0 && firstEpisode !== null) {
-    const loadedNavigation = await getWatchNavigation(slug).catch(() => null);
     const navigation: WatchNavigation = loadedNavigation ?? {
-      episode_numbers: Array.from({ length: episodesCount }, (_, index) => index + 1),
+      episode_numbers: [],
       source_groups: [],
     };
-    const episodeNumbers = navigation.episode_numbers.length
-      ? navigation.episode_numbers
-      : Array.from({ length: episodesCount }, (_, index) => index + 1);
-    const fallbackNumber = Number(episodeNumbers[0] ?? firstEpisode);
-    const rawRequestedNumber = Number(query.episode);
-    let watchNumber = Number.isInteger(rawRequestedNumber) && rawRequestedNumber > 0
-      ? rawRequestedNumber
-      : fallbackNumber;
+    // The current detail page is a safe degraded fallback, but it is not a
+    // complete catalogue for long titles and therefore cannot validate gaps.
+    const catalogNumbersKnown = loadedNavigation?.catalog_episode_numbers !== undefined;
+    const catalogEpisodeNumbers = loadedNavigation?.catalog_episode_numbers
+      ?? episodes.map((episode) => episode.number);
+    const playableEpisodeNumbers = navigation.playable_episode_numbers
+      ?? navigation.episode_numbers;
+    const fallbackNumber = Number(playableEpisodeNumbers[0] ?? firstEpisode);
+    const resolvedRequest = resolveTitleEpisodeRequest(
+      template.playbackPresentation,
+      fallbackNumber,
+      query.episode,
+      catalogNumbersKnown ? catalogEpisodeNumbers : undefined,
+    );
+    let watchNumber = resolvedRequest.number;
+    let invalidEpisodeRequest = resolvedRequest.corrected;
+    watchRetryNumber = watchNumber;
 
     try {
       let watchEpisode;
@@ -280,31 +312,45 @@ export default async function CatalogDetailPage({
       } catch (error) {
         if (apiErrorStatus(error) !== 404 || watchNumber === fallbackNumber) throw error;
         watchNumber = fallbackNumber;
+        watchRetryNumber = fallbackNumber;
+        invalidEpisodeRequest = true;
         watchEpisode = await getEpisode(slug, fallbackNumber);
       }
-      // Metadata-only episodes are intentionally absent from watch-navigation.
-      // Keep an explicitly requested real episode visible so the player shows
-      // its honest unavailable state instead of silently opening another one.
-      const visibleEpisodeNumbers = episodeNumbers.includes(watchNumber)
-        ? episodeNumbers
-        : [...episodeNumbers, watchNumber].sort((left, right) => left - right);
+      const hasCurrentPlayback = (watchEpisode.sources ?? []).some((source) => source.playback_available);
+      const playableWithoutCurrent = playableEpisodeNumbers.filter((number) => number !== watchNumber);
+      const resolvedPlayableNumbers = hasCurrentPlayback
+        ? [...playableWithoutCurrent, watchNumber].sort((left, right) => left - right)
+        : playableWithoutCurrent;
+      // Metadata-only episodes remain part of the catalogue but never become
+      // available player destinations.
+      // Presentation belongs to the title template, not to today's provider
+      // coverage. An airing series with one playable episode must not turn
+      // into a movie and then change its layout after the next release.
+      const playbackPresentation = template.playbackPresentation;
       watchSpace = (
         <WatchSpace
           slug={slug}
-          episodeNumbers={visibleEpisodeNumbers}
+          titleName={item.name}
+          playableEpisodeNumbers={resolvedPlayableNumbers}
           sourceGroups={navigation.source_groups}
           requestedSourceKey={query.voice}
           currentNumber={watchNumber}
+          playbackPresentation={playbackPresentation}
+          navigationDegraded={!loadedNavigation}
+          invalidEpisodeRequest={invalidEpisodeRequest}
           episode={{
             synopsis: watchEpisode.synopsis,
             sources: watchEpisode.sources ?? [],
           }}
         />
       );
+      watchActionHref = hasCurrentPlayback
+        ? "#watch"
+        : resolvedPlayableNumbers.length
+          ? titleWatchHref(item.slug, resolvedPlayableNumbers[0])
+          : undefined;
     } catch {
-      // Keep the title usable when playback data is temporarily unavailable.
-      // Episode details remain available while the embedded player can retry
-      // on the next request.
+      watchLoadFailed = true;
     }
   }
   const rating = titleRating(item);
@@ -378,7 +424,7 @@ export default async function CatalogDetailPage({
               {item.status ? t(`status.${item.status}`) : t("status.unknown")}
             </span>
             <span>{item.year ?? t("title.yearUnknown")}</span>
-            <span>{episodesCount ? t("title.episodesCount", { count: episodesCount }) : t("title.episodesUnknown")}</span>
+            {template.showEpisodeCount && <span>{t("title.episodesCount", { count: episodesCount })}</span>}
             {item.duration_minutes ? <span>{t("title.durationValue", { minutes: item.duration_minutes })}</span> : null}
           </div>
           {genres.length > 0 && (
@@ -391,12 +437,12 @@ export default async function CatalogDetailPage({
         </div>
         <TitleActions
           slug={item.slug}
-          watchHref={watchSpace ? "#watch" : firstEpisode !== null ? titleWatchHref(item.slug, firstEpisode) : undefined}
+          watchHref={watchActionHref}
         />
       </article>
 
       <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
-        {TABS.map((value) => (
+        {TABS.filter((value) => value !== "episodes" || template.showEpisodeTab).map((value) => (
           <Link
             className={`${styles.tab} ${value === tab ? styles.tabActive : ""}`}
             href={tabHref(value)}
@@ -412,10 +458,24 @@ export default async function CatalogDetailPage({
 
       {tab === "overview" && (
         <div className={styles.panel}>
-          {watchSpace && (
+          {(watchSpace || watchLoadFailed || episodesCount === 0) && (
             <section className={styles.watchSection} id="watch">
               <h2>{t("watch.title")}</h2>
-              {watchSpace}
+              {watchSpace ?? (
+                <div className={styles.watchAvailability} role={watchLoadFailed ? "alert" : "status"}>
+                  <strong>{watchLoadFailed
+                    ? t("watch.loadFailed")
+                    : t("watch.noEpisodesTitle")}</strong>
+                  <span>{watchLoadFailed
+                    ? t("watch.loadFailedText")
+                    : item.status === "planned" ? t("watch.noEpisodesPlanned") : t("watch.noEpisodesText")}</span>
+                  {watchLoadFailed && watchRetryNumber !== null && (
+                    <Link className="secondary inline-button" href={titleWatchHref(item.slug, watchRetryNumber)}>
+                      {t("common.retry")}
+                    </Link>
+                  )}
+                </div>
+              )}
             </section>
           )}
           {item.synopsis && (
@@ -489,14 +549,14 @@ export default async function CatalogDetailPage({
           )}
           {pageCount > 1 && (
             <nav className="episode-pagination" aria-label={t("title.episodes")}>
-              {episodesPage > 1 && (
-                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${episodesPage - 1}`}>
+              {requestedPage > 1 && (
+                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${requestedPage - 1}`}>
                   {t("common.back")}
                 </Link>
               )}
-              <span>{t("catalog.page", { current: episodesPage, total: pageCount })}</span>
-              {episodesPage < pageCount && (
-                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${episodesPage + 1}`}>
+              <span>{t("catalog.page", { current: requestedPage, total: pageCount })}</span>
+              {requestedPage < pageCount && (
+                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${requestedPage + 1}`}>
                   {t("common.next")}
                 </Link>
               )}

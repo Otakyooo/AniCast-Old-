@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  episodeNumberRanges,
+  episodeRangeIndex,
   filterEpisodeNumbers,
   firstRankedPlayableGroupKey,
+  mergeCurrentWatchSourceGroups,
   normalizeEpisodeNumbers,
   resolveRequestedGroupKey,
   voiceSection,
@@ -13,6 +16,85 @@ test("episode navigation normalizes provider data and jumps by number prefix", (
   assert.deepEqual(filterEpisodeNumbers([1, 12, 120, 121, 212], "12"), [12, 120, 121]);
   assert.deepEqual(filterEpisodeNumbers([1, 12, 120], "episode 120"), [120]);
   assert.deepEqual(filterEpisodeNumbers([1, 2], "no number"), []);
+});
+
+test("long episode lists are split into stable bounded ranges", () => {
+  const numbers = [3, 1, 2, ...Array.from({ length: 205 }, (_, index) => index + 4)];
+  const ranges = episodeNumberRanges(numbers, 100);
+  assert.deepEqual(ranges.map(({ first, last, numbers: rangeNumbers }) => ({
+    first,
+    last,
+    count: rangeNumbers.length,
+  })), [
+    { first: 1, last: 100, count: 100 },
+    { first: 101, last: 200, count: 100 },
+    { first: 201, last: 208, count: 8 },
+  ]);
+  assert.equal(episodeRangeIndex(ranges, 150), 1);
+  assert.equal(episodeRangeIndex(ranges, 999), 2);
+});
+
+test("episode ranges preserve gaps and reject invalid range sizes", () => {
+  const ranges = episodeNumberRanges([1, 3, 7], 0);
+  assert.deepEqual(ranges, [{ first: 1, last: 7, numbers: [1, 3, 7] }]);
+  assert.equal(episodeRangeIndex(ranges, 2), 0);
+  assert.equal(episodeRangeIndex([], 1), 0);
+});
+
+test("current episode sources repair a stale cached voice matrix", () => {
+  const groups = [
+    {
+      key: "dub:1",
+      name: "Old name",
+      kind: "dub",
+      provider_name: "Provider",
+      episodes_count: 2,
+      episode_numbers: [1, 2],
+      popularity_percent: 90,
+    },
+    {
+      key: "stale:3",
+      name: "Stale option",
+      kind: "dub",
+      provider_name: "Provider",
+      episodes_count: 2,
+      episode_numbers: [3, 4],
+      popularity_percent: 5,
+    },
+  ];
+  const currentSources = [{
+    id: 10,
+    name: "Current name",
+    kind: "dub",
+    selection_key: "dub:1",
+    availability: "available",
+    is_available: true,
+    playback_available: true,
+  }, {
+    id: 11,
+    name: "Fresh option",
+    kind: "sub",
+    selection_key: "sub:2",
+    availability: "available",
+    is_available: true,
+    playback_available: true,
+  }];
+
+  const merged = mergeCurrentWatchSourceGroups(groups, currentSources, 3);
+  assert.deepEqual(merged.map((group) => ({
+    key: group.key,
+    name: group.name,
+    numbers: group.episode_numbers,
+    known: group.coverage_known,
+  })), [
+    { key: "dub:1", name: "Current name", numbers: [1, 2, 3], known: true },
+    { key: "stale:3", name: "Stale option", numbers: [4], known: true },
+    { key: "sub:2", name: "Fresh option", numbers: [3], known: false },
+  ]);
+  assert.deepEqual(
+    mergeCurrentWatchSourceGroups(groups, currentSources.slice(1), 3, true).map((group) => group.key),
+    ["sub:2"],
+  );
 });
 
 test("voice kinds produce concise inline type labels", () => {

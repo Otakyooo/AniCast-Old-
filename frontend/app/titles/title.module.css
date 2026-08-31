@@ -564,6 +564,21 @@
 .watchSection { display: grid; gap: 14px; min-width: 0; scroll-margin-top: 88px }
 .watchSection > h2 { margin: 0; font-size: 22px }
 
+.watchAvailability {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-height: 150px;
+  align-content: center;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-card);
+  color: var(--muted);
+}
+
+.watchAvailability strong { color: var(--text) }
+
 .relatedRail {
   display: grid;
   grid-auto-flow: column;
@@ -634,6 +649,35 @@
   padding-bottom: 28px;
 }
 
+.watchNotices { display: grid; gap: 7px }
+
+.watchNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--warning-border-subtle);
+  border-radius: 9px;
+  background: var(--warning-soft-subtle);
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.watchNotice button {
+  padding: 5px 8px;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .watchSynopsis {
   max-width: 820px;
   margin: -2px 0 0;
@@ -641,6 +685,30 @@
   font-size: 14px;
   line-height: 1.65;
 }
+
+.watchUtilityBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  width: min(100%, 1200px);
+  margin: -8px auto 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-card);
+}
+
+.watchProgress {
+  flex: 1 1 auto;
+  min-width: min(100%, 280px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.watchUtilityBar > form { flex: 1 1 100% }
 
 .watchWarning {
   margin: 0 8px 8px;
@@ -809,6 +877,12 @@
   cursor: pointer;
 }
 
+.currentEpisodeButton:disabled {
+  color: var(--muted-2);
+  cursor: not-allowed;
+  opacity: .62;
+}
+
 .currentEpisodeButton {
   display: grid;
   gap: 2px;
@@ -845,7 +919,7 @@
 .voiceTrigger:disabled { color: var(--muted-2); cursor: not-allowed; opacity: .62 }
 
 .episodeStep[href]:hover,
-.currentEpisodeButton:hover,
+.currentEpisodeButton:hover:not(:disabled),
 .voiceTrigger:hover:not(:disabled),
 .dialogHeader button:hover {
   border-color: var(--primary);
@@ -860,7 +934,9 @@
 .dialogEpisodeList a:focus-visible,
 .inlineVoiceOptions button:focus-visible,
 .dialogHeader button:focus-visible,
-.episodeSearch input:focus-visible {
+.episodeSearch input:focus-visible,
+.episodeRangeField select:focus-visible,
+.watchNotice button:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -1021,6 +1097,30 @@
 .episodeSearch input::placeholder { color: var(--muted-2) }
 .episodeSearch input:hover { border-color: var(--primary) }
 
+.episodeRangeField {
+  display: grid;
+  gap: 5px;
+  margin: 7px 10px 3px;
+}
+
+.episodeRangeField span {
+  color: var(--muted-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.episodeRangeField select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 32px 0 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 8px;
+  background: var(--surface-control);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
 .episodeRailList,
 .dialogEpisodeList {
   position: relative;
@@ -1130,6 +1230,7 @@
 
 .dialogHeader button svg { width: 19px; height: 19px }
 .dialogPanel > .episodeSearch { margin: 14px 14px 6px }
+.dialogPanel > .episodeRangeField { margin-inline: 14px }
 .dialogEpisodeList { gap: 2px; flex: 1; padding: 8px 14px 14px }
 
 .inlineVoicePanel {
@@ -1219,6 +1320,13 @@
   }
 
   .mobileVoicePanel .inlineVoicePanel h4 { padding: 10px 2px 2px }
+
+  .mobileVoicePanel .inlineVoiceOptions {
+    max-height: min(52dvh, 420px);
+    overflow-y: auto;
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
+  }
 
   .watchDialog {
     inset: auto 0 0;

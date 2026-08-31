@@ -13,6 +13,7 @@ import {
   weekDays,
   type ScheduleStatus,
 } from "../lib/schedule";
+import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import { intlLocale } from "../i18n/config";
 import styles from "../app/schedule/schedule.module.css";
@@ -208,7 +209,7 @@ export function ScheduleBoard({
             const hasTime = moment !== null && !Number.isNaN(moment.getTime());
             return (
               <li key={item.id}>
-                <Link className={styles.episode} href={`/titles/${item.title.slug}/episodes/${item.number}`}>
+                <Link className={styles.episode} href={titleWatchHref(item.title.slug, item.number)}>
                   <span className={styles.poster}>
                     {item.title.poster_url ? (
                       <Image

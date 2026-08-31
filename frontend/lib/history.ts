@@ -49,6 +49,14 @@ export function recordEpisodeOpen(slug: string, number: number) {
   return mutateProgress(slug, number, { method: "POST" });
 }
 
+export async function getEpisodeProgress(slug: string, number: number, signal?: AbortSignal) {
+  return parse<EpisodeProgress>(await fetch(`/api/v1/episodes/${encodeURIComponent(slug)}/${number}/progress/`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    signal,
+  }));
+}
+
 export function setEpisodeWatched(slug: string, number: number, isWatched: boolean) {
   return mutateProgress(slug, number, { method: "PUT", body: JSON.stringify({ is_watched: isWatched }) });
 }

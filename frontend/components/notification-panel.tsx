@@ -13,6 +13,7 @@ import {
   type DeliveryItem,
   type SubscriptionItem,
 } from "../lib/notifications";
+import { titleWatchHref } from "../lib/seo";
 import styles from "../app/notifications.module.css";
 import { useI18n } from "./i18n-provider";
 
@@ -108,7 +109,7 @@ export function NotificationPanel({ botUsername }: { botUsername?: string }) {
           <ul className={styles.list}>
             {deliveries.map(item => (
               <li key={`${item.title.slug}-${item.episode_number}`} className={styles.listItem}>
-                <Link href={`/titles/${item.title.slug}/episodes/${item.episode_number}`}>{item.title.name}</Link>
+                <Link href={titleWatchHref(item.title.slug, item.episode_number)}>{item.title.name}</Link>
                 <span>
                   {t("notifications.deliveryEpisode", { number: item.episode_number })} · {t(`notifications.status.${item.status}`)} · {formatDay(item.sent_at ?? item.created_at)}
                 </span>

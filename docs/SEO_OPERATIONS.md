@@ -1,7 +1,7 @@
 # AniCast — SEO-процесс и технический контроль
 
-Версия: 1.0
-Дата: 27 августа 2026
+Версия: 1.1
+Дата: 31 августа 2026
 
 ## Цель
 
@@ -17,10 +17,10 @@ SEO для AniCast — это управляемый цикл «доступно
 | `/users/<public_id>` | `index, follow`, self-canonical | Только явно включённый публичный профиль с SSR-коллекциями и рецензиями |
 | Поиск, сортировка и фильтры `/catalog?...` | `noindex, follow`, canonical на `/catalog` | Не создавать индекс из комбинаций фасетов |
 | Архивные недели `/schedule?week=...` | `noindex, follow`, canonical на `/schedule` | Не создавать бесконечный календарь |
-| Playback-состояния `/titles/<slug>?episode=&voice=` | `index, follow`, canonical на чистый URL тайтла | Состояние встроенного плеера не создаёт отдельную посадочную страницу |
-| Отдельные эпизоды `/titles/<slug>/episodes/<number>` | `noindex, follow`, canonical на тайтл | Дублируют часть основной карточки тайтла |
+| Playback-состояния `/titles/<slug>?episode=N&voice=KEY#watch` | `index, follow`, canonical на чистый URL тайтла | Query и fragment управляют встроенным плеером, но не создают отдельную посадочную страницу |
+| Legacy HTML `/titles/<slug>/episodes/<number>` и `/titles/<slug>/watch` | HTTP 404 без redirect | Публичный UI-маршрут удалён; возвращать дубль или перенаправлять crawler на слабый URL не нужно |
 | Account, library, history, notes, settings, recommendations, auth, управление коллекциями | `X-Robots-Tag: noindex, follow` | Личные или служебные HTML-страницы |
-| `/api/`, `/staff`, `/auth` callbacks | `Disallow` в `robots.txt` | Служебные маршруты, не являющиеся посадочными |
+| `/api/`, `/staff`, `/auth` callbacks | `Disallow` в `robots.txt` | Служебные маршруты, не являющиеся посадочными; backend episode API остаётся доступен приложению, но не является HTML-страницей |
 
 `robots.txt` не используется как замена `noindex`: crawler должен получить HTML или HTTP-заголовок, чтобы удалить URL из индекса.
 
@@ -35,7 +35,8 @@ SEO для AniCast — это управляемый цикл «доступно
 5. личная страница возвращает `X-Robots-Tag: noindex, follow`;
 6. обычный missing route отвечает HTTP 404; вышедшая за диапазон пагинация не менее обязана отдавать `noindex` и canonical на базовый каталог;
 7. JSON-LD валиден и совпадает с видимым контентом;
-8. public smoke не показывает 5xx, firing alerts отсутствуют.
+8. query-состояние плеера сохраняет canonical на чистый тайтл, а legacy UI-маршруты отвечают 404 без redirect;
+9. public smoke не показывает 5xx, firing alerts отсутствуют.
 
 Минимальный smoke после production-деплоя:
 
@@ -44,6 +45,8 @@ curl -fsS https://anicast.online/robots.txt
 curl -fsS https://anicast.online/sitemap.xml >/dev/null
 curl -fsSI https://anicast.online/account | grep -i x-robots-tag
 curl -fsS https://anicast.online/titles/21-one-piece | grep -E 'canonical|application/ld\+json'
+curl -fsS 'https://anicast.online/titles/21-one-piece?episode=1&voice=invalid' | grep -E 'canonical|application/ld\+json'
+test "$(curl -sS -o /dev/null -w '%{http_code}' https://anicast.online/titles/21-one-piece/episodes/1)" = 404
 test "$(curl -sS -o /dev/null -w '%{http_code}' https://anicast.online/does-not-exist)" = 404
 ```
 
@@ -90,6 +93,7 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' https://anicast.online/does-not-
 - description — естественное резюме для человека, без перечисления вариантов одного ключа;
 - один отчётливый H1 соответствует основной сущности страницы;
 - structured data отражает только видимые и подтверждённые данные;
+- `numberOfEpisodes` публикуется только для episodic-шаблона; фильмы и другие одиночные единицы не получают завышенное значение из исторических provider-less part-строк;
 - тайтлы связываются с персонажами, похожими работами и каталогом обычными `<a href>`;
 - страницы без полезного содержимого не добавляются в sitemap.
 
@@ -101,6 +105,7 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' https://anicast.online/does-not-
 4. Добавлять `VideoObject` только при наличии публичных правомерных watch URL, thumbnail, duration/uploadDate и реально доступного видео.
 5. Подключить Search Console domain property через DNS и зафиксировать владельца процесса.
 6. Вынести проверку диапазона пагинации до streaming-рендера Next.js, чтобы soft-404 отвечал твёрдым HTTP 404; до этого он исключается из индекса мета-тегом.
+7. Нормализовать смешанную локальную/абсолютную нумерацию эпизодов отдельным dry-run процессом. Не удалять metadata-only строки автоматически: сначала отличить реальные будущие эпизоды и редакторские записи от импортных дублей.
 
 ## Ответственность
 

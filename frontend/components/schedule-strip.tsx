@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ScheduleItem } from "../lib/api";
 import { itemDayKey, localDayKey, MINUTE_MS, scheduleStatus } from "../lib/schedule";
+import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import { intlLocale } from "../i18n/config";
 import styles from "../app/home.module.css";
@@ -64,7 +65,7 @@ export function ScheduleStrip({
           : dayFormatter.format(new Date(`${dayKey}T12:00:00Z`));
         return (
           <li key={item.id}>
-            <Link className={styles.scheduleCard} href={`/titles/${item.title.slug}/episodes/${item.number}`}>
+            <Link className={styles.scheduleCard} href={titleWatchHref(item.title.slug, item.number)}>
               <span className={styles.schedulePoster}>
                 {item.title.poster_url ? (
                   <Image
