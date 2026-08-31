@@ -74,7 +74,7 @@ def jikan_anime_images(anime_id: int) -> dict:
 
 
 def mal_poster(entry: dict) -> str:
-    """Shikimori ids double as MyAnimeList ids; MAL artwork is larger."""
+    """Catalog ids map to MyAnimeList ids; MAL artwork is usually larger."""
     images = jikan_anime_images(int(entry["id"]))
     return images.get("maximum_image_url") or images.get("large_image_url") or ""
 
@@ -210,7 +210,7 @@ def build_title(entry: dict, detail: dict) -> dict:
 
 class Command(BaseCommand):
     help = (
-        "Fetch popular anime metadata from Shikimori and print an import_catalog "
+        "Fetch popular anime metadata from the configured catalog provider and print an import_catalog "
         "JSON payload (dry-run friendly, idempotent on apply)."
     )
 

@@ -9,6 +9,7 @@ __pycache__/
 .venv/
 backend/staticfiles/
 backend/media/
+backend/batch*.json
 node_modules/
 .next/
 dist/

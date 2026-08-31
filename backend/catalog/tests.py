@@ -86,11 +86,12 @@ def test_creator_detail_lists_credited_titles(catalog_data):
 
     assert response.status_code == 200
     assert response.json()["slug"] == "тестовый-режиссёр"
-    assert response.json()["image_url"].endswith("/people/original/1.jpg")
+    assert response.json()["image_url"] == ""
     assert response.json()["title_credits"][0]["role"] == "director"
     assert response.json()["title_credits"][0]["title"]["slug"] == "sky-test"
     title = APIClient().get("/api/v1/titles/sky-test/").json()
-    assert title["credits"][0]["creator"]["image_url"].endswith("/people/original/1.jpg")
+    assert title["credits"][0]["creator"]["image_url"] == ""
+    assert "shikimori" not in str(title).lower()
 
 
 @pytest.mark.django_db
@@ -109,6 +110,15 @@ def test_title_detail_paginates_episodes(catalog_data):
     assert beyond.status_code == 404
     oversized = client.get("/api/v1/titles/sky-test/?episodes_page_size=500").json()
     assert len(oversized["episodes"]) == 3
+
+
+@pytest.mark.django_db
+def test_title_detail_compact_episode_rows_omit_playback_sources(catalog_data):
+    body = APIClient().get(
+        "/api/v1/titles/sky-test/?episodes_page=1&episodes_page_size=20&episode_sources=0"
+    ).json()
+    assert body["episodes"][0]["number"] == 1
+    assert "sources" not in body["episodes"][0]
 
 
 @pytest.mark.django_db
@@ -487,7 +497,7 @@ def test_title_detail_exposes_cast_without_extra_queries(catalog_data, django_as
     assert [entry["character"]["slug"] for entry in body["characters"]] == ["hero", "rival"]
     assert body["characters"][0]["role"] == "protagonist"
     assert body["characters"][0]["character"]["name"] == "Герой"
-    assert body["characters"][0]["character"]["image_url"] == "https://example.invalid/hero.jpg"
+    assert body["characters"][0]["character"]["image_url"] == ""
 
 
 
@@ -862,11 +872,24 @@ def test_media_api_only_exposes_published_rights_attributed_assets(catalog_data)
         title=catalog_data, kind="trailer", url="https://example.invalid/trailer",
         credit="Studio", rights_reference="RIGHTS-2", is_published=True,
     )
+    private_origin = MediaAsset.objects.create(
+        title=catalog_data,
+        kind="image",
+        url="https://shikimori.io/system/animes/original/1.jpg",
+        thumbnail_url="https://cdn.myanimelist.net/images/anime/1.jpg",
+        credit="Studio",
+        rights_reference="RIGHTS-3",
+        is_published=True,
+    )
     response = APIClient().get("/api/v1/media/")
     assert response.status_code == 200
-    assert response.json()["count"] == 1
-    assert response.json()["results"][0]["id"] == published.id
-    assert response.json()["results"][0]["id"] != draft.id
+    assert response.json()["count"] == 2
+    rows = {row["id"]: row for row in response.json()["results"]}
+    assert rows[published.id]["url"] == "https://example.invalid/trailer"
+    assert rows[private_origin.id]["url"] == ""
+    assert rows[private_origin.id]["thumbnail_url"] == ""
+    assert "shikimori" not in str(rows[private_origin.id]).lower()
+    assert draft.id not in rows
     assert APIClient().get("/api/v1/media/?kind=unknown").status_code == 400
 
 
@@ -1083,10 +1106,33 @@ def test_import_catalog_applies_characters_and_links():
     assert link.title.slug == "16498-shingeki-no-kyojin"
     assert link.character.slug == "40882-eren-yeager"
     assert link.role == "protagonist"
+    assert link.character.image_url == ""
+    assert link.character.image_origin_url.endswith("/characters/original/40882.jpg")
 
     payload["titles"][0]["characters"] = [{"character": "missing", "role": "supporting"}]
     with pytest.raises(Exception, match="не найден"):
         apply_payload(payload)
+
+
+@pytest.mark.django_db
+def test_import_catalog_preserves_local_poster_and_refreshes_private_origin():
+    from catalog.management.commands.import_catalog import apply_payload
+
+    title = Title.objects.create(
+        name="Local",
+        slug="10-local",
+        poster_url="https://anicast.online/api/v1/media/posters/10-m-aabbccdd.jpg",
+    )
+    apply_payload({
+        "titles": [{
+            "slug": title.slug,
+            "name": title.name,
+            "poster_url": "https://shikimori.io/system/animes/original/10.jpg",
+        }],
+    })
+    title.refresh_from_db()
+    assert title.poster_url == "https://anicast.online/api/v1/media/posters/10-m-aabbccdd.jpg"
+    assert title.poster_origin_url.endswith("/animes/original/10.jpg")
 
 
 @pytest.mark.django_db
@@ -1113,4 +1159,6 @@ def test_import_catalog_drops_shikimori_placeholder_images():
     }
     apply_payload(payload)
     assert Character.objects.get(slug="no-art").image_url == ""
+    assert Character.objects.get(slug="no-art").image_origin_url == ""
     assert Title.objects.get(slug="no-poster").poster_url == ""
+    assert Title.objects.get(slug="no-poster").poster_origin_url == ""

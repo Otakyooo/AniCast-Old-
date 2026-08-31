@@ -297,6 +297,111 @@
 
 .block p { margin: 0 }
 
+/* The whole episode row is the navigation target. This keeps one clear action
+   and sends viewers directly to the player embedded on the canonical title. */
+.episodeList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.episodeCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 90px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.episodeCard:hover {
+  border-color: var(--primary);
+  background: var(--surface-2);
+}
+
+.episodeCard:focus-visible {
+  border-color: var(--primary);
+  outline-offset: 3px;
+}
+
+.episodeCard:active { transform: scale(.995) }
+
+.episodeBody {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.episodeHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.episodeHeading strong {
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.episodeNumber {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.episodeSynopsis {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.episodeMeta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  color: var(--muted-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.episodeArrow {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-control);
+  color: var(--muted);
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.episodeCard:hover .episodeArrow {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  transform: translateX(2px);
+}
+
 .overviewLead {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(340px, .8fr);
@@ -489,6 +594,14 @@
   .actionRow > * { flex: 1 1 140px }
   .statusField { max-width: none }
   .panel { gap: 22px; padding-top: 22px }
+  .episodeCard {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    min-height: 0;
+    padding: 14px;
+  }
+  .episodeMeta { justify-content: space-between }
+  .episodeArrow { margin-left: auto }
   .overviewLead { grid-template-columns: 1fr }
   .overviewCard { padding: 17px }
   .creditGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) }

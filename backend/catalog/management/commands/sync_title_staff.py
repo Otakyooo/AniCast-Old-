@@ -8,6 +8,7 @@ from django.utils.text import slugify
 
 from catalog.management.commands.fetch_shikimori import graphql_post
 from catalog.models import Creator, Title, TitleCredit
+from catalog.portraits import set_private_origin
 
 
 SHIKIMORI_ID = re.compile(r"^(\d+)-")
@@ -91,17 +92,13 @@ def creator_for(credit: StaffCredit) -> Creator:
         base = f"{credit.external_id}-{slugify(credit.name, allow_unicode=True)}"[:210]
         slug = base or f"person-{credit.external_id}"
         creator = Creator.objects.create(name=credit.name, slug=slug)
-    changed = []
-    if credit.image_url and creator.image_url != credit.image_url:
-        creator.image_url = credit.image_url
-        changed.append("image_url")
-    if changed:
-        creator.save(update_fields=changed)
+    if credit.image_url:
+        set_private_origin(creator, credit.image_url)
     return creator
 
 
 class Command(BaseCommand):
-    help = "Replace coarse provider credits with exact per-title Shikimori staff roles."
+    help = "Replace coarse provider credits with exact per-title catalog staff roles."
 
     def add_arguments(self, parser):
         parser.add_argument("--title", help="Only this AniCast title slug")

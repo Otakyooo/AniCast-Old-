@@ -7,9 +7,9 @@ artwork through Jikan with tiers encoded in the stored filename:
 - ``m``: MAL ``maximum_image_url``
 - ``l``: MAL ``large_image_url`` fallback
 - ``k``: Kitsu ``posterImage.original`` (fallback while Jikan is degraded)
-- ``o``: recorded Shikimori origin (``poster_origin_url``), adopted when
+- ``o``: recorded catalog origin (``poster_origin_url``), adopted when
   strictly larger than the stored file
-- ``s``: current Shikimori/MAL hotlink mirrored as-is
+- ``s``: current catalog fallback mirrored as-is
 
 Non-maximum artwork is only replaced when the downloaded file is strictly
 larger than what is already stored, so upgrades never lose pixels. Titles
@@ -24,6 +24,7 @@ import random
 import re
 import struct
 import subprocess
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse, urljoin
@@ -79,9 +80,30 @@ def public_poster_url(filename: str) -> str:
     return f"{settings.POSTERS_PUBLIC_BASE}{MEDIA_PATH_MARKER}{filename}"
 
 
+def public_poster_reference(poster_url: str) -> str:
+    """Expose only an AniCast media URL, never a recorded upstream URL."""
+    marker = poster_url.rfind(MEDIA_PATH_MARKER)
+    if marker < 0:
+        return ""
+    path = poster_url[marker:]
+    filename = path.removeprefix(MEDIA_PATH_MARKER)
+    return public_poster_url(filename) if POSTER_NAME_RE.fullmatch(filename) else ""
+
+
 def is_allowed_poster_url(url: str) -> bool:
     parsed = urlparse(url)
-    return parsed.scheme == "https" and parsed.hostname in ALLOWED_POSTER_HOSTS
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname in ALLOWED_POSTER_HOSTS
+        and parsed.username is None
+        and parsed.password is None
+        and port in (None, 443)
+        and not parsed.fragment
+    )
 
 
 def current_tier(poster_url: str) -> str | None:
@@ -162,8 +184,8 @@ def _fetch_hop(url: str) -> tuple[int, bytes, str]:
 
 
 def download_bytes(url: str) -> bytes:
-    # Jikan's edge rejects the python TLS fingerprint while curl works,
-    # matching the lookup approach in fetch_shikimori. Redirects are
+    # The artwork edge rejects the python TLS fingerprint while curl works.
+    # Redirects are
     # followed one hop at a time and every target must stay on an
     # allowlisted HTTPS host.
     current = url
@@ -199,7 +221,7 @@ def store_poster(mal_id: int | None, tier: str, data: bytes) -> str:
         if hashlib.sha256(existing).hexdigest()[:DIGEST_HEX_CHARS] != digest:
             raise ValueError("poster digest collision with different content")
         return filename
-    tmp = target.with_name(f"{target.name}.{os.getpid()}.part")
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.{threading.get_ident()}.part")
     tmp.write_bytes(data)
     tmp.replace(target)
     return filename
@@ -472,7 +494,7 @@ def _candidate_priority(title: Title) -> int | None:
 
     0 — nothing usable on disk (missing local file or no poster yet):
         restore or first-mirror work that directly affects viewers;
-    1 — fallback tier: Shikimori-resolution art awaiting an upgrade;
+    1 — fallback tier: provider-resolution art awaiting an upgrade;
     2 — large/kitsu/origin tiers: already upgraded, only probing for maximum.
     Titles with neither an allowlisted source nor a MAL id in the slug can
     never improve and are dropped instead of burning probes every run.
@@ -525,27 +547,4 @@ def refresh_batch(
             break
         if 0 < limit <= len(outcomes):
             break
-    return outcomes
-
-
-def restore_origins(apply_changes: bool = False) -> list[tuple[str, str]]:
-    """Point ``poster_url`` back at recorded remote sources.
-
-    Recovery path after a rollback to an image without the poster media
-    route: run this forward first, then roll the image back safely.
-    """
-    outcomes: list[tuple[str, str]] = []
-    queryset = Title.objects.exclude(poster_origin_url="").exclude(poster_url="").order_by("id")
-    for title in queryset.only("id", "slug", "poster_url", "poster_origin_url").iterator():
-        if current_tier(title.poster_url) is None:
-            continue
-        origin = title.poster_origin_url
-        if not is_allowed_poster_url(origin):
-            continue
-        result = "restored"
-        if apply_changes:
-            Title.objects.filter(pk=title.pk).update(poster_url=origin)
-        else:
-            result = "plan"
-        outcomes.append((result, f"{title.slug}: {urlparse(origin).hostname}"))
     return outcomes

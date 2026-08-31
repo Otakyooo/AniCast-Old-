@@ -6,6 +6,7 @@ import { CatalogCard } from "../../../components/catalog-card";
 import { PageShell } from "../../../components/page-shell";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { apiErrorStatus, getCreator } from "../../../lib/api";
+import { hasCharacterArt } from "../../../lib/character-image";
 import { getI18n } from "../../../i18n/server";
 import styles from "../creator.module.css";
 
@@ -43,7 +44,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
     <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
       <header className={styles.header}>
         <span className={styles.portrait} aria-hidden="true">
-          {creator.image_url ? (
+          {hasCharacterArt(creator.image_url) ? (
             <Image src={creator.image_url} alt="" fill sizes="92px" quality={92} referrerPolicy="no-referrer" priority />
           ) : <User size={38} weight="bold" />}
         </span>

@@ -6,7 +6,7 @@ from catalog.models import Title
 
 
 class Command(BaseCommand):
-    help = "Fill complete title character lists from Shikimori. Dry-run by default."
+    help = "Fill complete title character lists from the catalog provider. Dry-run by default."
 
     def add_arguments(self, parser):
         parser.add_argument("title_slug", nargs="?")

@@ -175,6 +175,7 @@ class Character(models.Model):
     original_name = models.CharField(max_length=200, blank=True)
     description = models.TextField(blank=True)
     image_url = models.URLField(blank=True)
+    image_origin_url = models.URLField(blank=True)
 
     class Meta:
         ordering = ["name", "slug"]
@@ -219,6 +220,7 @@ class Creator(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=220, unique=True)
     image_url = models.URLField(blank=True)
+    image_origin_url = models.URLField(blank=True)
 
     class Meta:
         ordering = ["name", "id"]

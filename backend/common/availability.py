@@ -212,28 +212,44 @@ def build_availability_dashboard(now=None) -> list[dict]:
 def availability_samples() -> tuple[list[str], list[str]]:
     """Prometheus samples: (up/down flags, 24h uptime percentages) per target."""
 
+    from django.db.models import Count, F, Q, Window
+    from django.db.models.functions import RowNumber
+
     def escape(label: str) -> str:
         return label.replace("\\", "\\\\").replace('"', '\\"')
 
     now = timezone.now()
+    day_cutoff = now - timedelta(hours=24)
     fresh_cutoff = now - timedelta(minutes=5)
+    aggregates = {
+        row["target"]: row
+        for row in AvailabilitySample.objects.filter(checked_at__gte=day_cutoff)
+        .values("target")
+        .annotate(total=Count("id"), healthy=Count("id", filter=Q(ok=True)))
+    }
+    latest = {
+        row["target"]: row
+        for row in AvailabilitySample.objects.annotate(
+            target_rank=Window(
+                expression=RowNumber(),
+                partition_by=[F("target")],
+                order_by=F("checked_at").desc(),
+            )
+        )
+        .filter(target_rank=1)
+        .values("target", "checked_at", "ok")
+    }
     up_samples: list[str] = []
     uptime_samples: list[str] = []
     for target in _targets():
-        latest = (
-            AvailabilitySample.objects.filter(target=target.key)
-            .order_by("-checked_at")
-            .values_list("ok", flat=True)
-            .first()
-        )
-        recent_exists = AvailabilitySample.objects.filter(
-            target=target.key, checked_at__gte=fresh_cutoff
-        ).exists()
-        if latest is not None and recent_exists:
-            up_samples.append(f'anicast_availability_up{{target="{escape(target.key)}"}} {1 if latest else 0}')
-        summary = summarize(target.key, now=now)
-        if summary["uptime_24h"] != "—":
-            value = float(summary["uptime_24h"].rstrip("%"))
+        latest_row = latest.get(target.key)
+        if latest_row is not None and latest_row["checked_at"] >= fresh_cutoff:
+            up_samples.append(
+                f'anicast_availability_up{{target="{escape(target.key)}"}} {1 if latest_row["ok"] else 0}'
+            )
+        aggregate = aggregates.get(target.key)
+        if aggregate is not None and aggregate["total"]:
+            value = 100.0 * aggregate["healthy"] / aggregate["total"]
             uptime_samples.append(
                 f'anicast_availability_uptime_percent{{target="{escape(target.key)}"}} {value:.2f}'
             )

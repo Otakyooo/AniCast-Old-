@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
 import { TitleActions } from "../../../components/title-actions";
@@ -16,8 +16,8 @@ import { CatalogCard } from "../../../components/catalog-card";
 import { WatchSpace } from "../../../components/watch-space";
 import {
   apiErrorStatus,
-  getCatalogItem,
   getCatalogItemEpisodes,
+  getCatalogItemMetadata,
   getEpisode,
   getFirstEpisodeNumber,
   getSimilarTitles,
@@ -29,6 +29,7 @@ import {
   type WatchNavigation,
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
+import { hasCharacterArt } from "../../../lib/character-image";
 import { titleRating } from "../../../lib/rating";
 import { titleSchemaType, titleWatchHref } from "../../../lib/seo";
 import { getI18n } from "../../../i18n/server";
@@ -51,7 +52,9 @@ export async function generateMetadata({
   const { t } = await getI18n();
   let item: CatalogItem;
   try {
-    item = await getCatalogItem(slug);
+    // Metadata needs title fields only. Requesting one episode avoids pulling
+    // the full episode catalogue (more than a thousand rows for long series).
+    item = await getCatalogItemMetadata(slug);
   } catch (error) {
     // Degraded API still needs sane metadata; the page itself shows the
     // unavailable state. The page component owns the 404: notFound() inside
@@ -128,24 +131,34 @@ function EpisodeCard({
   dayFormatter: Intl.DateTimeFormat;
   t: Translator;
 }) {
-  const sources = episode.sources ?? [];
+  const episodeLabel = t("episode.number", { number: episode.number });
+  const episodeName = episode.name || t("episode.untitled");
 
   return (
-    <li className="episode-card">
-      <div className="episode-heading">
-        <span className="episode-number">{t("episode.number", { number: episode.number })}</span>
-        <strong>{episode.name || t("episode.untitled")}</strong>
-        {episode.air_date && (
-          <time dateTime={episode.air_at ?? episode.air_date} title={episode.air_date}>
-            {dayFormatter.format(isoDay(episode.air_date))}
-          </time>
-        )}
-      </div>
-      {episode.synopsis && <p className="muted">{episode.synopsis}</p>}
-      {sources.some((source) => source.playback_available) && (
-        <Link className="secondary" href={titleWatchHref(slug, episode.number)}>{t("watch.title")}</Link>
-      )}
-      <Link className="secondary" href={`/titles/${slug}/episodes/${episode.number}`}>{t("episode.open")}</Link>
+    <li>
+      <Link
+        className={styles.episodeCard}
+        href={titleWatchHref(slug, episode.number)}
+        aria-label={`${episodeLabel}: ${episodeName}`}
+      >
+        <span className={styles.episodeBody}>
+          <span className={styles.episodeHeading}>
+            <span className={styles.episodeNumber}>{episodeLabel}</span>
+            <strong>{episodeName}</strong>
+          </span>
+          {episode.synopsis && <span className={styles.episodeSynopsis}>{episode.synopsis}</span>}
+        </span>
+        <span className={styles.episodeMeta}>
+          {episode.air_date && (
+            <time dateTime={episode.air_at ?? episode.air_date} title={episode.air_date}>
+              {dayFormatter.format(isoDay(episode.air_date))}
+            </time>
+          )}
+          <span className={styles.episodeArrow} aria-hidden="true">
+            <ArrowRight size={18} weight="bold" />
+          </span>
+        </span>
+      </Link>
     </li>
   );
 }
@@ -169,7 +182,7 @@ function CreditCard({ credit }: { credit: TitleCreditEntry }) {
   return (
     <Link className={styles.creditCard} href={`/creators/${credit.creator.slug}`}>
       <span className={styles.creditAvatar} aria-hidden="true">
-        {credit.creator.image_url ? (
+        {hasCharacterArt(credit.creator.image_url) ? (
           <Image src={credit.creator.image_url} alt="" fill sizes="44px" quality={92} referrerPolicy="no-referrer" />
         ) : <User size={22} weight="bold" />}
       </span>
@@ -195,11 +208,15 @@ export default async function CatalogDetailPage({
   // An existing `?episodes_page=` link must still land on the episode list, so
   // pagination implies the episodes tab when no explicit tab is requested.
   const tab: Tab = isTab(query.tab) ? query.tab : query.episodes_page ? "episodes" : "overview";
+  const characterPayloadPage = tab === "characters" ? charactersPage : 1;
+  const characterPayloadSize = tab === "characters" ? 60 : tab === "overview" ? 8 : 1;
 
   let item;
   let episodesPage = requestedPage;
   try {
-    item = await getCatalogItemEpisodes(slug, requestedPage, 20, tab === "characters" ? charactersPage : undefined);
+    item = await getCatalogItemEpisodes(
+      slug, requestedPage, 20, characterPayloadPage, characterPayloadSize,
+    );
   } catch (error) {
     if (apiErrorStatus(error) !== 404) return <ApiUnavailableState />;
     // The API answers 404 both for a missing title and for an episode page past
@@ -207,7 +224,7 @@ export default async function CatalogDetailPage({
     // of claiming the title does not exist.
     if (requestedPage === 1) notFound();
     try {
-      item = await getCatalogItemEpisodes(slug, 1, 20, tab === "characters" ? 1 : undefined);
+      item = await getCatalogItemEpisodes(slug, 1, 20, 1, characterPayloadSize);
       episodesPage = 1;
     } catch (retryError) {
       if (apiErrorStatus(retryError) === 404) notFound();
@@ -252,7 +269,7 @@ export default async function CatalogDetailPage({
       : Array.from({ length: episodesCount }, (_, index) => index + 1);
     const fallbackNumber = Number(episodeNumbers[0] ?? firstEpisode);
     const rawRequestedNumber = Number(query.episode);
-    let watchNumber = Number.isInteger(rawRequestedNumber) && episodeNumbers.includes(rawRequestedNumber)
+    let watchNumber = Number.isInteger(rawRequestedNumber) && rawRequestedNumber > 0
       ? rawRequestedNumber
       : fallbackNumber;
 
@@ -265,10 +282,16 @@ export default async function CatalogDetailPage({
         watchNumber = fallbackNumber;
         watchEpisode = await getEpisode(slug, fallbackNumber);
       }
+      // Metadata-only episodes are intentionally absent from watch-navigation.
+      // Keep an explicitly requested real episode visible so the player shows
+      // its honest unavailable state instead of silently opening another one.
+      const visibleEpisodeNumbers = episodeNumbers.includes(watchNumber)
+        ? episodeNumbers
+        : [...episodeNumbers, watchNumber].sort((left, right) => left - right);
       watchSpace = (
         <WatchSpace
           slug={slug}
-          episodeNumbers={episodeNumbers}
+          episodeNumbers={visibleEpisodeNumbers}
           sourceGroups={navigation.source_groups}
           requestedSourceKey={query.voice}
           currentNumber={watchNumber}
@@ -455,7 +478,7 @@ export default async function CatalogDetailPage({
       {tab === "episodes" && (
         <div className={styles.panel}>
           {episodes.length ? (
-            <ol className="episode-list">
+            <ol className={styles.episodeList}>
               {episodes.map((episode) => <EpisodeCard episode={episode} slug={item.slug} dayFormatter={dayFormatter} t={t} key={episode.number} />)}
             </ol>
           ) : (

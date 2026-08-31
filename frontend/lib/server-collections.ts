@@ -4,6 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { CollectionDetail } from "./collections";
 import { SITE_URL } from "./site";
+import { internalApiHeaders } from "./internal-api";
 
 export class PublicCollectionError extends Error {
   constructor(public status: number) {
@@ -21,7 +22,7 @@ export const getPublicCollectionServer = cache(async (ownerPublicId: string, slu
     headers: {
       Accept: "application/json",
       "Accept-Language": locale,
-      ...(internalBase ? { "X-Forwarded-Proto": "https" } : {}),
+      ...(internalBase ? internalApiHeaders() : {}),
     },
   });
   if (!response.ok) throw new PublicCollectionError(response.status);

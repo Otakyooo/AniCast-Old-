@@ -4,10 +4,11 @@ from django.core.management.base import BaseCommand, CommandError
 
 from catalog.creator_images import CreatorImageError, creator_image
 from catalog.models import Creator
+from catalog.portraits import set_private_origin
 
 
 class Command(BaseCommand):
-    help = "Backfill real creator photos from Shikimori; existing photos are preserved."
+    help = "Backfill creator portrait origins from the catalog provider; local photos are preserved."
 
     def add_arguments(self, parser):
         parser.add_argument("--title", help="Only creators credited on this title slug")
@@ -17,7 +18,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options["limit"] < 0 or options["pause"] < 0:
             raise CommandError("--limit and --pause must be non-negative")
-        creators = Creator.objects.filter(image_url="").order_by("id")
+        creators = Creator.objects.filter(image_origin_url="").order_by("id")
         if options["title"]:
             creators = creators.filter(title_credits__title__slug=options["title"]).distinct()
         if options["limit"]:
@@ -31,9 +32,7 @@ class Command(BaseCommand):
                 failed += 1
             else:
                 if image_url:
-                    creator.image_url = image_url
-                    creator.save(update_fields=["image_url"])
-                    updated += 1
+                    updated += int(set_private_origin(creator, image_url))
                 else:
                     missing += 1
             if options["pause"]:

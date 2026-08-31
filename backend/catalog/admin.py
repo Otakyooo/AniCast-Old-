@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from push.tasks import notify_report_handled
 
-from . import posters
+from . import portraits, posters
 from .models import (
     Character,
     CharacterTranslation,
@@ -49,7 +49,9 @@ SOURCE_AVAILABILITY_TONES = {
 
 
 def _missing_avatar_query(field: str = "image_url") -> Q:
-    return Q(**{field: ""}) | Q(**{f"{field}__isnull": True}) | Q(**{f"{field}__icontains": "missing_original"})
+    local_missing = Q(**{field: ""}) | Q(**{f"{field}__isnull": True})
+    origin_missing = Q(image_origin_url="") | Q(image_origin_url__isnull=True)
+    return (local_missing & origin_missing) | Q(**{f"{field}__icontains": "missing_original"})
 
 
 class AvatarStatusFilter(admin.SimpleListFilter):
@@ -85,12 +87,16 @@ class CharacterImportanceFilter(admin.SimpleListFilter):
 
 @admin.display(description="Аватар")
 def avatar_preview(obj):
-    if not obj.image_url or "missing_original" in obj.image_url:
+    if not (obj.image_url or obj.image_origin_url) or "missing_original" in (obj.image_url or obj.image_origin_url):
         return format_html('<span style="color:#b45309;font-weight:600">нет</span>')
+    kind = "characters" if isinstance(obj, Character) else "creators"
+    public_url = portraits.public_portrait_url(kind, obj.pk, obj.image_url, obj.image_origin_url)
+    if not public_url:
+        return format_html('<span style="color:#b45309;font-weight:600">ожидает зеркалирования</span>')
     return format_html(
         '<img src="{}" alt="" referrerpolicy="no-referrer" '
         'style="width:42px;height:42px;object-fit:cover;object-position:50% 18%;border-radius:50%" />',
-        obj.image_url,
+        public_url,
     )
 
 

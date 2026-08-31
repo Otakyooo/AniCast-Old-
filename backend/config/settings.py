@@ -68,9 +68,10 @@ CSRF_TRUSTED_ORIGINS = [x for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS",
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
-    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
+    "DEFAULT_THROTTLE_CLASSES": ["common.throttling.AniCastAnonRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/min",
+        "ssr": "600/min",
         "auth": "10/min",
         "playback": "30/min",
         "telegram_challenge": "20/min",
@@ -87,6 +88,7 @@ TELEGRAM_NOTIFY_BOT_TOKEN = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN", "")
 TELEGRAM_NOTIFY_BOT_USERNAME = os.environ.get("TELEGRAM_NOTIFY_BOT_USERNAME", "")
 TELEGRAM_NOTIFY_WEBHOOK_SECRET = os.environ.get("TELEGRAM_NOTIFY_WEBHOOK_SECRET", "")
 KODIK_API_TOKEN = os.environ.get("KODIK_API_TOKEN", "")
+INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "")
 PLAYBACK_URL_TTL_SECONDS = int(os.environ.get("PLAYBACK_URL_TTL_SECONDS", "60"))
 POSTERS_MEDIA_ROOT = Path(os.environ.get("POSTERS_MEDIA_ROOT", str(BASE_DIR / "media" / "posters")))
 POSTERS_PUBLIC_BASE = os.environ.get("POSTERS_PUBLIC_BASE", "https://anicast.online").rstrip("/")

@@ -35,7 +35,7 @@ Alert at minimum on repeated backend readiness failures, HTTP 5xx increase, prov
 
 `scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (14 daily dumps plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
 
-`scripts/backup-posters.sh` does the same for the poster media volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. Scheduled weekly (Sundays 03:45, after the DB backup); the pipeline can also rebuild the volume from recorded origins, but a backup restores full quality instantly instead of re-probing Jikan.
+`scripts/backup-posters.sh` does the same for the shared artwork volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. It contains title posters and mirrored character/creator portraits. Scheduled weekly (Sundays 03:45, after the DB backup); the pipeline can rebuild missing files from private origins, but a backup restores them without upstream traffic.
 
 Poster restore runbook (`scripts/restore-posters.sh`, defaults to the newest archive):
 
@@ -151,28 +151,28 @@ ssh root@10.78.0.1 "cd /opt/anicast/infra/vps && docker compose up -d frontend"
 
 The frontend build args must be passed explicitly: `NEXT_PUBLIC_*` values are inlined at build time, and omitting them silently disables the Telegram login and notification prompts. Take a verified `pg_dump` first, keep the previous digests written down (image-only rollback is the only automatic path), and delete the transferred tarball from both hosts afterwards. Restore GHCR digest pins as soon as a token with `write:packages` is available, since local tags carry no provenance.
 
-## Catalog import from Shikimori
+Do not run an unconstrained Next.js production build on MainServer while it serves traffic. The host has one CPU and a build can push PostgreSQL/backend into swap, causing multi-second TTFB. Prefer CI or a separate build host; an emergency local build must use low CPU/I/O priority and be run once after all source changes.
 
-`fetch_shikimori` pulls popular anime metadata (Russian and English names, japanese originals, genres with translations, posters, episode counts) and emits an `import_catalog` JSON payload:
+## Catalog metadata import
+
+`fetch_catalog_metadata` pulls the configured upstream catalog metadata (Russian and English names, Japanese originals, genres with translations, artwork and episode counts) and emits an `import_catalog` JSON payload. Upstream endpoints are server-side implementation details: never expose their brand or URLs in public API, HTML, SEO or social metadata.
 
 ```bash
 # run from the backend directory (host networking avoids container DNS quirks)
-docker run --rm --network host -v $PWD:/app -e DJANGO_DATABASE_URL=sqlite:///db.sqlite3   -w /app --entrypoint python anicast-backend:local   manage.py fetch_shikimori --limit 100 --output /app/batch.json
+docker run --rm --network host -v $PWD:/app -e DJANGO_DATABASE_URL=sqlite:///db.sqlite3   -w /app --entrypoint python anicast-backend:local   manage.py fetch_catalog_metadata --limit 100 --output /app/batch.json
 # validate (dry-run) then apply on the production stack
 docker cp batch.json mainserver-backend-1:/tmp/batch.json
 docker exec mainserver-backend-1 python manage.py import_catalog /tmp/batch.json
 docker exec mainserver-backend-1 python manage.py import_catalog /tmp/batch.json --apply
 ```
 
-The import is idempotent (`update_or_create` by slug, titles are prefixed with the Shikimori id), rate-limit friendly (0.7s pause per request) and never creates playback sources — rights and providers stay untouched.
+The import is idempotent (`update_or_create` by slug and stable catalog id), rate-limit friendly and never creates playback sources — rights and providers stay untouched.
 
-Importer v2 also fills franchises and characters: franchise records are grouped by the Shikimori franchise slug from the anime detail (the head title is the earliest by year); characters come from the GraphQL `characterRoles` query (Main maps to `protagonist`, everything else to `supporting`) with biographies, japanese names and portraits from `/api/characters/<id>` (`--characters N` per title, default 8, `0` disables). A full 100-title run with characters takes roughly 15 minutes.
-
-Shikimori endpoint notes: `/api/animes/:id/episodes` and `/api/animes/:id/franchises` are gone (404). AniList remains globally disabled. Episode scheduling now comes from Kodik `material_data.next_episode_at`; Shikimori remains the catalog/character source. The fetcher needs `--network host` and the `shikimori.io` API base (the `.one` domain answers 308 redirects that urllib does not follow).
+The importer also fills franchises and characters. GraphQL roles map `Main` to `protagonist` and other roles to `supporting`; biographies, localized names and portrait origins stay private until mirrored. A full 100-title run with characters takes roughly 15 minutes. Episode scheduling remains owned by Kodik `material_data.next_episode_at`.
 
 ## Kodik library synchronization
 
-`sync_kodik` is dry-run first and accepts either a Shikimori-based title slug or
+`sync_kodik` is dry-run first and accepts either a stable catalog-id title slug or
 `--all`. It imports players only for the local AniCast library; it does not bulk
 copy unrelated Kodik records. Each pass also:
 
@@ -183,10 +183,10 @@ copy unrelated Kodik records. Each pass also:
 
 Kodik season numbers are provider-side metadata, not AniCast season numbers.
 The normal pass therefore does not send a hard-coded `season=1`: it consumes the
-positive season key returned for the exact Shikimori id and ignores season `0`
+positive season key returned for the exact catalog id and ignores season `0`
 when a positive season exists (extras); season `0` remains a fallback for OVAs.
 For a completed title, season-zero bonuses fill only the remainder up to the
-official Shikimori/MAL episode count (for example Bakemonogatari 13–15), never
+official catalog episode count (for example Bakemonogatari 13–15), never
 creating episodes beyond that boundary.
 Movies and one-shot specials use their direct player link. `--season N`
 remains an explicit diagnostics override.
@@ -225,9 +225,19 @@ at 25 pages. Celery Beat refreshes up to three titles with missing names every
 15 minutes so successful rows leave the retry queue and temporary upstream 504s
 converge without exceeding the public API rate limit.
 
-Artwork: posters prefer the largest MyAnimeList CDN image via the Jikan API (`maximum_image_url`, falling back to `large_image_url`; Shikimori ids double as MAL ids); Jikan intermittently answers 504, so the fetcher retries and falls back to the Shikimori original — rerunning the fetch later converts the remaining fallbacks (the import is idempotent). Jikan also rejects the python TLS fingerprint with 504 while curl works, so the lookup shells out to curl (installed in the backend image). The frontend serves remote artwork unoptimized: Shikimori/MAL originals are already small web-sized files and the optimizer would recompress (q75) and upscale them, visibly degrading line art. AniList is not usable (API globally disabled); Shikimori provides the Russian names natively.
+Artwork: posters prefer the largest available catalog artwork (`maximum_image_url`, falling back to `large_image_url`). Temporary upstream failures are retried by the scheduled mirror pipeline. The browser never receives an upstream artwork URL.
 
-Poster mirroring (2026-08-24): every title's poster is downloaded once into the `poster_media` Compose volume and served by Django from `/api/v1/media/posters/<name>` with `Cache-Control: public, max-age=31536000, immutable`; browsers no longer hotlink `shikimori.one` or `cdn.myanimelist.net`. Filenames encode the quality tier — `m` (MAL maximum), `l` (MAL large fallback) or `s` (existing Shikimori/MAL art mirrored as-is). Downloads are validated (JPEG/PNG magic bytes, minimum 200x280, allowlisted HTTPS hosts only, 8 MiB cap); a failed download never clears an existing poster.
+Artwork mirroring: title posters, character portraits and creator photos live in the shared `poster_media` Compose volume and are served by Django from `https://anicast.online/api/v1/media/*` with `Cache-Control: public, max-age=31536000, immutable`. Public serializers return AniCast media URLs only. Provider origins live in private `*_origin_url` fields and are never serialized. Downloads run only in operator/background jobs and require allowlisted HTTPS on port 443 without credentials or fragments, bounded redirects and size, valid JPEG/PNG bytes and minimum dimensions. A public request never waits for an upstream; failure keeps the local image or shows the brand fallback, never a hotlink.
+
+Portraits are mirrored explicitly in parallel before exposure. The command is dry-run unless `--apply` is explicit:
+
+```bash
+docker exec mainserver-backend-1 python manage.py mirror_portraits
+docker exec mainserver-backend-1 python manage.py mirror_portraits --title 21-one-piece --apply --workers 8
+docker exec mainserver-backend-1 python manage.py mirror_portraits --apply --workers 8
+```
+
+After a full pass, verify that character and creator `image_url` values point to `/api/v1/media/posters/`, public API/HTML contain no upstream host, and `image_origin_url` remains private for refresh and recovery. A failed item stays eligible for a later pass.
 
 The Celery Beat task `catalog.tasks.refresh_title_posters` (dedicated `posters` queue so batches never delay provider health checks; every 6 hours, budget-driven — it keeps working until the 1300 s soft-limit budget is spent or the 120-outcome hard cap is hit, and stops starting new titles in time to respect its time limits) keeps upgrading titles until each sits at the `m` tier, so posters converge to the best artwork automatically once Jikan recovers — no manual reruns. Candidates are prioritised: broken/missing local files first (direct viewer impact), then fallback-tier art awaiting a MAL upgrade, then large/kitsu-tier re-probes; within a bucket sampling is random for fair retry spread. Titles at the `m` tier are dropped from the queue without probes, and titles that can never improve (no MAL id in the slug, no allowlisted source) are dropped too. Every mirrored row records its remote source in `titles.poster_origin_url`; a missing local file downgrades the title back to an adoption candidate, so the pipeline self-heals after volume loss. Outcomes are exposed as `anicast_poster_refresh_total{result=maximum|large|kitsu|mirrored|current|unavailable|invalid|error}` with `PosterRefreshErrors`/`PosterRefreshInvalid` Prometheus alerts on sustained failure spikes. Manual control stays available:
 
@@ -238,18 +248,15 @@ docker exec mainserver-backend-1 python manage.py backfill_posters --apply  # mi
 
 Kitsu fallback tier `k` (2026-08-24): while Jikan cannot serve MAL art, the pipeline resolves `mal_id -> kitsu_id` through the ani.zip offline mapping (`api.ani.zip/mappings`, host allowlisted together with `kitsu.io`) and adopts Kitsu `posterImage.original` from `media.kitsu.app`. Adoption is pixel-based: a candidate replaces stored artwork only when its downloaded dimensions strictly exceed the current file (area comparison), so no title ever loses quality when tiers compete. A later MAL `l` or `m` still wins over an existing `k` through the same comparison path. Both lookup hosts fail closed to `None` and simply skip the fallback.
 
-Rollback note: production rows point `poster_url` at `/api/v1/media/posters/*`, which only this release and newer serve. Rolling back to an older backend image breaks every catalog poster until one of:
-
-- recovery forward: redeploy the new image (posters reappear from the volume);
-- data revert: with the new image still running, `docker exec mainserver-backend-1 python manage.py backfill_posters --restore-origins --apply` writes the recorded remote sources back into `poster_url`, after which rolling the image back is safe.
-
-Treat the poster-mirroring release (backend `local-20260824T103400Z` or newer) as a no-automatic-rollback boundary for poster URLs.
-
-Jikan outage note (2026-08-23/24): the upstream answered `504 Jikan failed to connect to MyAnimeList` for most catalog ids and stopped exposing `maximum_image_url` entirely. During the outage the initial mirror run still upgraded 34 titles to MAL `large_image_url` (425x600-class art) and mirrored the remaining 66 locally at Shikimori resolution; the beat task retries the rest without operator action.
+Rollback uses the database dump plus the verified media-volume backup. Do not restore public fields to upstream URLs. The portrait migration is reversible for application rollback, while new local files remain compatible with the established `/api/v1/media/posters/` route.
 
 ## Title detail and episode pages
 
-`/api/v1/titles/<slug>/` paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`, so long-running series no longer serialize thousands of episodes in one response. A single episode is fetched directly from `/api/v1/titles/<slug>/episodes/<number>/`, which returns the episode with its title summary and playback-gated sources. `playback_available` is resolved from a batched prefetch of enabled providers and active approved rights grants instead of a per-source query.
+`/api/v1/titles/<slug>/` paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`, so long-running series no longer serialize thousands of episodes in one response. `episode_sources=0` is the opt-in compact mode used by the title UI: episode rows omit playback sources and avoid their queries; the dedicated episode endpoint still returns playback-gated sources. Metadata additionally requests one episode and one character with a 60-second revalidation window.
+
+All server-side Next.js request paths, including public profiles and collections, use `INTERNAL_API_BASE_URL` over AWG and send `X-AniCast-Internal-Token`. Store the same random value (at least 32 characters) as `INTERNAL_API_TOKEN` on MainServer and VPS. Caddy strips that header from every public `/api/*` request. Valid safe internal requests use the separate `ssr=600/min` bucket; public anonymous traffic remains at `60/min`, and frontend retry is limited to transport failures only.
+
+The metrics endpoint aggregates 24-hour availability in bounded SQL and groups provider/source counts. Keep this path bounded: Prometheus scrapes every 30 seconds and a full Python scan of raw probe history would block the single Gunicorn worker.
 
 ## VPS firewall
 

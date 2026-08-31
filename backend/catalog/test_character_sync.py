@@ -19,5 +19,6 @@ def test_character_sync_imports_full_role_list_without_detail_requests(monkeypat
     assert title.character_links.count() == 2
     assert list(title.character_links.values_list("role", flat=True)) == ["protagonist", "supporting"]
     luffy = title.characters.get(slug="40-luffy")
-    assert luffy.image_url.endswith("/characters/40/original.jpeg")
+    assert luffy.image_url == ""
+    assert luffy.image_origin_url.endswith("/characters/40/original.jpeg")
     assert CharacterTranslation.objects.get(character=luffy, language="ru").name == "Луффи"

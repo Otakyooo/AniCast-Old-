@@ -89,7 +89,8 @@ def _anizip_rows(mal_id: int) -> list[dict]:
             number = int(item.get("absoluteEpisodeNumber") or raw_number)
         except (TypeError, ValueError):
             continue
-        titles = item.get("title") if isinstance(item.get("title"), dict) else {}
+        raw_titles = item.get("title")
+        titles: dict = raw_titles if isinstance(raw_titles, dict) else {}
         rows.append({
             "mal_id": number,
             "title": titles.get("en") or titles.get("x-jat") or "",

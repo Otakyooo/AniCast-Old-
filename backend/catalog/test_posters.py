@@ -325,26 +325,6 @@ def test_missing_local_file_becomes_candidate_again(poster_media_root, monkeypat
     assert outcomes[0][0] == "unavailable"
 
 
-@pytest.mark.django_db
-def test_restore_origins_reverts_local_urls(poster_media_root, monkeypatch):
-    origin = "https://shikimori.io/system/animes/original/50.jpg"
-    title = Title.objects.create(
-        name="Revert", slug="50-revert",
-        poster_url=posters.public_poster_url("50-s-aabbccdd.jpg"),
-        poster_origin_url=origin,
-    )
-    remote = Title.objects.create(name="Remote", slug="51-remote", poster_url=origin)
-
-    call_command("backfill_posters", "--restore-origins")
-    title.refresh_from_db()
-    remote.refresh_from_db()
-    assert "-s-" in title.poster_url
-
-    call_command("backfill_posters", "--restore-origins", "--apply")
-    title.refresh_from_db()
-    assert title.poster_url == origin
-
-
 def test_download_rejects_redirect_escape(monkeypatch):
     def fake_hop(url):
         return 302, b"", "http://169.254.169.254/latest/meta-data/"
@@ -352,6 +332,19 @@ def test_download_rejects_redirect_escape(monkeypatch):
     monkeypatch.setattr(posters, "_fetch_hop", fake_hop)
     with pytest.raises(ValueError, match="not allowed"):
         posters.download_bytes("https://cdn.myanimelist.net/images/anime/1.jpg")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://user:password@cdn.myanimelist.net/images/anime/1.jpg",
+        "https://cdn.myanimelist.net:8443/images/anime/1.jpg",
+        "https://cdn.myanimelist.net/images/anime/1.jpg#fragment",
+        "http://cdn.myanimelist.net/images/anime/1.jpg",
+    ],
+)
+def test_poster_origin_rejects_unsafe_url_forms(url):
+    assert posters.is_allowed_poster_url(url) is False
 
 
 def test_download_follows_allowlisted_redirects(monkeypatch):

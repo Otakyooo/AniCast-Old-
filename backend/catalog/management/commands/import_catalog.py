@@ -22,13 +22,14 @@ from catalog.models import (
     TitleTranslation,
 )
 from catalog.playback import source_url_allowed, validate_provider_configuration
+from catalog import portraits, posters
 
 SUPPORTED_LANGUAGES = {code for code, _ in LANGUAGE_CHOICES}
 
 
-def external_image_url(value) -> str:
+def external_image_url(value, allowed) -> str:
     url = str(value or "")
-    return "" if "missing_original" in url else url
+    return url if "missing_original" not in url and allowed(url) else ""
 
 
 def require_string(value, path):
@@ -149,15 +150,17 @@ def apply_payload(payload):
             stats["translations"] += 1
         stats["franchises"] += 1
     for item in payload.get("characters", []):
+        image_origin_url = external_image_url(item.get("image_url"), portraits.is_allowed_origin)
         character = Character.objects.update_or_create(
             slug=require_string(item.get("slug"), "characters.slug"),
             defaults={
                 "name": require_string(item.get("name"), "characters.name"),
                 "original_name": str(item.get("original_name", "")),
                 "description": str(item.get("description", "")),
-                "image_url": external_image_url(item.get("image_url")),
             },
         )[0]
+        if image_origin_url:
+            portraits.set_private_origin(character, image_origin_url)
         values = {"en": {"name": item["name"]}, **item.get("translations", {})}
         for language, value in values.items():
             CharacterTranslation.objects.update_or_create(
@@ -192,13 +195,17 @@ def apply_payload(payload):
         found_genres = {genre.slug for genre in genres}
         if found_genres != requested_genres:
             raise CommandError(f"Тайтл {item['slug']}: genres не найдены: {sorted(requested_genres - found_genres)}")
+        poster_origin_url = external_image_url(item.get("poster_url"), posters.is_allowed_poster_url)
         defaults = {
             "name": item["name"], "original_name": str(item.get("original_name", "")),
             "synopsis": str(item.get("synopsis", "")), "title_type": item.get("title_type", "anime"),
-            "status": item.get("status", "planned"), "year": item.get("year"), "poster_url": external_image_url(item.get("poster_url")),
+            "status": item.get("status", "planned"), "year": item.get("year"),
             "franchise": franchise,
         }
         title, _ = Title.objects.update_or_create(slug=item["slug"], defaults=defaults)
+        if poster_origin_url and title.poster_origin_url != poster_origin_url:
+            title.poster_origin_url = poster_origin_url
+            title.save(update_fields=["poster_origin_url"])
         values = {"en": {"name": item["name"], "synopsis": str(item.get("synopsis", ""))}, **item.get("translations", {})}
         for language, value in values.items():
             TitleTranslation.objects.update_or_create(title=title, language=language, defaults={"name": value["name"], "synopsis": str(value.get("synopsis", ""))})

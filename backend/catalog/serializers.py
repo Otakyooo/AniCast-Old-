@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from . import portraits, posters
 from .i18n import request_language, translated_value
 from .models import Character, Creator, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
 
@@ -68,6 +69,23 @@ class EpisodeSerializer(serializers.ModelSerializer):
         fields = ["id", "number", "name", "synopsis", "air_date", "air_at", "sources"]
 
 
+class EpisodeSummarySerializer(serializers.ModelSerializer):
+    """Episode row for catalog navigation, without playback source payloads."""
+
+    name = serializers.SerializerMethodField()
+    synopsis = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return translated_value(obj, "name", self.context)
+
+    def get_synopsis(self, obj):
+        return translated_value(obj, "synopsis", self.context)
+
+    class Meta:
+        model = Episode
+        fields = ["id", "number", "name", "synopsis", "air_date", "air_at"]
+
+
 class FranchiseRefSerializer(serializers.ModelSerializer):
     """Compact franchise reference embedded in title payloads. The long
     localized description belongs to the franchise endpoints; carrying it on
@@ -91,6 +109,10 @@ class TitleSerializer(serializers.ModelSerializer):
     rating_average = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
     localized_names = serializers.SerializerMethodField()
+    poster_url = serializers.SerializerMethodField()
+
+    def get_poster_url(self, obj):
+        return posters.public_poster_reference(obj.poster_url)
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
@@ -146,16 +168,17 @@ class TitleDetailSerializer(TitleSerializer):
     def get_episodes(self, obj):
         from .playback import playback_sources_prefetch
 
-        episodes = (
-            Episode.objects.filter(title=obj)
-            .prefetch_related("translations", playback_sources_prefetch())
-            .order_by("number")
-        )
+        episodes = Episode.objects.filter(title=obj).prefetch_related("translations").order_by("number")
+        include_sources = self.context.get("include_episode_sources", True)
+        if include_sources:
+            episodes = episodes.prefetch_related(playback_sources_prefetch())
         paginator = self.context.get("episodes_paginator")
         if paginator is None:
-            return EpisodeSerializer(episodes, many=True, context=self.context).data
-        page = paginator.paginate_queryset(episodes, self.context["request"])
-        return EpisodeSerializer(page, many=True, context=self.context).data
+            page = episodes
+        else:
+            page = paginator.paginate_queryset(episodes, self.context["request"])
+        serializer = EpisodeSerializer if include_sources else EpisodeSummarySerializer
+        return serializer(page, many=True, context=self.context).data
 
     def get_episodes_count(self, obj):
         count = getattr(obj, "episodes_count", None)
@@ -189,7 +212,12 @@ class TitleDetailSerializer(TitleSerializer):
                 "creator": {
                     "name": credit.creator.name,
                     "slug": credit.creator.slug,
-                    "image_url": credit.creator.image_url,
+                    "image_url": portraits.public_portrait_url(
+                        "creators",
+                        credit.creator.pk,
+                        credit.creator.image_url,
+                        credit.creator.image_origin_url,
+                    ),
                 },
             }
             for credit in obj.credits.all()
@@ -209,7 +237,7 @@ class TitleDetailSerializer(TitleSerializer):
             {
                 "name": translated_value(title, "name", self.context),
                 "slug": title.slug,
-                "poster_url": title.poster_url,
+                "poster_url": posters.public_poster_reference(title.poster_url),
                 "title_type": title.title_type,
                 "status": title.status,
                 "year": title.year,
@@ -220,10 +248,16 @@ class TitleDetailSerializer(TitleSerializer):
 
 class CreatorDetailSerializer(serializers.ModelSerializer):
     title_credits = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Creator
         fields = ["name", "slug", "image_url", "title_credits"]
+
+    def get_image_url(self, obj):
+        return portraits.public_portrait_url(
+            "creators", obj.pk, obj.image_url, obj.image_origin_url
+        )
 
     def get_title_credits(self, obj):
         language = request_language(self.context)
@@ -242,9 +276,13 @@ class CreatorDetailSerializer(serializers.ModelSerializer):
 
 class ScheduleTitleSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
+    poster_url = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
+
+    def get_poster_url(self, obj):
+        return posters.public_poster_reference(obj.poster_url)
 
     class Meta:
         model = Title
@@ -312,7 +350,11 @@ class FranchiseSummarySerializer(serializers.ModelSerializer):
         return list(obj.titles.all())
 
     def get_poster_urls(self, obj):
-        return [title.poster_url for title in self._titles(obj) if title.poster_url][:3]
+        return [
+            public_url
+            for title in self._titles(obj)
+            if (public_url := posters.public_poster_reference(title.poster_url))
+        ][:3]
 
     def get_year_from(self, obj):
         years = [title.year for title in self._titles(obj) if title.year]
@@ -331,12 +373,16 @@ class FranchiseTitleSerializer(serializers.ModelSerializer):
     genres = GenreSerializer(many=True, read_only=True)
     name = serializers.SerializerMethodField()
     synopsis = serializers.SerializerMethodField()
+    poster_url = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
 
     def get_synopsis(self, obj):
         return translated_value(obj, "synopsis", self.context)
+
+    def get_poster_url(self, obj):
+        return posters.public_poster_reference(obj.poster_url)
 
     class Meta:
         model = Title
@@ -354,12 +400,18 @@ class CharacterSummarySerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     title_count = serializers.IntegerField(read_only=True)
+    image_url = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
 
     def get_description(self, obj):
         return translated_value(obj, "description", self.context)
+
+    def get_image_url(self, obj):
+        return portraits.public_portrait_url(
+            "characters", obj.pk, obj.image_url, obj.image_origin_url
+        )
 
     class Meta:
         model = Character
@@ -368,9 +420,15 @@ class CharacterSummarySerializer(serializers.ModelSerializer):
 
 class CastCharacterSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return translated_value(obj, "name", self.context)
+
+    def get_image_url(self, obj):
+        return portraits.public_portrait_url(
+            "characters", obj.pk, obj.image_url, obj.image_origin_url
+        )
 
     class Meta:
         model = Character
@@ -407,9 +465,17 @@ class MediaAssetSerializer(serializers.ModelSerializer):
     caption = serializers.SerializerMethodField()
     title = ScheduleTitleSerializer(read_only=True)
     character = CharacterSummarySerializer(read_only=True)
+    url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     def get_caption(self, obj):
         return translated_value(obj, "caption", self.context)
+
+    def get_url(self, obj):
+        return "" if portraits.is_allowed_origin(obj.url) else obj.url
+
+    def get_thumbnail_url(self, obj):
+        return "" if portraits.is_allowed_origin(obj.thumbnail_url) else obj.thumbnail_url
 
     class Meta:
         model = MediaAsset

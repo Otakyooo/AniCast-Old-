@@ -1,3 +1,5 @@
+import { internalApiHeaders } from "./internal-api";
+
 export type CatalogStatus = "ongoing" | "finished" | "planned" | string;
 
 export interface Genre {
@@ -207,7 +209,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // The tunnel hop is plain HTTP inside the encrypted AWG link — the same
     // trust domain as Caddy's upstream leg. The header marks it secure for
     // SECURE_SSL_REDIRECT / SECURE_PROXY_SSL_HEADER without touching settings.
-    headers["X-Forwarded-Proto"] = "https";
+    Object.assign(headers, internalApiHeaders());
   }
   const response = await fetch(`${base.url}${path}${separator}lang=${encodeURIComponent(language)}`, {
     ...init,
@@ -265,22 +267,39 @@ export async function getCatalogItemEpisodes(
   slug: string,
   page = 1,
   pageSize = 20,
-  charactersPage?: number,
+  charactersPage = 1,
+  charactersPageSize = 8,
 ): Promise<CatalogItem> {
-  const query = new URLSearchParams({ episodes_page: String(page), episodes_page_size: String(pageSize) });
-  if (charactersPage) {
-    query.set("characters_page", String(charactersPage));
-    query.set("characters_page_size", "60");
-  }
+  const query = new URLSearchParams({
+    episodes_page: String(page),
+    episodes_page_size: String(pageSize),
+    characters_page: String(charactersPage),
+    characters_page_size: String(charactersPageSize),
+    episode_sources: "0",
+  });
   const path = `/titles/${encodeURIComponent(slug)}/?${query}`;
   try {
     // Detail pages are dynamic and should never inherit a cached transient API
     // failure. A single retry absorbs a tunnel reconnect without replacing the
     // complete title screen with the generic unavailable state.
     return await request<CatalogItem>(path, { cache: "no-store" });
-  } catch {
+  } catch (error) {
+    const status = apiErrorStatus(error);
+    if (status !== undefined) throw error;
     return request<CatalogItem>(path, { cache: "no-store" });
   }
+}
+
+/** Small cacheable title payload used only for metadata and first-episode links. */
+export async function getCatalogItemMetadata(slug: string): Promise<CatalogItem> {
+  const query = new URLSearchParams({
+    episodes_page: "1",
+    episodes_page_size: "1",
+    characters_page: "1",
+    characters_page_size: "1",
+    episode_sources: "0",
+  });
+  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/?${query}`, revalidated(60));
 }
 
 /**
@@ -291,7 +310,7 @@ export async function getCatalogItemEpisodes(
  */
 export async function getFirstEpisodeNumber(slug: string): Promise<number | null> {
   try {
-    const item = await getCatalogItemEpisodes(slug, 1, 1);
+    const item = await getCatalogItemMetadata(slug);
     return item.episodes?.[0]?.number ?? null;
   } catch {
     return null;

@@ -23,12 +23,7 @@ const nextConfig: NextConfig = {
     // one large JPEG into fractional grid dimensions.
     qualities: [92],
     remotePatterns: [
-      { protocol: "https", hostname: "anicast.online", pathname: "/api/v1/media/posters/**" },
-      { protocol: "https", hostname: "shikimori.one", pathname: "/system/**" },
-      { protocol: "https", hostname: "shikimori.io", pathname: "/system/**" },
-      { protocol: "https", hostname: "shikimori.one", pathname: "/uploads/**" },
-      { protocol: "https", hostname: "shikimori.io", pathname: "/uploads/**" },
-      { protocol: "https", hostname: "cdn.myanimelist.net", pathname: "/images/**" },
+      { protocol: "https", hostname: "anicast.online", pathname: "/api/v1/media/**" },
     ],
   },
   async rewrites() {

@@ -17,7 +17,7 @@ anicast.online {
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		Content-Security-Policy "frame-src 'self' https://kodikplayer.com"
+		Content-Security-Policy "img-src 'self' data: blob:; frame-src 'self' https://kodikplayer.com"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "SAMEORIGIN"
@@ -25,7 +25,9 @@ anicast.online {
 	}
 
 	handle /api/* {
-		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
+		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000} {
+			header_up -X-AniCast-Internal-Token
+		}
 	}
 
 	handle /staff* {

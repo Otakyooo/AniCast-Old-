@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils.text import slugify
 
 from .models import Character, CharacterTranslation, Title, TitleCharacter
+from .portraits import set_private_origin
 
 
 MAL_ID = re.compile(r"^(\d+)-")
@@ -44,11 +45,11 @@ def _character_roles(anime_id: int) -> list[dict]:
         )
         response = json.loads(result.stdout)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
-        raise CharacterSyncError("Shikimori character request failed") from error
+        raise CharacterSyncError("Catalog character request failed") from error
     anime = (((response.get("data") or {}).get("animes") or [None])[0]) if isinstance(response, dict) else None
     rows = anime.get("characterRoles") if isinstance(anime, dict) else None
     if not isinstance(rows, list):
-        raise CharacterSyncError("Shikimori character response schema is invalid")
+        raise CharacterSyncError("Catalog character response schema is invalid")
     return rows
 
 
@@ -69,9 +70,12 @@ def sync_title_characters(title: Title) -> CharacterSyncResult:
         raw = row.get("character") if isinstance(row, dict) else None
         if not isinstance(raw, dict):
             continue
+        raw_character_id = raw.get("id")
+        if not isinstance(raw_character_id, (str, int)) or isinstance(raw_character_id, bool):
+            continue
         try:
-            character_id = int(raw.get("id"))
-        except (TypeError, ValueError):
+            character_id = int(raw_character_id)
+        except ValueError:
             continue
         english = " ".join(str(raw.get("name") or "").split())[:200]
         russian = " ".join(str(raw.get("russian") or "").split())[:200]
@@ -80,14 +84,14 @@ def sync_title_characters(title: Title) -> CharacterSyncResult:
         slug = _slug(character_id, english or russian)
         character, created = Character.objects.get_or_create(
             slug=slug,
-            defaults={"name": russian or english, "image_url": ""},
+            defaults={"name": russian or english, "image_url": "", "image_origin_url": ""},
         )
         result.created += int(created)
-        poster = raw.get("poster") if isinstance(raw.get("poster"), dict) else {}
+        raw_poster = raw.get("poster")
+        poster: dict = raw_poster if isinstance(raw_poster, dict) else {}
         image_url = str(poster.get("originalUrl") or poster.get("main2xUrl") or "")
-        if image_url and "missing_" not in image_url and character.image_url != image_url:
-            character.image_url = image_url
-            character.save(update_fields=["image_url"])
+        if image_url and "missing_" not in image_url:
+            set_private_origin(character, image_url)
         for language, name in (("en", english), ("ru", russian)):
             if name:
                 CharacterTranslation.objects.update_or_create(
@@ -95,7 +99,8 @@ def sync_title_characters(title: Title) -> CharacterSyncResult:
                     language=language,
                     defaults={"name": name},
                 )
-        roles = row.get("rolesEn") if isinstance(row.get("rolesEn"), list) else []
+        raw_roles = row.get("rolesEn")
+        roles: list = raw_roles if isinstance(raw_roles, list) else []
         role = "protagonist" if any(str(value).casefold() == "main" for value in roles) else "supporting"
         _, linked = TitleCharacter.objects.update_or_create(
             title=title,

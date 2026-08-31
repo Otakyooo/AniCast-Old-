@@ -73,6 +73,20 @@ def test_title_changelist_shows_poster_preview_and_tier(staff_client):
 
 
 @pytest.mark.django_db
+def test_character_changelist_marks_unmirrored_private_portrait(staff_client):
+    Character.objects.create(
+        name="Pending portrait",
+        slug="pending-portrait",
+        image_origin_url="https://shikimori.io/system/characters/original/1.jpg",
+    )
+    response = staff_client.get(reverse("admin:catalog_character_changelist"))
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "ожидает зеркалирования" in html
+    assert 'src=""' not in html
+
+
+@pytest.mark.django_db
 def test_source_changelist_marks_availability_with_pill(staff_client):
     title = Title.objects.create(name="Pill", slug="24-pill")
     episode = Episode.objects.create(title=title, number=1)

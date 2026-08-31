@@ -161,6 +161,7 @@ class TitleDetailView(RetrieveAPIView):
         # the embedded payload; clients use characters_count and opt into
         # subsequent pages with characters_page.
         context["characters_paginator"] = CharacterPagination()
+        context["include_episode_sources"] = self.request.query_params.get("episode_sources") != "0"
         return context
 
 

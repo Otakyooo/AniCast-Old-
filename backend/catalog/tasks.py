@@ -90,7 +90,7 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
 
 @shared_task(soft_time_limit=480, time_limit=520)
 def sync_character_library(limit: int = 5) -> dict[str, int]:
-    """Converge truncated legacy cast lists to Shikimori's complete roles."""
+    """Converge truncated legacy cast lists to the provider's complete roles."""
     from django.core.cache import cache
 
     from .character_sync import CharacterSyncError, sync_title_characters

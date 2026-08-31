@@ -7,10 +7,13 @@ import pytest
 from django.test import override_settings
 from django.utils import timezone as dj_timezone
 from rest_framework.test import APIClient
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from common import availability
 from common.logging import JsonFormatter
 from common.models import AvailabilitySample, DailyVisitStat
+from common.throttling import AniCastAnonRateThrottle, is_internal_safe_request
 
 
 @pytest.mark.django_db
@@ -44,6 +47,20 @@ def test_request_id_is_validated_and_propagated():
     generated = client.get("/health/live", HTTP_X_REQUEST_ID="bad id with spaces")["X-Request-ID"]
     assert generated != "bad id with spaces"
     assert len(generated) == 32
+
+
+@override_settings(INTERNAL_API_TOKEN="s" * 32)
+def test_internal_api_token_only_marks_safe_matching_requests():
+    factory = APIRequestFactory()
+    safe = Request(factory.get("/api/v1/titles/", HTTP_X_ANICAST_INTERNAL_TOKEN="s" * 32))
+    wrong = Request(factory.get("/api/v1/titles/", HTTP_X_ANICAST_INTERNAL_TOKEN="x" * 32))
+    write = Request(factory.post("/api/v1/analytics/visit/", HTTP_X_ANICAST_INTERNAL_TOKEN="s" * 32))
+    assert is_internal_safe_request(safe) is True
+    assert is_internal_safe_request(wrong) is False
+    assert is_internal_safe_request(write) is False
+    throttle = AniCastAnonRateThrottle()
+    assert throttle.allow_request(safe, object()) is True
+    assert throttle.scope == "ssr"
 
 
 @pytest.mark.django_db
@@ -272,6 +289,17 @@ def test_availability_metrics_render_prometheus_families():
     assert "# HELP anicast_availability_up" in body
     assert 'anicast_availability_up{target="site"} 1' in body
     assert "# HELP anicast_availability_uptime_percent" in body
+
+
+@pytest.mark.django_db
+def test_availability_samples_use_bounded_aggregate_queries(django_assert_num_queries):
+    now = dj_timezone.now()
+    for minutes in range(120):
+        _sample("site", now - timedelta(minutes=minutes), minutes % 7 != 0)
+    with django_assert_num_queries(2):
+        up, uptime = availability.availability_samples()
+    assert up == ['anicast_availability_up{target="site"} 0']
+    assert uptime[0].startswith('anicast_availability_uptime_percent{target="site"} ')
 
 
 @pytest.mark.django_db

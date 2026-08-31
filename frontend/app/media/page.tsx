@@ -23,6 +23,7 @@ export default async function MediaPage({ searchParams }: { searchParams: Promis
   // An unknown kind would make the API answer 400, so fall back to "all".
   const kind = (KINDS as readonly string[]).includes(requested) ? requested : "";
   const [data, { t }] = await Promise.all([getMedia(kind).catch((): MediaResponse => emptyPage()), getI18n()]);
+  const assets = data.results.filter((asset) => Boolean(asset.url));
   const label: Record<string, string> = {
     "": t("media.all"),
     image: t("media.image"),
@@ -43,9 +44,9 @@ export default async function MediaPage({ searchParams }: { searchParams: Promis
         </Link>
       ))}
     </nav>
-    {data.results.length ? (
+    {assets.length ? (
       <div className={styles.grid}>
-        {data.results.map(asset => (
+        {assets.map(asset => (
           <a className={styles.mediaCard} href={asset.url} target="_blank" rel="noreferrer" key={asset.id}>
             <div className={styles.mediaPreview}>{t(`media.${asset.kind}`)}</div>
             <strong>{asset.caption || asset.title?.name || asset.character?.name || t("media.title")}</strong>

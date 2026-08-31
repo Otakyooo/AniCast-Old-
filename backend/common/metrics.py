@@ -3,6 +3,7 @@ from collections.abc import Iterable
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db.models import Count, Sum
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_safe
 
@@ -116,7 +117,6 @@ def render_metrics() -> str:
         pass
 
     try:
-        from django.db.models import Sum
         from django.utils import timezone
         from common.models import DailyVisitStat
 
@@ -131,9 +131,23 @@ def render_metrics() -> str:
 
     from catalog.models import Provider, Source
 
-    provider_samples = [_sample("anicast_providers", {"enabled": str(enabled).lower()}, Provider.objects.filter(is_enabled=enabled).count()) for enabled in (True, False)]
+    provider_counts = {
+        row["is_enabled"]: row["total"]
+        for row in Provider.objects.values("is_enabled").annotate(total=Count("id"))
+    }
+    provider_samples = [
+        _sample("anicast_providers", {"enabled": str(enabled).lower()}, provider_counts.get(enabled, 0))
+        for enabled in (True, False)
+    ]
     lines += _family("anicast_providers", "Configured providers.", "gauge", provider_samples)
-    source_samples = [_sample("anicast_sources", {"availability": availability}, Source.objects.filter(availability=availability).count()) for availability, _ in Source.AVAILABILITY_CHOICES]
+    source_counts = {
+        row["availability"]: row["total"]
+        for row in Source.objects.values("availability").annotate(total=Count("id"))
+    }
+    source_samples = [
+        _sample("anicast_sources", {"availability": availability}, source_counts.get(availability, 0))
+        for availability, _ in Source.AVAILABILITY_CHOICES
+    ]
     lines += _family("anicast_sources", "Sources by availability.", "gauge", source_samples)
     return "\n".join(lines) + "\n"
 

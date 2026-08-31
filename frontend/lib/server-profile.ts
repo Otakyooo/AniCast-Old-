@@ -4,6 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { SITE_URL } from "./site";
 import type { PublicProfileData } from "./public-profile";
+import { internalApiHeaders } from "./internal-api";
 
 export class PublicProfileError extends Error {
   constructor(public status: number) {
@@ -20,7 +21,7 @@ export const getPublicProfileServer = cache(async (publicId: string) => {
     headers: {
       Accept: "application/json",
       "Accept-Language": locale,
-      ...(internalBase ? { "X-Forwarded-Proto": "https" } : {}),
+      ...(internalBase ? internalApiHeaders() : {}),
     },
   });
   if (!response.ok) throw new PublicProfileError(response.status);

@@ -28,15 +28,15 @@ def search_people(name: str) -> list[dict]:
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = response.read(MAX_RESPONSE_BYTES + 1)
     except (OSError, urllib.error.URLError) as error:
-        raise CreatorImageError("Shikimori people request failed") from error
+        raise CreatorImageError("Catalog people request failed") from error
     if len(payload) > MAX_RESPONSE_BYTES:
-        raise CreatorImageError("Shikimori people response is too large")
+        raise CreatorImageError("Catalog people response is too large")
     try:
         decoded = json.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise CreatorImageError("Shikimori people response is invalid") from error
+        raise CreatorImageError("Catalog people response is invalid") from error
     if not isinstance(decoded, list) or any(not isinstance(person, dict) for person in decoded):
-        raise CreatorImageError("Shikimori people response schema is invalid")
+        raise CreatorImageError("Catalog people response schema is invalid")
     return decoded
 
 
