@@ -15,6 +15,14 @@
 - `/internal/metrics` больше не читает десятки тысяч availability-строк в Python: uptime считается двумя bounded aggregate queries, providers/sources — grouped count. Это убирает регулярную блокировку единственного Gunicorn worker;
 - эксплуатационный запрет: production Next build не запускается без ограничения CPU/I/O на однопроцессорном MainServer; основной путь — CI/отдельный build host.
 
+Production rollout 2026-08-31:
+
+- frontend `anicast-frontend:local-0e3b600`, backend `anicast-backend:local-f97dee8`; backend, Celery, PostgreSQL, Redis, frontend и Caddy healthy, restart count 0;
+- до миграции проверены локальный и encrypted-offsite backup: DB `anicast-20260831T123718Z.dump` (2.9 MB) и media `posters-20260831T123751Z.tar.gz` (83.8 MB, 100 файлов);
+- локально зеркалированы 7 550 из 7 556 origin-портретов (99.9%); 6 недоступных файлов остаются кандидатами следующего прохода и публично дают пустой URL/brand fallback. Media volume после повторного прохода: 7 647 файлов, 376.2 MB;
+- compact One Piece API уменьшен с 1 383 921 до 10 431 байта; пять внешних замеров вкладки эпизодов дали median TTFB 0.636 s против прежних 1.824 s. Три замера `/internal/metrics` после ограничения окна: 0.059–0.091 s;
+- production QA: 9 ключевых HTML/API-поверхностей без upstream-бренда/URL, 20 episode-row ссылок на `?episode=N#watch`, отсутствует отдельная кнопка, local poster/portrait через Next Image отвечают 200, 65 подряд internal SSR GET отвечают 200. Полный test gate: 257 backend и 45 frontend тестов, TypeScript, lint, Ruff, mypy, migrations/check.
+
 ## Единый плеер и настройки Kodik — 2026-08-30/31
 
 - desktop-просмотр собран в один блок: видео слева и единственный контроллер справа; выбор варианта, стрелки и поиск закреплены, список серий прокручивается отдельно, а нижний дублирующий ряд скрыт;
