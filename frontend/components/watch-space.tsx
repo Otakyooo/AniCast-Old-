@@ -147,8 +147,13 @@ export function WatchSpace({
 
   useEffect(() => {
     if (!requestedGroup?.legacy) return;
-    router.replace(titleWatchHref(slug, currentNumber, requestedGroup.key), { scroll: false });
-  }, [currentNumber, requestedGroup?.key, requestedGroup?.legacy, router, slug]);
+    // Selection is already resolved locally; a server navigation here can cancel playback loading.
+    window.history.replaceState(
+      window.history.state,
+      "",
+      titleWatchHref(slug, currentNumber, requestedGroup.key),
+    );
+  }, [currentNumber, requestedGroup?.key, requestedGroup?.legacy, slug]);
 
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? null;
   const selectedSources = playableSources.filter(
