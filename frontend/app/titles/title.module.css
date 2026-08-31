@@ -657,7 +657,7 @@
 .watchPlayer .playerPreviewBody { aspect-ratio: 16 / 9 }
 
 .watchControls {
-  display: grid;
+  display: none;
   grid-template-columns: 44px minmax(150px, 1fr) 44px minmax(190px, 260px);
   align-items: center;
   gap: 8px;
@@ -719,13 +719,15 @@
 
 .voiceTrigger {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 9px;
   text-align: left;
 }
 
-.voiceTrigger > svg { width: 20px; height: 20px; color: var(--accent-text) }
+.voiceTrigger > svg:first-child { width: 20px; height: 20px; color: var(--accent-text) }
+.voiceTrigger > svg:last-child { width: 16px; height: 16px; color: var(--muted) }
+.voiceTrigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg) }
 .voiceTrigger > span { display: grid; gap: 2px; min-width: 0 }
 .voiceTrigger:disabled { color: var(--muted-2); cursor: not-allowed; opacity: .62 }
 
@@ -740,9 +742,10 @@
 .episodeStep:focus-visible,
 .currentEpisodeButton:focus-visible,
 .voiceTrigger:focus-visible,
+.railVoiceTrigger:focus-visible,
 .episodeRailList a:focus-visible,
 .dialogEpisodeList a:focus-visible,
-.voiceOptions button:focus-visible,
+.inlineVoiceOptions button:focus-visible,
 .dialogHeader button:focus-visible,
 .episodeSearch input:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -770,23 +773,96 @@
 
 .episodeRailHeader {
   display: grid;
-  gap: 12px;
-  padding: 15px 14px 12px;
+  gap: 8px;
+  padding: 10px;
   border-bottom: 1px solid var(--border);
 }
 
-.episodeRailHeader > div,
+.episodeRailTools {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 7px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
 .dialogHeader > div { display: grid; gap: 3px; min-width: 0 }
 
-.episodeRailHeader h3,
 .dialogHeader h3 {
   margin: 0;
   color: var(--text);
   font-size: 15px;
 }
 
-.episodeRailHeader span,
 .dialogHeader span { color: var(--muted-2); font-size: 11px }
+
+.railVoiceTrigger {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 9px;
+  background: var(--surface-control);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.railVoiceTrigger:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--surface-control-hover);
+}
+
+.railVoiceTrigger:disabled { color: var(--muted-2); cursor: not-allowed; opacity: .62 }
+.railVoiceTrigger > svg:first-child { width: 19px; height: 19px; color: var(--accent-text) }
+.railVoiceTrigger > svg:last-child { width: 15px; height: 15px; color: var(--muted) }
+.railVoiceTrigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg) }
+.railVoiceTrigger > span { display: grid; gap: 2px; min-width: 0 }
+
+.railVoiceTrigger strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railVoiceTrigger small { color: var(--muted-2); font-size: 10px; font-weight: 700 }
+
+.episodeRailContent {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
+}
+
+.episodeRailHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px 5px;
+}
+
+.episodeRailHeading h3 { margin: 0; color: var(--text); font-size: 14px }
+.episodeRailHeading span { color: var(--muted-2); font-size: 10px }
+
+.railWarning {
+  margin: 10px 10px 0;
+  padding: 9px 10px;
+  border: 1px solid var(--warning-border-subtle);
+  border-radius: 9px;
+  background: var(--warning-soft-subtle);
+  color: var(--warning);
+  font-size: 11px;
+  line-height: 1.4;
+}
 
 .episodeSearch {
   position: relative;
@@ -839,13 +915,16 @@
   min-height: 0;
   margin: 0;
   padding: 8px;
-  overflow-y: auto;
   list-style: none;
+}
+
+.dialogEpisodeList {
+  overflow-y: auto;
   scrollbar-color: var(--border) transparent;
   scrollbar-width: thin;
 }
 
-.episodeRailList { flex: 1 }
+.episodeRailList { padding-top: 4px }
 
 .episodeRailList a,
 .dialogEpisodeList a {
@@ -940,38 +1019,34 @@
 .dialogPanel > .episodeSearch { margin: 14px 14px 6px }
 .dialogEpisodeList { gap: 2px; flex: 1; padding: 8px 14px 14px }
 
-.voiceGroups {
+.inlineVoicePanel {
   display: grid;
-  gap: 20px;
-  min-height: 0;
-  padding: 16px;
-  overflow-y: auto;
-  scrollbar-color: var(--border) transparent;
-  scrollbar-width: thin;
+  gap: 7px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-.voiceGroup { display: grid; gap: 8px }
-
-.voiceGroup h4 {
+.inlineVoicePanel h4 {
   margin: 0;
+  padding: 0 2px;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
 
-.voiceOptions { display: grid; gap: 8px }
+.inlineVoiceOptions { display: grid; gap: 4px }
 
-.voiceOptions button {
+.inlineVoiceOptions button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 14px;
-  min-height: 68px;
-  padding: 11px 13px;
+  gap: 8px;
+  min-height: 50px;
+  padding: 7px 9px;
   border: 1px solid var(--border-control);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface-control);
   color: var(--text);
   text-align: left;
@@ -979,24 +1054,25 @@
   transition: border-color 140ms ease, background 140ms ease;
 }
 
-.voiceOptions button:hover { border-color: var(--primary); background: var(--surface-control-hover) }
-.voiceOptions .voiceOptionSelected { border-color: var(--primary-border); background: var(--primary-soft) }
+.inlineVoiceOptions button:hover { border-color: var(--primary); background: var(--surface-control-hover) }
+.inlineVoiceOptions .voiceOptionSelected { border-color: var(--primary-border); background: var(--primary-soft) }
 
 .voiceOptionCopy { display: grid; gap: 3px; min-width: 0 }
-.voiceOptionCopy strong { font-size: 14px; overflow-wrap: anywhere }
-.voiceOptionCopy > span { color: var(--muted); font-size: 12px }
-.voiceOptionCopy small { color: var(--muted-2); font-size: 11px; overflow-wrap: anywhere }
+.voiceOptionCopy strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.voiceOptionCopy small { color: var(--muted-2); font-size: 10px; overflow-wrap: anywhere }
 
-.voiceSelectedMark {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.voiceSelectedIcon {
+  width: 17px;
+  height: 17px;
   color: var(--accent-text);
-  font-size: 11px;
-  font-weight: 800;
 }
 
-.voiceSelectedMark svg { width: 16px; height: 16px }
+.mobileVoicePanel { display: none }
 
 @media (max-width: 860px) {
   .watchStage { padding-right: 0 }
@@ -1004,6 +1080,7 @@
   .episodeRail { display: none }
 
   .watchControls {
+    display: grid;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
     padding: 8px;
   }
@@ -1015,6 +1092,20 @@
     grid-column: 1 / -1;
     padding-inline: 13px;
   }
+
+  .mobileVoicePanel {
+    display: block;
+    min-width: 0;
+    grid-column: 1 / -1;
+  }
+
+  .mobileVoicePanel .inlineVoicePanel {
+    padding: 2px 0 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .mobileVoicePanel .inlineVoicePanel h4 { padding: 10px 2px 2px }
 
   .watchDialog {
     inset: auto 0 0;
@@ -1033,15 +1124,14 @@
 @media (max-width: 480px) {
   .watchLayout { margin-inline: -1px; width: calc(100% + 2px) }
   .watchStage { border-radius: 11px }
-  .voiceOptions button { grid-template-columns: minmax(0, 1fr) }
-  .voiceSelectedMark { justify-self: start }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .episodeStep,
   .currentEpisodeButton,
   .voiceTrigger,
+  .railVoiceTrigger,
   .episodeRailList a,
   .dialogEpisodeList a,
-  .voiceOptions button { transition: none }
+  .inlineVoiceOptions button { transition: none }
 }

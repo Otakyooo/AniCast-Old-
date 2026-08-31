@@ -36,3 +36,15 @@ export function resolveRequestedGroupKey<
   const legacy = groups.find((group) => group.legacy_key === requestedKey);
   return legacy ? { key: legacy.key, legacy: true } : null;
 }
+
+/** Pick the first API-ranked option that has a playable source for this episode. */
+export function firstRankedPlayableGroupKey<
+  T extends { key: string; episode_numbers?: number[] },
+>(groups: T[], playableKeys: string[], currentNumber: number) {
+  const playable = new Set(playableKeys);
+  const ranked = groups.find((group) => (
+    playable.has(group.key)
+    && (!group.episode_numbers || group.episode_numbers.includes(currentNumber))
+  ));
+  return ranked?.key ?? playableKeys[0] ?? groups[0]?.key ?? "";
+}

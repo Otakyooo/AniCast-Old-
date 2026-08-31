@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   CaretLeft,
   CaretRight,
+  CaretDown,
   Check,
   MagnifyingGlass,
   SpeakerHigh,
@@ -18,9 +19,9 @@ import { summarizeEpisodeCoverage } from "../lib/episode-coverage";
 import { titleWatchHref } from "../lib/seo";
 import {
   filterEpisodeNumbers,
+  firstRankedPlayableGroupKey,
   normalizeEpisodeNumbers,
   resolveRequestedGroupKey,
-  type VoiceSection,
   voiceSection,
 } from "../lib/watch-controls";
 import { useI18n } from "./i18n-provider";
@@ -39,22 +40,15 @@ function cleanSourceName(name: string, providerName = "") {
   return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
 }
 
-function coverageLabels(numbers: number[], t: Translator, known = true) {
-  if (!known) {
-    const unknown = t("watch.coverageUnknown");
-    return { compact: unknown, full: unknown };
-  }
+function compactCoverage(numbers: number[], t: Translator, known: boolean) {
+  if (!known) return t("watch.coverageUnknown");
   const summary = summarizeEpisodeCoverage(numbers);
   if (!summary.count || summary.first === null || summary.last === null) {
-    const empty = t("watch.coverageEmpty");
-    return { compact: empty, full: empty };
+    return t("watch.coverageEmpty");
   }
-  if (summary.count === 1) {
-    const single = t("watch.coverageSingle", { number: summary.first });
-    return { compact: single, full: single };
-  }
+  if (summary.count === 1) return t("watch.coverageSingle", { number: summary.first });
 
-  const full = t("watch.coverageRanges", { ranges: summary.availableRanges.join(", ") });
+  const ranges = t("watch.coverageRanges", { ranges: summary.availableRanges.join(", ") });
   const except = t("watch.coverageExcept", {
     first: summary.first,
     last: summary.last,
@@ -64,19 +58,14 @@ function coverageLabels(numbers: number[], t: Translator, known = true) {
     summary.missingRanges.length > 0
     && summary.missingRanges.length <= 3
     && summary.density >= 0.8
-    && except.length < full.length
-  ) {
-    return { compact: except, full };
-  }
-  if (summary.availableRanges.length <= 3) return { compact: full, full };
-  return {
-    compact: t("watch.coverageWithGaps", {
-      count: summary.count,
-      first: summary.first,
-      last: summary.last,
-    }),
-    full,
-  };
+    && except.length < ranges.length
+  ) return except;
+  if (summary.availableRanges.length <= 3) return ranges;
+  return t("watch.coverageWithGaps", {
+    count: summary.count,
+    first: summary.first,
+    last: summary.last,
+  });
 }
 
 function coverageCopy(group: ViewSourceGroup, totalEpisodes: number, t: Translator) {
@@ -86,11 +75,9 @@ function coverageCopy(group: ViewSourceGroup, totalEpisodes: number, t: Translat
   const summary = summarizeEpisodeCoverage(group.episode_numbers);
   return {
     summary: t("watch.coverageCount", { count: summary.count, total: totalEpisodes }),
-    detail: coverageLabels(group.episode_numbers, t).compact,
+    detail: compactCoverage(group.episode_numbers, t, group.coverage_known),
   };
 }
-
-const sectionOrder: VoiceSection[] = ["dub", "sub", "raw"];
 
 export function WatchSpace({
   slug,
@@ -136,18 +123,22 @@ export function WatchSpace({
   }, [currentNumber, playableSources, sourceGroups]);
   const requestedGroup = resolveRequestedGroupKey(groups, requestedSourceKey);
   const preferredKey = requestedGroup?.key
-    ?? groups[0]?.key
-    ?? playableSources[0]?.selection_key
-    ?? "";
+    ?? firstRankedPlayableGroupKey(
+      groups,
+      playableSources.map((source) => source.selection_key),
+      currentNumber,
+    );
   const [selectedGroupKey, setSelectedGroupKey] = useState(preferredKey);
   const [episodeQuery, setEpisodeQuery] = useState("");
+  const [voiceOptionsOpen, setVoiceOptionsOpen] = useState(false);
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
-  const voiceDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
-  const voiceTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileVoiceTriggerRef = useRef<HTMLButtonElement>(null);
+  const railVoiceTriggerRef = useRef<HTMLButtonElement>(null);
+  const lastVoiceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const episodeRailSearchRef = useRef<HTMLInputElement>(null);
   const episodeDialogSearchRef = useRef<HTMLInputElement>(null);
-  const episodeRailListRef = useRef<HTMLOListElement>(null);
+  const episodeRailContentRef = useRef<HTMLDivElement>(null);
   const currentEpisodeRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
@@ -189,24 +180,46 @@ export function WatchSpace({
   const selectedCoverageSummary = selectedGroup
     ? coverageCopy(selectedGroup, allEpisodeNumbers.length, t).summary
     : "";
-  const voiceSections = useMemo(
-    () => sectionOrder.map((section) => ({
-      section,
-      groups: groups.filter((group) => voiceSection(group.kind) === section),
-    })).filter(({ groups: sectionGroups }) => sectionGroups.length > 0),
-    [groups],
-  );
 
   useEffect(() => {
-    if (episodeQuery || !currentEpisodeRef.current || !episodeRailListRef.current) return;
-    const list = episodeRailListRef.current;
+    if (
+      episodeQuery
+      || voiceOptionsOpen
+      || window.matchMedia("(max-width: 860px)").matches
+      || !currentEpisodeRef.current
+      || !episodeRailContentRef.current
+    ) return;
+    const list = episodeRailContentRef.current;
     const item = currentEpisodeRef.current;
     list.scrollTop = Math.max(0, item.offsetTop - (list.clientHeight - item.clientHeight) / 2);
-  }, [currentNumber, episodeQuery, selectedGroupKey]);
+  }, [currentNumber, episodeQuery, selectedGroupKey, voiceOptionsOpen]);
+
+  useEffect(() => {
+    if (!voiceOptionsOpen) return;
+    function closeVoiceOptions(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setVoiceOptionsOpen(false);
+      requestAnimationFrame(() => lastVoiceTriggerRef.current?.focus());
+    }
+    window.addEventListener("keydown", closeVoiceOptions);
+    return () => window.removeEventListener("keydown", closeVoiceOptions);
+  }, [voiceOptionsOpen]);
 
   function chooseGroup(key: string) {
     setSelectedGroupKey(key);
+    setVoiceOptionsOpen(false);
     router.replace(titleWatchHref(slug, currentNumber, key), { scroll: false });
+    requestAnimationFrame(() => lastVoiceTriggerRef.current?.focus());
+  }
+
+  function toggleVoiceOptions(trigger: HTMLButtonElement) {
+    lastVoiceTriggerRef.current = trigger;
+    const opening = !voiceOptionsOpen;
+    setVoiceOptionsOpen(opening);
+    if (opening && !window.matchMedia("(max-width: 860px)").matches) {
+      requestAnimationFrame(() => { if (episodeRailContentRef.current) episodeRailContentRef.current.scrollTop = 0; });
+    }
   }
 
   function chooseEpisode(number: number) {
@@ -222,6 +235,7 @@ export function WatchSpace({
 
   function openEpisodeChooser() {
     if (window.matchMedia("(max-width: 860px)").matches) {
+      setVoiceOptionsOpen(false);
       episodeDialogRef.current?.showModal();
       requestAnimationFrame(() => episodeDialogSearchRef.current?.focus());
       return;
@@ -277,6 +291,38 @@ export function WatchSpace({
     );
   });
 
+  const voiceOptions = (id: string) => (
+    <section id={id} className={styles.inlineVoicePanel} aria-label={t("watch.voiceOptionsTitle")}>
+      <h4>{t("watch.voiceOptionsTitle")}</h4>
+      <div className={styles.inlineVoiceOptions}>
+        {groups.map((group) => {
+          const coverage = coverageCopy(group, allEpisodeNumbers.length, t);
+          const selected = group.key === selectedGroupKey;
+          return (
+            <button
+              type="button"
+              aria-pressed={selected}
+              className={selected ? styles.voiceOptionSelected : undefined}
+              onClick={() => chooseGroup(group.key)}
+              key={group.key}
+            >
+              <span className={styles.voiceOptionCopy}>
+                <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
+                <small>{t("watch.voiceOptionMeta", {
+                  kind: t(`watch.voiceGroup.${voiceSection(group.kind)}`),
+                  coverage: coverage.summary,
+                })}</small>
+                {coverage.detail && <small>{coverage.detail}</small>}
+              </span>
+              {selected && <Check className={styles.voiceSelectedIcon} aria-hidden="true" weight="bold" />}
+            </button>
+          );
+        })}
+        {!groups.length && <p className={styles.episodeSearchEmpty}>{t("watch.noVoice")}</p>}
+      </div>
+    </section>
+  );
+
   return (
     <div className={styles.watchLayout}>
       <div className={styles.watchStage}>
@@ -328,12 +374,13 @@ export function WatchSpace({
           )}
 
           <button
-            ref={voiceTriggerRef}
+            ref={mobileVoiceTriggerRef}
             className={styles.voiceTrigger}
             type="button"
-            aria-haspopup="dialog"
+            aria-expanded={voiceOptionsOpen}
+            aria-controls="watch-voice-options-mobile"
             disabled={!groups.length}
-            onClick={() => voiceDialogRef.current?.showModal()}
+            onClick={(event) => toggleVoiceOptions(event.currentTarget)}
           >
             <SpeakerHigh aria-hidden="true" weight="bold" />
             <span>
@@ -345,7 +392,14 @@ export function WatchSpace({
                 : t("watch.voiceShort")}</small>
               <strong>{selectedName || t("watch.noVoice")}</strong>
             </span>
+            <CaretDown aria-hidden="true" weight="bold" />
           </button>
+
+          {voiceOptionsOpen && (
+            <div className={styles.mobileVoicePanel}>
+              {voiceOptions("watch-voice-options-mobile")}
+            </div>
+          )}
 
           {!currentIsAvailable && selectedGroup && (
             <p className={styles.watchWarning} role="status">
@@ -354,32 +408,93 @@ export function WatchSpace({
           )}
         </nav>
 
-        <aside className={styles.episodeRail} aria-labelledby="watch-episodes-heading">
+        <aside className={styles.episodeRail} aria-label={t("watch.navigation")}>
           <div className={styles.episodeRailHeader}>
-            <div>
-              <h3 id="watch-episodes-heading">{t("title.episodes")}</h3>
-              <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
-            </div>
-            <form className={styles.episodeSearch} onSubmit={submitEpisodeSearch} role="search">
-              <MagnifyingGlass aria-hidden="true" />
-              <label htmlFor="watch-episode-search">{t("watch.episodeSearch")}</label>
-              <input
-                ref={episodeRailSearchRef}
-                id="watch-episode-search"
-                type="search"
-                inputMode="numeric"
-                value={episodeQuery}
-                placeholder={t("watch.episodeSearchPlaceholder")}
-                onChange={(event) => setEpisodeQuery(event.target.value)}
-              />
-            </form>
+            <button
+              ref={railVoiceTriggerRef}
+              className={styles.railVoiceTrigger}
+              type="button"
+              aria-expanded={voiceOptionsOpen}
+              aria-controls="watch-voice-options-desktop"
+              disabled={!groups.length}
+              onClick={(event) => toggleVoiceOptions(event.currentTarget)}
+            >
+              <SpeakerHigh aria-hidden="true" weight="bold" />
+              <span>
+                <strong>{selectedName || t("watch.noVoice")}</strong>
+                <small>{selectedCoverageSummary || t("watch.coverageUnknown")}</small>
+              </span>
+              <CaretDown aria-hidden="true" weight="bold" />
+            </button>
           </div>
-          <ol ref={episodeRailListRef} className={styles.episodeRailList}>
-            {episodeList()}
-          </ol>
-          {!visibleEpisodeNumbers.length && (
-            <p className={styles.episodeSearchEmpty} role="status">{t("watch.episodeSearchEmpty")}</p>
+
+          {!voiceOptionsOpen && (
+            <div className={styles.episodeRailTools}>
+              {previousNumber !== undefined ? (
+                <Link
+                  className={styles.episodeStep}
+                  href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
+                  aria-label={t("watch.prev")}
+                  title={t("watch.prev")}
+                >
+                  <CaretLeft aria-hidden="true" weight="bold" />
+                </Link>
+              ) : (
+                <span className={styles.episodeStep} aria-disabled="true">
+                  <CaretLeft aria-hidden="true" weight="bold" />
+                </span>
+              )}
+
+              <form className={styles.episodeSearch} onSubmit={submitEpisodeSearch} role="search">
+                <MagnifyingGlass aria-hidden="true" />
+                <label htmlFor="watch-episode-search">{t("watch.episodeSearch")}</label>
+                <input
+                  ref={episodeRailSearchRef}
+                  id="watch-episode-search"
+                  type="search"
+                  inputMode="numeric"
+                  value={episodeQuery}
+                  placeholder={t("watch.episodeSearchPlaceholder")}
+                  onChange={(event) => setEpisodeQuery(event.target.value)}
+                />
+              </form>
+
+              {nextNumber !== undefined ? (
+                <Link
+                  className={styles.episodeStep}
+                  href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
+                  aria-label={t("watch.next")}
+                  title={t("watch.next")}
+                >
+                  <CaretRight aria-hidden="true" weight="bold" />
+                </Link>
+              ) : (
+                <span className={styles.episodeStep} aria-disabled="true">
+                  <CaretRight aria-hidden="true" weight="bold" />
+                </span>
+              )}
+            </div>
           )}
+
+          <div ref={episodeRailContentRef} className={styles.episodeRailContent}>
+            {voiceOptionsOpen ? voiceOptions("watch-voice-options-desktop") : (
+              <>
+                {!currentIsAvailable && selectedGroup && (
+                  <p className={styles.railWarning} role="status">
+                    {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
+                  </p>
+                )}
+                <div className={styles.episodeRailHeading}>
+                  <h3>{t("title.episodes")}</h3>
+                  <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
+                </div>
+                <ol className={styles.episodeRailList}>{episodeList()}</ol>
+                {!visibleEpisodeNumbers.length && (
+                  <p className={styles.episodeSearchEmpty} role="status">{t("watch.episodeSearchEmpty")}</p>
+                )}
+              </>
+            )}
+          </div>
         </aside>
 
         <dialog
@@ -421,65 +536,6 @@ export function WatchSpace({
           </div>
         </dialog>
 
-        <dialog
-          ref={voiceDialogRef}
-          className={styles.watchDialog}
-          aria-labelledby="watch-voice-dialog-title"
-          onClick={(event) => {
-            if (event.currentTarget === event.target) voiceDialogRef.current?.close();
-          }}
-          onClose={() => voiceTriggerRef.current?.focus()}
-        >
-          <div className={styles.dialogPanel}>
-            <header className={styles.dialogHeader}>
-              <div>
-                <h3 id="watch-voice-dialog-title">{t("watch.voiceDialogTitle")}</h3>
-                <span>{t("watch.voiceDialogHint")}</span>
-              </div>
-              <button type="button" onClick={() => voiceDialogRef.current?.close()} aria-label={t("watch.closeChooser")}>
-                <X aria-hidden="true" weight="bold" />
-              </button>
-            </header>
-            <div className={styles.voiceGroups}>
-              {voiceSections.map(({ section, groups: sectionGroups }) => (
-                <section className={styles.voiceGroup} key={section}>
-                  <h4>{t(`watch.voiceGroup.${section}`)}</h4>
-                  <div className={styles.voiceOptions}>
-                    {sectionGroups.map((group) => {
-                      const coverage = coverageCopy(group, allEpisodeNumbers.length, t);
-                      const selected = group.key === selectedGroupKey;
-                      return (
-                        <button
-                          type="button"
-                          aria-pressed={selected}
-                          className={selected ? styles.voiceOptionSelected : undefined}
-                          onClick={() => {
-                            voiceDialogRef.current?.close();
-                            chooseGroup(group.key);
-                          }}
-                          key={group.key}
-                        >
-                          <span className={styles.voiceOptionCopy}>
-                            <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
-                            <span>{coverage.summary}</span>
-                            {coverage.detail && <small>{coverage.detail}</small>}
-                          </span>
-                          {selected && (
-                            <span className={styles.voiceSelectedMark}>
-                              <Check aria-hidden="true" weight="bold" />
-                              {t("watch.selectedVoice")}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-              {!groups.length && <p className={styles.episodeSearchEmpty}>{t("watch.noVoice")}</p>}
-            </div>
-          </div>
-        </dialog>
       </div>
 
       {episode.synopsis && <p className={styles.watchSynopsis}>{episode.synopsis}</p>}
