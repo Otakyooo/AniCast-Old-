@@ -296,10 +296,12 @@ def test_availability_samples_use_bounded_aggregate_queries(django_assert_num_qu
     now = dj_timezone.now()
     for minutes in range(120):
         _sample("site", now - timedelta(minutes=minutes), minutes % 7 != 0)
+    _sample("api", now - timedelta(days=2), True)
     with django_assert_num_queries(2):
         up, uptime = availability.availability_samples()
     assert up == ['anicast_availability_up{target="site"} 0']
     assert uptime[0].startswith('anicast_availability_uptime_percent{target="site"} ')
+    assert all('target="api"' not in sample for sample in [*up, *uptime])
 
 
 @pytest.mark.django_db

@@ -229,7 +229,7 @@ def availability_samples() -> tuple[list[str], list[str]]:
     }
     latest = {
         row["target"]: row
-        for row in AvailabilitySample.objects.annotate(
+        for row in AvailabilitySample.objects.filter(checked_at__gte=day_cutoff).annotate(
             target_rank=Window(
                 expression=RowNumber(),
                 partition_by=[F("target")],
