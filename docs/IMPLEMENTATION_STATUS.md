@@ -1,8 +1,8 @@
 # AniCast — статус реализации
 
-Дата: 30 августа 2026
+Дата: 31 августа 2026
 
-## Единый плеер и настройки Kodik — 2026-08-30
+## Единый плеер и настройки Kodik — 2026-08-30/31
 
 - desktop-просмотр собран в один блок: видео слева и единственный контроллер справа; выбор варианта, стрелки и поиск закреплены, список серий прокручивается отдельно, а нижний дублирующий ряд скрыт;
 - варианты озвучки раскрываются в той же боковой панели без отдельного dialog, сохраняют порядок API и показывают тип с честным покрытием (`1120 из 1176 серий`, диапазоны и исключения), а не процент запусков; выбранный вариант отмечается, но не переносится вверх;
@@ -15,9 +15,9 @@
 
 Настройки сайта в кабинете Kodik проверены для `*.anicast.online` с поддоменами; применены цвета AniCast и радиус 8 px. Глобальные selector/autosave/auto-switch параметры не менялись ради безопасного отката — внутренние селекторы скрываются на уровне Source URL. Credentials и внутренний идентификатор сайта не сохранены в репозитории.
 
-Проверка: backend `242 passed`, Ruff, Django check, migration drift и mypy изменённых файлов — чисто; frontend typecheck/lint, `45/45` unit и production build — успешно; `scripts/validate.sh` с rollback/promotion тестом и `git diff --check` прошли. Browser QA выполнен на mock API (1440×900, 860/861 px, 390×844): один desktop rail без нижнего дубля, фиксированный поиск, плоский порядок вариантов, inline mobile chooser, корректная поздняя серия, Escape/focus return и отсутствие horizontal overflow. Production-проверка повторяется после выкладки.
+Проверка: backend `242 passed`, Ruff, Django check, migration drift и mypy изменённых файлов — чисто; frontend typecheck/lint, `45/45` unit и production/Docker build — успешно; `scripts/validate.sh` с rollback/promotion тестом и `git diff --check` прошли. Browser QA выполнен на mock API (1440×900, 860/861 px, 390×844) и повторён после выкладки: один desktop rail без нижнего дубля, фиксированный поиск, плоский порядок вариантов, inline mobile chooser, корректная серия 1150, Escape/focus return и отсутствие horizontal overflow. Отдельно проверены плеер Death Parade, обе legacy-ссылки Re:Zero с миграцией ключа без остановки iframe, signed resolver `302`, canonical чистого тайтла и `404` старого `/watch` без redirect.
 
-Production: commit `4053ac9`, verified dump `backups/db/anicast-20260830T221119Z.dump`, образы `anicast-backend:local-4053ac9` и `anicast-frontend:local-4053ac9`. Полный `sync_kodik --all --apply --limit 100` завершился без ошибок: 100 тайтлов, 29 088 сохранённых источников; у всех Kodik Source есть `hide_selectors=true`, ни у одного нет `only_episode`. Точки отката: backend `local-e684002`, frontend `local-bce024a`.
+Production: feature commit `93d6b9b`, playback hotfix `19f04c7`, verified dump `backups/db/anicast-20260831T101658Z.dump`, образы `anicast-backend:local-4053ac9` и `anicast-frontend:local-19f04c7`; frontend и Caddy healthy, restart count `0`. Полный `sync_kodik --all --apply --limit 100` завершился ранее без ошибок: 100 тайтлов, 29 088 сохранённых источников; у всех Kodik Source есть `hide_selectors=true`, ни у одного нет `only_episode`. Точки отката: backend `local-e684002`, frontend `local-4053ac9`.
 
 ## Рекомендации: причины, честный скоринг и «Не интересно» — 2026-08-26
 
