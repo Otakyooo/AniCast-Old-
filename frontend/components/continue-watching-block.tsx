@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Check, Play, Plus } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { CatalogItem } from "../lib/api";
-import { getContinueWatching, resumeEpisode, type ContinueWatchingEntry } from "../lib/continue-watching";
+import { getContinueWatching, resumeEpisode, resumeProgressPercent, type ContinueWatchingEntry } from "../lib/continue-watching";
 import { getLibraryEntry, LibraryApiError, putLibraryEntry, type LibraryEntry, type LibraryStatus } from "../lib/library";
+import { formatPlaybackTime } from "../lib/playback";
 import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
@@ -117,6 +118,10 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const shelfEntries = rest.slice(0, 7);
   const displayTitle = heroEntry?.title ?? featured;
   const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
+  const heroResumeSeconds = heroEntry?.resume_at_seconds ?? 0;
+  const heroResumeCopy = heroResumeSeconds > 0
+    ? t("home.resumePosition", { watched: formatPlaybackTime(heroResumeSeconds) })
+    : "";
   const total = displayTitle?.episodes_count;
   const primaryHref = heroEntry && heroTarget
     ? titleWatchHref(heroEntry.title.slug, heroTarget.number)
@@ -176,8 +181,11 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
           </div>
           {heroEntry && heroTarget && total ? (
             <div className={styles.heroProgress}>
-              <span><i style={{ width: `${Math.min(100, Math.round((heroEntry.watched_count / total) * 100))}%` }} /></span>
-              <small>{t("home.heroProgress", { watched: heroEntry.watched_count, total })}</small>
+              <span aria-hidden="true"><i style={{ width: `${resumeProgressPercent(heroEntry)}%` }} /></span>
+              <small>
+                {t("home.heroProgress", { watched: heroEntry.watched_count, total })}
+                {heroResumeCopy ? ` · ${heroResumeCopy}` : ""}
+              </small>
             </div>
           ) : !heroEntry && typeof catalogCount === "number" && catalogCount > 0 ? (
             <small className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</small>
@@ -228,15 +236,12 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
                 <small>
                   {t("episode.number", { number: target.number })}
                   {entry.title.episodes_count ? ` · ${entry.watched_count} / ${entry.title.episodes_count}` : ""}
+                  {entry.resume_at_seconds ? ` · ${formatPlaybackTime(entry.resume_at_seconds)}` : ""}
                 </small>
-                <span className={styles.resumeProgressTrack}>
+                <span className={styles.resumeProgressTrack} aria-hidden="true">
                   <span
                     className={styles.resumeProgressBar}
-                    style={{
-                      width: entry.title.episodes_count
-                        ? `${Math.min(100, Math.round((entry.watched_count / entry.title.episodes_count) * 100))}%`
-                        : "0%",
-                    }}
+                    style={{ width: `${resumeProgressPercent(entry)}%` }}
                   />
                 </span>
               </span>

@@ -28,14 +28,56 @@ class LibraryEntryWriteSerializer(serializers.ModelSerializer):
 class EpisodeProgressSerializer(serializers.ModelSerializer):
     title = TitleSerializer(source="episode.title", read_only=True)
     episode = EpisodeSerializer(read_only=True)
+    progress_percent = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = EpisodeProgress
-        fields = ["title", "episode", "is_watched", "last_opened_at", "watched_at"]
+        fields = [
+            "title",
+            "episode",
+            "is_watched",
+            "watched_seconds",
+            "duration_seconds",
+            "progress_percent",
+            "last_opened_at",
+            "watched_at",
+        ]
+
+
+class EpisodePlaybackProgressSerializer(serializers.ModelSerializer):
+    """Compact response for frequent player checkpoints."""
+
+    progress_percent = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = EpisodeProgress
+        fields = [
+            "is_watched",
+            "watched_seconds",
+            "duration_seconds",
+            "progress_percent",
+            "last_opened_at",
+            "watched_at",
+        ]
 
 
 class EpisodeProgressWriteSerializer(serializers.Serializer):
     is_watched = serializers.BooleanField()
+
+
+class EpisodePlaybackProgressWriteSerializer(serializers.Serializer):
+    max_playback_seconds = 24 * 60 * 60
+
+    watched_seconds = serializers.IntegerField(min_value=0, max_value=max_playback_seconds)
+    duration_seconds = serializers.IntegerField(min_value=1, max_value=max_playback_seconds)
+    event = serializers.ChoiceField(choices=["progress", "pause", "ended"])
+
+    def validate(self, attrs):
+        if attrs["watched_seconds"] > attrs["duration_seconds"]:
+            raise serializers.ValidationError(
+                {"watched_seconds": "Время просмотра не может превышать длительность эпизода."}
+            )
+        return attrs
 
 
 class TitleNoteSerializer(serializers.ModelSerializer):

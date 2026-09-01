@@ -10,7 +10,30 @@ export interface ContinueWatchingEntry {
   next_episode: Episode | null;
   is_watched: boolean;
   watched_count: number;
+  /** Playback position inside `resume_episode`; 0 when it was never started. */
+  resume_at_seconds?: number;
+  /** Duration of `resume_episode`, absent while an older API is live. */
+  duration_seconds?: number | null;
+  progress_percent?: number;
   last_opened_at: string;
+}
+
+/**
+ * Shelf progress in percent. Prefers the real playback position inside the
+ * resume episode and falls back to the share of watched episodes, so a card
+ * never claims progress the backend did not confirm.
+ */
+export function resumeProgressPercent(entry: ContinueWatchingEntry): number {
+  const position = entry.resume_at_seconds;
+  const duration = entry.duration_seconds;
+  if (typeof position === "number" && typeof duration === "number" && duration > 0) {
+    return Math.min(100, Math.max(0, Math.round((position / duration) * 100)));
+  }
+  const total = entry.title.episodes_count;
+  if (typeof total === "number" && total > 0) {
+    return Math.min(100, Math.max(0, Math.round((entry.watched_count / total) * 100)));
+  }
+  return 0;
 }
 
 export function resumeEpisode(entry: ContinueWatchingEntry): Episode | null {

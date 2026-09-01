@@ -35,6 +35,8 @@ class EpisodeProgress(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="episode_progress", on_delete=models.CASCADE)
     episode = models.ForeignKey(Episode, related_name="user_progress", on_delete=models.CASCADE)
     is_watched = models.BooleanField(default=False)
+    watched_seconds = models.PositiveIntegerField(default=0)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
     last_opened_at = models.DateTimeField()
     watched_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -46,6 +48,12 @@ class EpisodeProgress(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} / {self.episode}"
+
+    @property
+    def progress_percent(self) -> int:
+        if self.duration_seconds:
+            return min(100, self.watched_seconds * 100 // self.duration_seconds)
+        return 100 if self.is_watched else 0
 
 
 class TitleNote(models.Model):

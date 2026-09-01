@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resumeEpisode, type ContinueWatchingEntry } from "./continue-watching.ts";
+import { resumeEpisode, resumeProgressPercent, type ContinueWatchingEntry } from "./continue-watching.ts";
 
 
 function entry(overrides: Partial<ContinueWatchingEntry> = {}): ContinueWatchingEntry {
@@ -26,4 +26,22 @@ test("resumeEpisode uses the backend-validated playable target", () => {
 test("resumeEpisode supports the compatibility target without replaying last_episode", () => {
   const value = entry({ resume_episode: undefined, next_episode: null });
   assert.equal(resumeEpisode(value), null);
+});
+
+
+test("resumeProgressPercent prefers the confirmed playback position", () => {
+  assert.equal(resumeProgressPercent(entry({ resume_at_seconds: 48, duration_seconds: 120 })), 40);
+  assert.equal(resumeProgressPercent(entry({ resume_at_seconds: 130, duration_seconds: 120 })), 100);
+});
+
+
+test("resumeProgressPercent falls back to watched episodes and never invents progress", () => {
+  const withCount = entry({
+    title: { slug: "test", name: "Test", episodes_count: 8 },
+    watched_count: 2,
+  });
+  assert.equal(resumeProgressPercent(withCount), 25);
+  assert.equal(resumeProgressPercent(entry({ resume_at_seconds: 48, duration_seconds: null })), 0);
+  assert.equal(resumeProgressPercent(entry({ resume_at_seconds: 0, duration_seconds: 120 })), 0);
+  assert.equal(resumeProgressPercent(entry()), 0);
 });

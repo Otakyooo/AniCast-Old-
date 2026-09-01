@@ -29,6 +29,8 @@ from .models import (
     TitleNote,
 )
 from .serializers import (
+    EpisodePlaybackProgressSerializer,
+    EpisodePlaybackProgressWriteSerializer,
     EpisodeProgressSerializer,
     EpisodeProgressWriteSerializer,
     CollectionItemCreateSerializer,
@@ -197,6 +199,58 @@ class EpisodeProgressView(APIView):
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
+    def patch(self, request, slug, number):
+        serializer = EpisodePlaybackProgressWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        episode = self.get_episode(slug, number)
+        incoming = serializer.validated_data
+        now = timezone.now()
+
+        # The row lock and monotonic maxima make delayed or repeated player
+        # messages idempotent while preventing concurrent heartbeats from
+        # moving a user's progress backwards.
+        with transaction.atomic():
+            progress, created = EpisodeProgress.objects.select_for_update().get_or_create(
+                user=request.user,
+                episode=episode,
+                defaults={"last_opened_at": now},
+            )
+            progress.last_opened_at = max(progress.last_opened_at, now)
+            progress.duration_seconds = max(
+                progress.duration_seconds or 0,
+                incoming["duration_seconds"],
+            )
+            progress.watched_seconds = max(
+                progress.watched_seconds,
+                incoming["watched_seconds"],
+            )
+
+            if incoming["event"] == "ended":
+                progress.watched_seconds = progress.duration_seconds
+            completed = (
+                incoming["event"] == "ended"
+                or progress.watched_seconds * 100 >= progress.duration_seconds * 90
+            )
+            if completed and not progress.is_watched:
+                progress.is_watched = True
+                progress.watched_at = now
+
+            progress.save(
+                update_fields=[
+                    "last_opened_at",
+                    "duration_seconds",
+                    "watched_seconds",
+                    "is_watched",
+                    "watched_at",
+                    "updated_at",
+                ]
+            )
+
+        return Response(
+            EpisodePlaybackProgressSerializer(progress).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
 
 class ContinueWatchingView(APIView):
     """Resume shelf for the home page.
@@ -277,6 +331,21 @@ class ContinueWatchingView(APIView):
                 ).data,
                 "is_watched": entry.is_watched,
                 "watched_count": watched_counts.get(entry.episode.title_id, 0),
+                "resume_at_seconds": (
+                    entry.watched_seconds
+                    if resume_by_title[entry.episode.title_id].pk == entry.episode_id
+                    else 0
+                ),
+                "duration_seconds": (
+                    entry.duration_seconds
+                    if resume_by_title[entry.episode.title_id].pk == entry.episode_id
+                    else None
+                ),
+                "progress_percent": (
+                    entry.progress_percent
+                    if resume_by_title[entry.episode.title_id].pk == entry.episode_id
+                    else 0
+                ),
                 "last_opened_at": entry.last_opened_at,
             }
             for entry in ordered

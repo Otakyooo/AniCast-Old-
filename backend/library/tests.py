@@ -150,6 +150,78 @@ def test_episode_progress_get_is_read_only_and_private(users, titles):
 
 
 @pytest.mark.django_db
+def test_playback_progress_is_monotonic_and_completes_at_ninety_percent(users, titles):
+    Episode.objects.create(title=titles[0], number=1, name="Start")
+    client = APIClient()
+    client.force_login(users[0])
+
+    created = client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 45, "duration_seconds": 100, "event": "progress"},
+        format="json",
+    )
+    assert created.status_code == 201
+    assert created.json()["watched_seconds"] == 45
+    assert created.json()["duration_seconds"] == 100
+    assert created.json()["progress_percent"] == 45
+    assert created.json()["is_watched"] is False
+    assert "title" not in created.json()
+    assert "episode" not in created.json()
+
+    delayed = client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 20, "duration_seconds": 90, "event": "progress"},
+        format="json",
+    )
+    assert delayed.status_code == 200
+    assert delayed.json()["watched_seconds"] == 45
+    assert delayed.json()["duration_seconds"] == 100
+    assert delayed.json()["progress_percent"] == 45
+
+    completed = client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 90, "duration_seconds": 100, "event": "pause"},
+        format="json",
+    )
+    assert completed.status_code == 200
+    assert completed.json()["is_watched"] is True
+    assert completed.json()["watched_at"] is not None
+
+
+@pytest.mark.django_db
+def test_playback_ended_records_full_duration_and_validates_payload(users, titles):
+    Episode.objects.create(title=titles[0], number=1, name="Start")
+    client = APIClient()
+    client.force_login(users[0])
+
+    ended = client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 12, "duration_seconds": 120, "event": "ended"},
+        format="json",
+    )
+    assert ended.status_code == 201
+    assert ended.json()["watched_seconds"] == 120
+    assert ended.json()["progress_percent"] == 100
+    assert ended.json()["is_watched"] is True
+
+    assert client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 121, "duration_seconds": 120, "event": "progress"},
+        format="json",
+    ).status_code == 400
+    assert client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 12, "duration_seconds": 120, "event": "seek"},
+        format="json",
+    ).status_code == 400
+    assert client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 86_401, "duration_seconds": 86_401, "event": "progress"},
+        format="json",
+    ).status_code == 400
+
+
+@pytest.mark.django_db
 def test_history_is_private_and_ordered_by_last_open(users, titles):
     first = Episode.objects.create(title=titles[0], number=1)
     second = Episode.objects.create(title=titles[1], number=1)
@@ -195,14 +267,38 @@ def test_continue_watching_resumes_after_the_watched_episode(users, titles):
     # resumes on itself, so nothing is skipped.
     assert resumed["resume_episode"]["number"] == 2
     assert resumed["next_episode"]["number"] == 2
+    assert resumed["resume_at_seconds"] == 0
+    assert resumed["duration_seconds"] is None
+    assert resumed["progress_percent"] == 0
     opened = next(entry for entry in entries if entry["title"]["slug"] == "second")
     assert opened["resume_episode"]["number"] == 1
+    assert opened["resume_at_seconds"] == 0
 
     client.put("/api/v1/episodes/first/3/progress/", {"is_watched": True}, format="json")
     assert all(
         entry["title"]["slug"] != "first"
         for entry in client.get("/api/v1/continue-watching/").json()
     )
+
+
+@pytest.mark.django_db
+def test_continue_watching_exposes_resume_time_for_current_episode(users, titles):
+    episode = Episode.objects.create(title=titles[0], number=1)
+    make_playable(episode)
+    client = APIClient()
+    client.force_login(users[0])
+    client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 48, "duration_seconds": 120, "event": "progress"},
+        format="json",
+    )
+
+    entry = client.get("/api/v1/continue-watching/").json()[0]
+
+    assert entry["resume_episode"]["number"] == 1
+    assert entry["resume_at_seconds"] == 48
+    assert entry["duration_seconds"] == 120
+    assert entry["progress_percent"] == 40
 
 
 @pytest.mark.django_db
@@ -240,6 +336,11 @@ def test_episode_progress_requires_auth_and_csrf(users, titles):
     client = APIClient(enforce_csrf_checks=True)
     client.force_login(users[0])
     assert client.post("/api/v1/episodes/first/1/progress/").status_code == 403
+    assert client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 10, "duration_seconds": 100, "event": "progress"},
+        format="json",
+    ).status_code == 403
 
 
 @pytest.mark.django_db

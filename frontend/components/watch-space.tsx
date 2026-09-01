@@ -11,15 +11,15 @@ import {
   SpeakerHigh,
   X,
 } from "@phosphor-icons/react";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlaybackLink } from "./playback-link";
-import { ProviderPlayer } from "./provider-player";
-import { EpisodeProgressControl } from "./episode-progress-control";
+import { ProviderPlayer, type PlaybackProgressSnapshot } from "./provider-player";
 import { SourceReportControl } from "./source-report-control";
 import type { Source, WatchSourceGroup } from "../lib/api";
 import type { PlaybackPresentation } from "../lib/title-template";
 import { summarizeEpisodeCoverage } from "../lib/episode-coverage";
 import { titleWatchHref } from "../lib/seo";
+import { formatPlaybackTime } from "../lib/playback";
 import {
   filterEpisodeNumbers,
   episodeNumberRanges,
@@ -85,6 +85,46 @@ function coverageCopy(group: ResolvedWatchSourceGroup, totalEpisodes: number, t:
   };
 }
 
+function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapshot }) {
+  const { t } = useI18n();
+  const hasDuration = progress.durationSeconds !== null && progress.durationSeconds > 0;
+  const position = formatPlaybackTime(progress.watchedSeconds);
+  const duration = hasDuration ? formatPlaybackTime(progress.durationSeconds ?? 0) : "";
+  const title = progress.phase === "guest"
+    ? t("watch.progressGuest")
+    : progress.phase === "error"
+      ? t("watch.progressError")
+      : progress.isWatched
+        ? t("watch.progressCompleted")
+        : progress.phase === "saving"
+          ? t("watch.progressSaving")
+          : progress.phase === "loading"
+            ? t("watch.progressLoading")
+            : t("watch.progressAutomatic");
+
+  return (
+    <div className={styles.watchProgress} aria-busy={progress.phase === "loading" || progress.phase === "saving"}>
+      <div className={styles.watchProgressCopy}>
+        <strong>{title}</strong>
+        {progress.phase === "guest" ? (
+          <Link href="/login">{t("common.login")}</Link>
+        ) : hasDuration ? (
+          <span>{t("watch.progressTime", { watched: position, duration })}</span>
+        ) : progress.watchedSeconds > 0 ? (
+          <span>{t("watch.progressPosition", { watched: position })}</span>
+        ) : null}
+      </div>
+      {hasDuration && progress.phase !== "guest" && (
+        <progress
+          value={Math.min(progress.watchedSeconds, progress.durationSeconds ?? 0)}
+          max={progress.durationSeconds ?? 1}
+          aria-label={t("watch.progressLabel", { percent: progress.progressPercent })}
+        />
+      )}
+    </div>
+  );
+}
+
 export function WatchSpace({
   slug,
   titleName,
@@ -140,6 +180,7 @@ export function WatchSpace({
   const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
   const [voiceOptionsOpen, setVoiceOptionsOpen] = useState(false);
   const [episodeDialogMounted, setEpisodeDialogMounted] = useState(false);
+  const [playbackProgress, setPlaybackProgress] = useState<PlaybackProgressSnapshot | null>(null);
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileVoiceTriggerRef = useRef<HTMLButtonElement>(null);
@@ -198,6 +239,13 @@ export function WatchSpace({
       : coverageCopy(selectedGroup, playableNumbers.length, t).summary
     : "";
   const invalidVoiceRequest = Boolean(requestedSourceKey && !requestedGroup);
+  const handleProgressChange = useCallback((progress: PlaybackProgressSnapshot) => {
+    setPlaybackProgress(progress);
+  }, []);
+
+  useEffect(() => {
+    setPlaybackProgress(null);
+  }, [chosen?.id, currentNumber]);
 
   useEffect(() => {
     setSelectedRangeIndex(currentRangeIndex);
@@ -301,6 +349,7 @@ export function WatchSpace({
       title={playerTitle}
       slug={slug}
       episodeNumber={currentNumber}
+      onProgressChange={handleProgressChange}
     />
   ) : chosen ? (
     <section className={`${styles.playerShell} ${styles.playerPreview}`} aria-label={playerTitle}>
@@ -638,14 +687,9 @@ export function WatchSpace({
       </div>
 
       <div className={styles.watchUtilityBar} aria-label={t(singlePlayback ? "watch.titleActions" : "watch.episodeActions")}>
-        <EpisodeProgressControl
-          slug={slug}
-          number={currentNumber}
-          compact
-          recordOnMount={false}
-          singlePlayback={singlePlayback}
-          className={styles.watchProgress}
-        />
+        {chosen?.playback_mode === "iframe_embed" && playbackProgress && (
+          <PlaybackProgressStatus progress={playbackProgress} />
+        )}
         {chosen && <SourceReportControl sourceId={chosen.id} key={chosen.id} />}
       </div>
 

@@ -9,6 +9,22 @@ interface PlayerMessage {
   data: unknown;
 }
 
+const MAX_PLAYER_SECONDS = 24 * 60 * 60;
+
+const KODIK_EVENT_TYPES = {
+  kodik_player_video_started: "started",
+  kodik_player_play: "play",
+  kodik_player_pause: "pause",
+  kodik_player_video_ended: "ended",
+  kodik_player_seek: "seek",
+  kodik_player_time_update: "time",
+  kodik_player_duration_update: "duration",
+} as const;
+
+export type KodikPlayerEvent =
+  | { type: "started" | "play" | "pause" | "ended" | "seek" }
+  | { type: "time" | "duration"; seconds: number };
+
 export interface SafePlaybackTarget {
   mode: PlaybackMode;
   url: string;
@@ -37,13 +53,44 @@ export function safePlaybackTarget(payload: unknown, origin: string): SafePlayba
   return { mode: response.mode as PlaybackMode, url: target.href, expiresAt };
 }
 
-/** Cross-origin player messages are accepted only from this iframe and Kodik. */
-export function isTrustedKodikPlayerEvent(
+/**
+ * Parse only the documented AniCast/Kodik integration events from the exact
+ * iframe window. Unknown messages and malformed time values stay outside the
+ * playback-progress boundary.
+ */
+export function parseTrustedKodikPlayerEvent(
   message: PlayerMessage,
   frameWindow: unknown,
-  eventKey: string,
-) {
-  if (message.origin !== KODIK_PLAYER_ORIGIN || message.source !== frameWindow) return false;
-  if (!message.data || typeof message.data !== "object" || Array.isArray(message.data)) return false;
-  return (message.data as { key?: unknown }).key === eventKey;
+): KodikPlayerEvent | null {
+  if (message.origin !== KODIK_PLAYER_ORIGIN || message.source !== frameWindow) return null;
+  if (!message.data || typeof message.data !== "object" || Array.isArray(message.data)) return null;
+
+  const data = message.data as { key?: unknown; value?: unknown };
+  if (
+    typeof data.key !== "string"
+    || !Object.prototype.hasOwnProperty.call(KODIK_EVENT_TYPES, data.key)
+  ) return null;
+  const type = KODIK_EVENT_TYPES[data.key as keyof typeof KODIK_EVENT_TYPES];
+
+  if (type === "time" || type === "duration") {
+    if (
+      typeof data.value !== "number"
+      || !Number.isFinite(data.value)
+      || data.value < 0
+      || data.value > MAX_PLAYER_SECONDS
+    ) return null;
+    return { type, seconds: data.value };
+  }
+
+  return { type };
+}
+
+/** A compact, locale-neutral media clock: M:SS or H:MM:SS. */
+export function formatPlaybackTime(value: number) {
+  const total = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+  const seconds = total % 60;
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
