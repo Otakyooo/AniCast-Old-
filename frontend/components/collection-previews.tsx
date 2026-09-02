@@ -40,19 +40,19 @@ export function CollectionPreviews() {
           <Link className={styles.collectionCard} href={`/collections/manage/${collection.slug}`} key={collection.slug}>
             <span className={styles.collectionName}>{collection.name}</span>
             <span className={styles.posterRow}>
-              {collection.items.slice(0, 4).map((item) =>
-                item.title.poster_url ? (
-                  <span className={styles.posterThumb} key={item.title.slug}>
-                    <Image className={styles.posterThumbImage} src={item.title.poster_url} alt="" fill sizes="72px" quality={92} referrerPolicy="no-referrer" />
+              {collection.preview_items.map((item) =>
+                item.poster_url ? (
+                  <span className={styles.posterThumb} key={item.slug}>
+                    <Image className={styles.posterThumbImage} src={item.poster_url} alt="" fill sizes="72px" quality={92} referrerPolicy="no-referrer" />
                   </span>
                 ) : (
-                  <span className={styles.posterThumb} key={item.title.slug}>
-                    {item.title.name.slice(0, 1).toUpperCase()}
+                  <span className={styles.posterThumb} key={item.slug}>
+                    {item.name.slice(0, 1).toUpperCase()}
                   </span>
                 ),
               )}
             </span>
-            <span className={styles.collectionCount}>{t("collections.itemCount", { count: collection.items.length })}</span>
+            <span className={styles.collectionCount}>{t("collections.itemCount", { count: collection.item_count })}</span>
           </Link>
         ))}
       </div>

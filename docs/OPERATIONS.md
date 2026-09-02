@@ -31,6 +31,19 @@ Key signals:
 
 Alert at minimum on repeated backend readiness failures, HTTP 5xx increase, provider check failures, Celery task failures, notification failures, unhealthy Compose services, stale AWG handshake, disk pressure and missing backups.
 
+## Provider health checks
+
+`catalog.tasks.check_provider_sources` runs every 10 minutes on the `providers` queue and probes a bounded slice: at most 150 sources per run, with a 420-second wall-clock budget that stops new probes before the Celery soft limit fires. A Redis cursor (`catalog:source-check-cursor`) walks the whole catalog across runs and wraps at the end, so a shrinking catalog cannot strand it past the last id.
+
+The bound is not optional. With ~29k sources and a 10-second HEAD timeout each, a full sweep cannot finish inside `CELERY_TASK_SOFT_TIME_LIMIT`: the previous unbounded version was killed mid-batch every 10 minutes, so the tail of the catalog was never checked at all. If you need a faster full sweep, run the task manually with a larger `limit` rather than raising the schedule frequency:
+
+```bash
+docker exec mainserver-backend-1 python -c \
+  "from catalog.tasks import check_provider_sources; print(check_provider_sources(limit=150))"
+```
+
+`SourceHealthCheck` grows by one row per probed source per run, so the task prunes rows older than 14 days on every run (`HEALTH_CHECK_RETENTION_DAYS`). That window covers the rolling windows the staff dashboard renders; older rows only consume space. The `pruned` count is part of the task result and of its completion log line.
+
 ## Backups
 
 `scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (14 daily dumps plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
@@ -252,7 +265,11 @@ Rollback uses the database dump plus the verified media-volume backup. Do not re
 
 ## Title detail and episode pages
 
-`/api/v1/titles/<slug>/` paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`, so long-running series no longer serialize thousands of episodes in one response. `episode_sources=0` is the opt-in compact mode used by the title UI: episode rows omit playback sources and avoid their queries; the dedicated episode endpoint still returns playback-gated sources. Metadata additionally requests one episode and one character with a 60-second revalidation window.
+`/api/v1/titles/<slug>/` always paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`. Pagination is not opt-in: a request without parameters — a crawler, a curl probe, an older client — would otherwise serialize the whole series, and One Piece alone is 1180 episodes with 4236 sources. Cast lists are bounded the same way through `characters_page` / `characters_count`. `episode_sources=0` is the opt-in compact mode used by the title UI: episode rows omit playback sources and avoid their queries; the dedicated episode endpoint still returns playback-gated sources. Metadata additionally requests one episode and one character with a 60-second revalidation window.
+
+`GET /collections/` returns cards, not contents: `item_count` plus `preview_items` (the first four positions, poster and name only). The nested title payload stays on the detail endpoints, where a collection is capped at 200 items and every one is rendered. At the project ceilings (50 collections × 200 items) the previous shape was a 3.6 MB response built to draw a few posters per card; it is now 30 KB. The title page asks `GET /collections/?title=<slug>`, which fills `contains_title` server-side instead of shipping every collection's item list to compute membership in the browser.
+
+DRF is configured with a default pagination class and page size. Every current list view declares its own, so nothing changes today; the default exists so the next `ListAPIView` cannot ship unbounded by omission. Opting out must stay explicit (`pagination_class = None`).
 
 All server-side Next.js request paths, including public profiles and collections, use `INTERNAL_API_BASE_URL` over AWG and send `X-AniCast-Internal-Token`. Store the same random value (at least 32 characters) as `INTERNAL_API_TOKEN` on MainServer and VPS. Caddy strips that header from every public `/api/*` request. Valid safe internal requests use the separate `ssr=600/min` bucket; public anonymous traffic remains at `60/min`, and frontend retry is limited to transport failures only.
 

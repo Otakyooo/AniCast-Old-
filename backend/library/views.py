@@ -1,7 +1,20 @@
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import IntegrityError, transaction
-from django.db.models import Avg, Case, Count, F, FloatField, IntegerField, OuterRef, Subquery, Sum, Value, When
+from django.db.models import (
+    Avg,
+    Case,
+    Count,
+    F,
+    FloatField,
+    IntegerField,
+    OuterRef,
+    Prefetch,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -42,6 +55,7 @@ from .serializers import (
     CollectionItemMoveSerializer,
     CollectionItemSerializer,
     CollectionSerializer,
+    CollectionSummarySerializer,
     LibraryEntrySerializer,
     LibraryEntryWriteSerializer,
     RecommendationSerializer,
@@ -54,6 +68,12 @@ User = get_user_model()
 
 
 def collection_queryset():
+    """Full collection payload for detail endpoints (owner view and public page).
+
+    Detail responses legitimately render every title as a card, and a collection
+    is capped at 200 items, so the nested title payload is bounded here. The
+    list endpoint must not use this: see :func:`collection_summary_queryset`.
+    """
     return TitleCollection.objects.select_related("owner").prefetch_related(
         "items__title__translations",
         "items__title__franchise__translations",
@@ -61,12 +81,63 @@ def collection_queryset():
     )
 
 
+COLLECTION_PREVIEW_LIMIT = 4
+
+
+def collection_summary_queryset(preview_limit: int = COLLECTION_PREVIEW_LIMIT):
+    """Collection cards: a count plus a handful of posters, nothing more.
+
+    The list endpoint previously reused the detail queryset, so a viewer at both
+    ceilings (50 collections × 200 items) received 10 000 nested title payloads
+    to draw at most a few posters per card. The count is annotated and the
+    preview is selected by position rather than by slicing: a sliced ``Prefetch``
+    is executed per parent row, while ``position__lt`` is one query for the whole
+    page. Positions are dense from 0 — the unique constraint plus
+    :func:`reindex_collection_items` maintain that — so the filter returns
+    exactly the first items of each collection.
+    """
+    preview = (
+        TitleCollectionItem.objects.select_related("title")
+        .filter(position__lt=preview_limit)
+        .order_by("position", "id")
+        .prefetch_related("title__translations")
+    )
+    return (
+        TitleCollection.objects.select_related("owner")
+        .annotate(item_count=Count("items"))
+        .prefetch_related(Prefetch("items", queryset=preview, to_attr="preview_items"))
+    )
+
+
+def collection_position_case(numbered_items):
+    """One CASE expression mapping each item primary key to its new position."""
+    return Case(
+        *[When(pk=item.pk, then=Value(position)) for position, item in numbered_items],
+        output_field=IntegerField(),
+    )
+
+
 def reindex_collection_items(collection, ordered_items):
+    """Rewrite positions to 0..n-1 in two statements.
+
+    ``unique_collection_position`` forbids two rows sharing a position, so the
+    rewrite first parks every row above the 200-item ceiling and then assigns the
+    final positions in a single ``CASE`` update. The previous implementation
+    saved each row individually, which cost one query per item — around 405
+    queries to add a single title to a full collection, all under row locks.
+
+    ``ordered_items`` may contain one unsaved row (an insert): positions are
+    taken from its index in the desired order, so the caller can save that row
+    afterwards at the slot reserved for it.
+    """
+    numbered = [(position, item) for position, item in enumerate(ordered_items) if item.pk is not None]
     TitleCollectionItem.objects.filter(collection=collection).update(position=F("position") + 201)
-    for position, item in enumerate(ordered_items):
-        if item.pk is not None:
-            item.position = position
-            item.save(update_fields=["position"])
+    if numbered:
+        TitleCollectionItem.objects.filter(pk__in=[item.pk for _, item in numbered]).update(
+            position=collection_position_case(numbered)
+        )
+    for position, item in numbered:
+        item.position = position
 
 
 class LibraryPagination(PageNumberPagination):
@@ -614,8 +685,20 @@ class CollectionListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        collections = collection_queryset().filter(owner=request.user)
-        return Response(CollectionSerializer(collections, many=True, context={"request": request}).data)
+        collections = collection_summary_queryset().filter(owner=request.user)
+        context = {"request": request}
+        # The title page asks one question of this endpoint: which collections
+        # already contain the title being viewed. Answering it here keeps the
+        # client from needing the full nested item list of every collection.
+        title_slug = request.query_params.get("title", "").strip()[:260]
+        if title_slug:
+            context["membership_title_slug"] = title_slug
+            context["membership_collection_ids"] = set(
+                TitleCollectionItem.objects.filter(
+                    collection__owner=request.user, title__slug=title_slug
+                ).values_list("collection_id", flat=True)
+            )
+        return Response(CollectionSummarySerializer(collections, many=True, context=context).data)
 
     def post(self, request):
         serializer = CollectionSerializer(data=request.data, context={"request": request})
@@ -689,15 +772,14 @@ class CollectionItemListView(APIView):
             position = serializer.validated_data.get("position", len(items))
             if position > len(items):
                 raise ValidationError({"position": "Позиция выходит за границы коллекции."})
-            reindex_collection_items(collection, items)
-            TitleCollectionItem.objects.filter(collection=collection, position__gte=position).update(
-                position=F("position") + 201
-            )
-            shifted = list(TitleCollectionItem.objects.filter(collection=collection).order_by("position", "id"))
-            for index, item in enumerate(shifted):
-                item.position = index if index < position else index + 1
-                item.save(update_fields=["position"])
-            item = TitleCollectionItem.objects.create(collection=collection, title=title, position=position)
+            # Insert by rewriting the whole order once: the new row takes its
+            # slot in the list and reindex assigns every final position in a
+            # single statement, instead of shifting rows one save at a time.
+            item = TitleCollectionItem(collection=collection, title=title, position=position)
+            ordered = items[:position] + [item] + items[position:]
+            reindex_collection_items(collection, ordered)
+            item.position = position
+            item.save()
             collection.save(update_fields=["updated_at"])
         item = TitleCollectionItem.objects.select_related("title", "title__franchise").prefetch_related(
             "title__translations", "title__franchise__translations", "title__genres__translations"

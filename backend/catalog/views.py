@@ -148,18 +148,15 @@ class TitleDetailView(RetrieveAPIView):
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
-    episode_page_params = ("episodes_page", "episodes_page_size")
-    character_page_params = ("characters_page", "characters_page_size")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        # Pagination stays opt-in so a previous frontend release, which reads the
-        # full embedded list, keeps working during an expand/contract rollout.
-        if any(param in self.request.query_params for param in self.episode_page_params):
-            context["episodes_paginator"] = EpisodePagination()
-        # Cast lists can exceed a thousand entries (One Piece). Always bound
-        # the embedded payload; clients use characters_count and opt into
-        # subsequent pages with characters_page.
+        # Episode and cast lists are always bounded. One Piece alone has 1180
+        # episodes and 4200+ sources, so an unpaginated detail response was a
+        # single request that could serialize the whole series; clients read
+        # episodes_count / characters_count and page explicitly. The paginator
+        # keeps honoring episodes_page / episodes_page_size when supplied.
+        context["episodes_paginator"] = EpisodePagination()
         context["characters_paginator"] = CharacterPagination()
         context["include_episode_sources"] = self.request.query_params.get("episode_sources") != "0"
         return context

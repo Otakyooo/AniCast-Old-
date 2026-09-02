@@ -1,6 +1,8 @@
 from celery import shared_task
 import logging
 import time
+from datetime import timedelta
+
 from django.utils import timezone
 
 from .health import check_source
@@ -153,27 +155,62 @@ def refresh_title_posters(limit: int = 0) -> dict[str, int]:
     return counts
 
 
-@shared_task
-def check_provider_sources():
-    checked = failed = transitions = 0
-    queryset = Source.objects.filter(
+HEALTH_CHECK_RETENTION_DAYS = 14
+HEALTH_CHECK_BATCH_CAP = 150
+HEALTH_CHECK_TIME_BUDGET_SECONDS = 420
+
+
+@shared_task(soft_time_limit=520, time_limit=570)
+def check_provider_sources(limit: int = HEALTH_CHECK_BATCH_CAP) -> dict[str, int]:
+    """Probe a bounded slice of provider sources and prune old health rows.
+
+    The pass used to walk every enabled non-iframe source in one run. With ~29k
+    sources and a 10-second HEAD timeout each, that could not finish inside the
+    Celery soft limit: the task was killed mid-batch every ten minutes, leaving
+    the tail of the catalog unchecked and writing one SourceHealthCheck row per
+    source per run with no retention.
+
+    A cursor walks the whole catalog across runs, a wall-clock budget stops new
+    probes before the soft limit fires, and the ledger keeps two weeks of
+    history — long enough for the staff dashboard's rolling windows.
+    """
+    from django.core.cache import cache
+
+    batch_limit = max(1, min(int(limit), HEALTH_CHECK_BATCH_CAP))
+    deadline = time.monotonic() + HEALTH_CHECK_TIME_BUDGET_SECONDS
+    cursor = int(cache.get("catalog:source-check-cursor", 0) or 0)
+    candidates = Source.objects.filter(
         provider__is_enabled=True,
         availability__in=["available", "provider_error"],
-    ).exclude(provider__playback_adapter="iframe_embed").select_related("provider")
-    for source in queryset:
+    ).exclude(provider__playback_adapter="iframe_embed").select_related("provider").order_by("id")
+    sources = list(candidates.filter(id__gt=cursor)[:batch_limit])
+    if not sources:
+        # Wrap around so a shrinking catalog cannot strand the cursor past the
+        # last id and stop checking altogether.
+        cursor = 0
+        sources = list(candidates[:batch_limit])
+
+    checked = failed = transitions = 0
+    health_rows = []
+    now = timezone.now()
+    for source in sources:
+        if time.monotonic() >= deadline:
+            break
         result = check_source(source)
         increment("source_checks", "healthy" if result.is_healthy else "failed")
         increment("source_duration_ms_sum", value=result.latency_ms)
         increment("source_duration_count")
         checked += 1
-        SourceHealthCheck.objects.create(
-            source=source,
-            is_healthy=result.is_healthy,
-            http_status=result.http_status,
-            latency_ms=result.latency_ms,
-            error=result.error,
+        health_rows.append(
+            SourceHealthCheck(
+                source=source,
+                is_healthy=result.is_healthy,
+                http_status=result.http_status,
+                latency_ms=result.latency_ms,
+                error=result.error,
+            )
         )
-        source.last_checked_at = timezone.now()
+        source.last_checked_at = now
         source.last_http_status = result.http_status
         previous_availability = source.availability
         if result.is_healthy:
@@ -194,11 +231,22 @@ def check_provider_sources():
                 "event": "provider_source_state_changed", "source_id": source.pk,
                 "result": source.availability,
             })
-        source.save(update_fields=[
-            "last_checked_at", "last_http_status", "consecutive_failures", "availability", "availability_reason"
-        ])
+        cursor = source.id
+
+    probed = sources[:checked]
+    if probed:
+        SourceHealthCheck.objects.bulk_create(health_rows)
+        Source.objects.bulk_update(
+            probed,
+            ["last_checked_at", "last_http_status", "consecutive_failures", "availability", "availability_reason"],
+        )
+    cache.set("catalog:source-check-cursor", cursor, timeout=None)
+
+    pruned, _ = SourceHealthCheck.objects.filter(
+        checked_at__lt=now - timedelta(days=HEALTH_CHECK_RETENTION_DAYS)
+    ).delete()
     logger.info("provider check batch completed", extra={
         "event": "provider_check_batch_completed", "checked": checked, "failed": failed,
-        "transitions": transitions,
+        "transitions": transitions, "pruned": pruned,
     })
-    return {"checked": checked, "failed": failed}
+    return {"checked": checked, "failed": failed, "pruned": pruned}

@@ -72,6 +72,12 @@ CSRF_TRUSTED_ORIGINS = [x for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS",
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    # Bound list responses by default. Every current list view sets its own
+    # pagination class, so this changes no existing endpoint; it exists so the
+    # next ListAPIView cannot ship unbounded by omission. Opting out stays
+    # explicit (`pagination_class = None`) for the few genuinely small lists.
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
     # Anonymous and authenticated traffic need separate ceilings: DRF's
     # AnonRateThrottle silently skips authenticated requests, which would leave
     # every logged-in account unthrottled on the expensive personal endpoints.

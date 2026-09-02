@@ -99,8 +99,12 @@ def test_title_detail_paginates_episodes(catalog_data):
     Episode.objects.create(title=catalog_data, number=2, name="Second")
     Episode.objects.create(title=catalog_data, number=3, name="Third")
     client = APIClient()
-    unpaginated = client.get("/api/v1/titles/sky-test/").json()
-    assert [episode["number"] for episode in unpaginated["episodes"]] == [1, 2, 3]
+    # Pagination is not opt-in: a caller that asks for nothing still gets a
+    # bounded first page plus the total, so a 1000-episode series can never be
+    # serialized whole by omission.
+    default_page = client.get("/api/v1/titles/sky-test/").json()
+    assert [episode["number"] for episode in default_page["episodes"]] == [1, 2, 3]
+    assert default_page["episodes_count"] == 3
     first = client.get("/api/v1/titles/sky-test/?episodes_page_size=2").json()
     assert first["episodes_count"] == 3
     assert [episode["number"] for episode in first["episodes"]] == [1, 2]
@@ -110,6 +114,23 @@ def test_title_detail_paginates_episodes(catalog_data):
     assert beyond.status_code == 404
     oversized = client.get("/api/v1/titles/sky-test/?episodes_page_size=500").json()
     assert len(oversized["episodes"]) == 3
+
+
+@pytest.mark.django_db
+def test_title_detail_bounds_episodes_without_pagination_parameters(catalog_data):
+    """A request with no pagination hints must still be bounded.
+
+    This is the shape a crawler, a curl probe or an older client sends. Before
+    the default page size applied here, that request serialized every episode of
+    the series along with its playback sources.
+    """
+    Episode.objects.bulk_create(
+        [Episode(title=catalog_data, number=number) for number in range(2, 60)]
+    )
+    body = APIClient().get("/api/v1/titles/sky-test/").json()
+    assert body["episodes_count"] == 59
+    assert len(body["episodes"]) == 20
+    assert [episode["number"] for episode in body["episodes"]] == list(range(1, 21))
 
 
 @pytest.mark.django_db
@@ -326,12 +347,16 @@ def test_title_detail_batches_playback_availability_queries(django_assert_max_nu
     assert len(sources) == 20
     assert all(source["playback_available"] for source in sources)
 
-    # Without pagination parameters the payload stays backward compatible for the
-    # previous frontend release, and still avoids a query per source.
+    # A request without pagination parameters is the shape a crawler or an older
+    # client sends. It must be bounded to the default page and still avoid a
+    # query per source, because the alternative is serializing the whole series.
     with django_assert_max_num_queries(12):
-        legacy = APIClient().get("/api/v1/titles/long-series/")
+        default_page = APIClient().get("/api/v1/titles/long-series/")
 
-    assert len(legacy.json()["episodes"]) == 60
+    body = default_page.json()
+    assert body["episodes_count"] == 60
+    assert len(body["episodes"]) == 20
+    assert [episode["number"] for episode in body["episodes"]] == list(range(1, 21))
 
 
 @pytest.mark.django_db
@@ -516,8 +541,10 @@ def test_title_detail_exposes_cast_without_extra_queries(catalog_data, django_as
     TitleCharacter.objects.create(title=catalog_data, character=rival, role="antagonist", sort_order=1)
     CharacterTranslation.objects.create(character=hero, language="ru", name="Герой")
     # Creator credits and related works extend the payload with a fixed number
-    # of prefetches; this remains bounded regardless of cast size.
-    with django_assert_max_num_queries(15):
+    # of prefetches; this remains bounded regardless of cast size. The episode
+    # paginator adds its COUNT unconditionally now — that one query is what buys
+    # a bounded episode list for every caller.
+    with django_assert_max_num_queries(16):
         body = APIClient().get("/api/v1/titles/sky-test/").json()
     assert [entry["character"]["slug"] for entry in body["characters"]] == ["hero", "rival"]
     assert body["characters"][0]["role"] == "protagonist"

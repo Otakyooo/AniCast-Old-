@@ -16,17 +16,11 @@ export function TitleCollectionControl({ titleSlug }: { titleSlug: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    // The list endpoint already nests items, so membership is computed in one
-    // request instead of re-fetching every collection detail.
-    getCollections(controller.signal).then((result) => {
+    // The server answers membership for this one title, so the client no longer
+    // needs every collection's full item list to compute it.
+    getCollections(controller.signal, titleSlug).then((result) => {
       setCollections(result);
-      setIncluded(
-        new Set(
-          result
-            .filter((collection) => collection.items.some((item) => item.title.slug === titleSlug))
-            .map((collection) => collection.slug),
-        ),
-      );
+      setIncluded(new Set(result.filter((collection) => collection.contains_title).map((collection) => collection.slug)));
     }).catch((reason) => {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
       if (reason instanceof CollectionsApiError && [401, 403].includes(reason.status)) setGuest(true);

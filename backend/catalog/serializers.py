@@ -207,10 +207,9 @@ class TitleDetailSerializer(TitleSerializer):
         if include_sources:
             episodes = episodes.prefetch_related(playback_sources_prefetch())
         paginator = self.context.get("episodes_paginator")
-        if paginator is None:
-            page = episodes
-        else:
-            page = paginator.paginate_queryset(episodes, self.context["request"])
+        # The detail view always supplies a paginator; the fallback keeps other
+        # callers (tests, management code) from silently serializing 1000+ rows.
+        page = episodes if paginator is None else paginator.paginate_queryset(episodes, self.context["request"])
         serializer = EpisodeSerializer if include_sources else EpisodeSummarySerializer
         return serializer(page, many=True, context=self.context).data
 

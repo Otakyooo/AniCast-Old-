@@ -2,6 +2,8 @@ import re
 
 from rest_framework import serializers
 
+from catalog import posters
+from catalog.i18n import translated_value
 from catalog.serializers import EpisodeSerializer, TitleSerializer
 
 from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
@@ -123,10 +125,65 @@ class CollectionItemSerializer(serializers.ModelSerializer):
         fields = ["position", "title", "created_at"]
 
 
+class CollectionPreviewItemSerializer(serializers.ModelSerializer):
+    """Poster-only row for collection cards.
+
+    The list endpoint exists to render cards: a name, a count and a few
+    posters. Nesting the full ``TitleSerializer`` there meant 50 collections ×
+    200 items could serialize 10 000 complete title payloads in one response,
+    so previews carry only what a card draws.
+    """
+
+    slug = serializers.CharField(source="title.slug", read_only=True)
+    name = serializers.SerializerMethodField()
+    poster_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TitleCollectionItem
+        fields = ["position", "slug", "name", "poster_url"]
+
+    def get_name(self, obj):
+        return translated_value(obj.title, "name", self.context)
+
+    def get_poster_url(self, obj):
+        return posters.public_poster_reference(obj.title.poster_url)
+
+
 class PublicCollectionOwnerSerializer(serializers.Serializer):
     public_id = serializers.UUIDField(read_only=True)
     display_name = serializers.CharField(read_only=True)
     profile_is_public = serializers.BooleanField(read_only=True)
+
+
+class CollectionSummarySerializer(serializers.ModelSerializer):
+    """Bounded collection card for the list endpoint.
+
+    ``item_count`` comes from an annotation and ``preview_items`` from a sliced
+    prefetch, so the response size no longer scales with how many titles the
+    viewer has collected. ``contains_title`` answers the one membership question
+    the title page asks and is present only when the client passes ``?title=``.
+    """
+
+    owner = PublicCollectionOwnerSerializer(read_only=True)
+    item_count = serializers.IntegerField(read_only=True)
+    preview_items = serializers.SerializerMethodField()
+    contains_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TitleCollection
+        fields = [
+            "owner", "name", "slug", "description", "is_public",
+            "item_count", "preview_items", "contains_title", "created_at", "updated_at",
+        ]
+
+    def get_preview_items(self, obj):
+        items = getattr(obj, "preview_items", [])
+        return CollectionPreviewItemSerializer(items, many=True, context=self.context).data
+
+    def get_contains_title(self, obj):
+        if not self.context.get("membership_title_slug"):
+            return None
+        return obj.pk in self.context.get("membership_collection_ids", set())
 
 
 class CollectionSerializer(serializers.ModelSerializer):

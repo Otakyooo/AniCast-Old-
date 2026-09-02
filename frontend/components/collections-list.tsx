@@ -32,7 +32,24 @@ export function CollectionsList() {
     setPending(true); setError("");
     try {
       const created = await createCollection({ name: name.trim(), slug, description: "", is_public: false });
-      setCollections((current) => [created, ...(current ?? [])]); setName(""); setSlug("");
+      // The POST answers with the full detail payload; the list renders cards,
+      // so the new collection is folded into the card shape it expects.
+      setCollections((current) => [
+        {
+          slug: created.slug,
+          name: created.name,
+          description: created.description,
+          is_public: created.is_public,
+          item_count: created.items.length,
+          preview_items: [],
+          contains_title: null,
+          owner: created.owner,
+          created_at: created.created_at,
+          updated_at: created.updated_at,
+        },
+        ...(current ?? []),
+      ]);
+      setName(""); setSlug("");
     } catch { setError(t("collections.saveError")); }
     finally { setPending(false); }
   }
@@ -47,6 +64,6 @@ export function CollectionsList() {
       <div className={styles.actions}><button className={styles.primary} disabled={pending} type="submit">{pending ? t("collections.creating") : t("collections.create")}</button></div>
       {error && <span className={styles.error} role="alert">{error}</span>}
     </form>
-    {collections?.length ? <div className={styles.grid}>{collections.map((collection) => <Link className={styles.card} href={`/collections/manage/${collection.slug}`} key={collection.slug}><h2>{collection.name}</h2><p>{collection.description || t("collections.noDescription")}</p><span className={styles.meta}><span>{collection.is_public ? t("collections.public") : t("collections.private")}</span><span>{t("collections.itemCount", { count: collection.items.length })}</span></span></Link>)}</div> : <div className={styles.empty}><strong>{t("collections.empty")}</strong><span>{t("collections.emptyText")}</span></div>}
+    {collections?.length ? <div className={styles.grid}>{collections.map((collection) => <Link className={styles.card} href={`/collections/manage/${collection.slug}`} key={collection.slug}><h2>{collection.name}</h2><p>{collection.description || t("collections.noDescription")}</p><span className={styles.meta}><span>{collection.is_public ? t("collections.public") : t("collections.private")}</span><span>{t("collections.itemCount", { count: collection.item_count })}</span></span></Link>)}</div> : <div className={styles.empty}><strong>{t("collections.empty")}</strong><span>{t("collections.emptyText")}</span></div>}
   </>;
 }

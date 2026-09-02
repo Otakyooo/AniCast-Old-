@@ -915,3 +915,115 @@ def test_collection_title_serialization_honors_requested_language(users, titles)
     url = f"/api/v1/public/collections/{users[0].public_id}/{collection.slug}/"
     assert APIClient().get(url, HTTP_ACCEPT_LANGUAGE="ru").json()["items"][0]["title"]["name"] == "Первый"
     assert APIClient().get(url, HTTP_ACCEPT_LANGUAGE="en").json()["items"][0]["title"]["name"] == "First"
+
+
+@pytest.mark.django_db
+def test_collection_list_is_a_bounded_card_payload(users, django_assert_max_num_queries):
+    """The list endpoint renders cards, so it must not carry every nested title.
+
+    At both ceilings (50 collections × 200 items) the old response serialized
+    10 000 complete title payloads to draw a few posters per card. The card now
+    carries a count and a bounded preview, and the cost must not grow with how
+    much the viewer has collected.
+    """
+    collected = Title.objects.bulk_create(
+        [Title(name=f"Collected {index}", slug=f"collected-{index}") for index in range(12)]
+    )
+    for index, title in enumerate(collected):
+        TitleTranslation.objects.create(title=title, language="ru", name=f"Собрано {index}", synopsis="о")
+    for list_index in range(6):
+        collection = TitleCollection.objects.create(
+            owner=users[0], name=f"List {list_index}", slug=f"list-{list_index}"
+        )
+        TitleCollectionItem.objects.bulk_create(
+            [
+                TitleCollectionItem(collection=collection, title=title, position=position)
+                for position, title in enumerate(collected)
+            ]
+        )
+    client = APIClient()
+    client.force_login(users[0])
+
+    # Session read, the annotated collection page, one query for all previews and
+    # one for their translations, plus the session write every authenticated
+    # request performs. Never a query per collection or per item.
+    with django_assert_max_num_queries(8):
+        response = client.get("/api/v1/collections/", HTTP_ACCEPT_LANGUAGE="ru")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 6
+    card = payload[0]
+    assert card["item_count"] == 12
+    assert len(card["preview_items"]) == 4
+    assert set(card["preview_items"][0]) == {"position", "slug", "name", "poster_url"}
+    assert card["preview_items"][0]["name"].startswith("Собрано")
+    assert [item["position"] for item in card["preview_items"]] == [0, 1, 2, 3]
+    # Cards never carry the nested title payload the detail endpoint returns.
+    assert "items" not in card
+    assert card["contains_title"] is None
+
+
+@pytest.mark.django_db
+def test_collection_list_answers_membership_for_one_title(users, titles):
+    """The title page asks only which collections already contain this title."""
+    holding = TitleCollection.objects.create(owner=users[0], name="Holding", slug="holding")
+    TitleCollectionItem.objects.create(collection=holding, title=titles[0], position=0)
+    TitleCollection.objects.create(owner=users[0], name="Empty", slug="empty-list")
+    client = APIClient()
+    client.force_login(users[0])
+
+    payload = client.get(f"/api/v1/collections/?title={titles[0].slug}").json()
+    membership = {card["slug"]: card["contains_title"] for card in payload}
+    assert membership == {"holding": True, "empty-list": False}
+
+    # Another account's collection never leaks into the answer.
+    other = TitleCollection.objects.create(owner=users[1], name="Other", slug="other-list")
+    TitleCollectionItem.objects.create(collection=other, title=titles[0], position=0)
+    payload = client.get(f"/api/v1/collections/?title={titles[0].slug}").json()
+    assert {card["slug"] for card in payload} == {"holding", "empty-list"}
+    assert client.get("/api/v1/collections/?title=does-not-exist").json()[0]["contains_title"] is False
+
+
+@pytest.mark.django_db
+def test_collection_insert_rewrites_positions_in_a_bounded_number_of_queries(
+    users, titles, django_assert_max_num_queries
+):
+    """Adding one title must not cost a query per existing item.
+
+    ``unique_collection_position`` forces a full rewrite of the order, but that
+    rewrite is two statements. The old implementation saved every row twice,
+    which at the 200-item ceiling meant roughly 405 queries under row locks to
+    add a single title.
+    """
+    collection = TitleCollection.objects.create(owner=users[0], name="Favorites", slug="favorites")
+    existing = Title.objects.bulk_create(
+        [Title(name=f"Existing {index}", slug=f"existing-{index}") for index in range(40)]
+    )
+    TitleCollectionItem.objects.bulk_create(
+        [
+            TitleCollectionItem(collection=collection, title=title, position=position)
+            for position, title in enumerate(existing)
+        ]
+    )
+    client = APIClient()
+    client.force_login(users[0])
+
+    with django_assert_max_num_queries(18):
+        response = client.post(
+            "/api/v1/collections/favorites/items/",
+            {"title_slug": titles[0].slug, "position": 5},
+            format="json",
+        )
+
+    assert response.status_code == 201
+    assert response.json()["position"] == 5
+    positions = list(
+        TitleCollectionItem.objects.filter(collection=collection)
+        .order_by("position")
+        .values_list("position", "title__slug")
+    )
+    assert [position for position, _ in positions] == list(range(41))
+    assert positions[5][1] == titles[0].slug
+    assert positions[4][1] == "existing-4"
+    assert positions[6][1] == "existing-5"

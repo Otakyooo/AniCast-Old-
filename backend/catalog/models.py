@@ -90,7 +90,24 @@ class Title(models.Model):
 
     class Meta:
         ordering = ["name"]
-        indexes = [models.Index(fields=["status"]), models.Index(fields=["title_type"])]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["title_type"]),
+            # Every catalog page orders by (name, slug) — the model default plus
+            # the unique tiebreaker. Without a matching index Postgres sorts the
+            # whole table per request; measured on 60k rows, a deep page went
+            # from an external merge sort (141 ms) to an index scan (23 ms), and
+            # a status-filtered page from 30 ms to 11 ms.
+            #
+            # `ordering=recent` (year DESC NULLS LAST, name, slug) is deliberately
+            # left unindexed. Matching it needs an explicit NULLS LAST index —
+            # a plain DESC index does not qualify, since Postgres DESC implies
+            # NULLS FIRST — and SQLite cannot create one at all, so the index
+            # would exist in production but not in the test schema. At 60k rows
+            # that ordering is a 25 ms top-N heapsort, and the real catalog is
+            # two orders of magnitude smaller.
+            models.Index(fields=["name", "slug"], name="catalog_title_name_slug_idx"),
+        ]
         verbose_name = "Тайтл"
         verbose_name_plural = "Тайтлы"
 

@@ -14,7 +14,36 @@ export interface CollectionItem {
   created_at?: string;
 }
 
+/**
+ * Poster-only row returned by the list endpoint.
+ *
+ * Cards draw a name and a poster, so the list response carries just that. The
+ * full `CollectionItem` with its nested title stays on the detail endpoints,
+ * where a collection is capped at 200 items and every one is rendered.
+ */
+export interface CollectionPreviewItem {
+  position: number;
+  slug: string;
+  name: string;
+  poster_url: string | null;
+}
+
+/** Collection card: a count, a bounded preview and optional membership. */
 export interface CollectionSummary {
+  slug: string;
+  name: string;
+  description: string;
+  is_public: boolean;
+  item_count: number;
+  preview_items: CollectionPreviewItem[];
+  /** Present only when the request passed a title slug; null otherwise. */
+  contains_title: boolean | null;
+  owner?: CollectionOwner;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CollectionDetail {
   slug: string;
   name: string;
   description: string;
@@ -24,10 +53,6 @@ export interface CollectionSummary {
   owner_public_id?: string;
   created_at?: string;
   updated_at?: string;
-}
-
-export interface CollectionDetail extends CollectionSummary {
-  items: CollectionItem[];
 }
 
 export interface CollectionInput {
@@ -66,8 +91,15 @@ function collectionResults(payload: CollectionSummary[] | { results: CollectionS
   return Array.isArray(payload) ? payload : payload.results ?? [];
 }
 
-export async function getCollections(signal?: AbortSignal) {
-  const response = await fetch("/api/v1/collections/", { credentials: "same-origin", cache: "no-store", signal });
+/**
+ * Collection cards for the owner.
+ *
+ * `titleSlug` asks the server which collections already contain that title, so
+ * membership no longer requires the full nested item list of every collection.
+ */
+export async function getCollections(signal?: AbortSignal, titleSlug?: string) {
+  const query = titleSlug ? `?title=${encodeURIComponent(titleSlug)}` : "";
+  const response = await fetch(`/api/v1/collections/${query}`, { credentials: "same-origin", cache: "no-store", signal });
   return collectionResults(await parse<CollectionSummary[] | { results: CollectionSummary[] }>(response));
 }
 

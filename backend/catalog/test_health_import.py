@@ -73,6 +73,118 @@ def test_task_marks_three_failures_and_recovers_automatic_error(monitored_source
 
 
 @pytest.mark.django_db
+def test_provider_check_walks_the_catalog_across_runs(monitored_source, monkeypatch):
+    """A run probes a bounded slice; the cursor covers the rest next time.
+
+    The pass previously walked every enabled source in one task. At the current
+    catalog size (~29k sources, 10s HEAD timeout each) that cannot finish inside
+    the Celery soft limit, so the run was killed mid-batch and the tail of the
+    catalog was never checked.
+    """
+    provider = monitored_source.provider
+    title = monitored_source.episode.title
+    for number in range(2, 8):
+        episode = Episode.objects.create(title=title, number=number)
+        Source.objects.create(
+            episode=episode,
+            provider=provider,
+            external_id=f"episode-{number}",
+            name="Health Source",
+            url=f"https://watch.example.com/episode/{number}",
+        )
+    probed: list[int] = []
+
+    def record(source):
+        probed.append(source.pk)
+        return HealthResult(True, 200, 3)
+
+    monkeypatch.setattr("catalog.tasks.check_source", record)
+
+    first = check_provider_sources(limit=3)
+    assert first["checked"] == 3
+    second = check_provider_sources(limit=3)
+    assert second["checked"] == 3
+    # Distinct slices, in id order, with no source probed twice in one sweep.
+    assert len(set(probed)) == 6
+    assert probed == sorted(probed)
+
+    all_ids = list(Source.objects.order_by("id").values_list("id", flat=True))
+    assert probed == all_ids[:6]
+
+    # The cursor wraps once the catalog is exhausted, so checking never stalls.
+    third = check_provider_sources(limit=3)
+    assert third["checked"] == 1
+    fourth = check_provider_sources(limit=3)
+    assert fourth["checked"] == 3
+    assert probed[6:] == all_ids[6:] + all_ids[:3]
+
+
+@pytest.mark.django_db
+def test_provider_check_stops_probing_at_its_time_budget(monitored_source, monkeypatch):
+    """The wall-clock budget must stop new probes before the soft limit fires."""
+    provider = monitored_source.provider
+    title = monitored_source.episode.title
+    for number in range(2, 6):
+        episode = Episode.objects.create(title=title, number=number)
+        Source.objects.create(
+            episode=episode,
+            provider=provider,
+            external_id=f"budget-{number}",
+            name="Health Source",
+            url=f"https://watch.example.com/episode/{number}",
+        )
+    calls: list[int] = []
+
+    def record(source):
+        calls.append(source.pk)
+        return HealthResult(True, 200, 3)
+
+    monkeypatch.setattr("catalog.tasks.check_source", record)
+    # Two probes fit, then the deadline has passed: monotonic advances by one
+    # budget per call, and the loop checks it before each probe.
+    ticks = iter([0.0, 1.0, 2.0, 1e9, 1e9, 1e9])
+    monkeypatch.setattr("catalog.tasks.time.monotonic", lambda: next(ticks))
+
+    result = check_provider_sources(limit=5)
+    assert result["checked"] == 2
+    assert len(calls) == 2
+    # Only the probed rows are written, and the cursor resumes from there.
+    assert SourceHealthCheck.objects.count() == 2
+    assert Source.objects.filter(last_checked_at__isnull=False).count() == 2
+
+
+@pytest.mark.django_db
+def test_provider_check_prunes_health_history(monitored_source, monkeypatch):
+    """The ledger grows by one row per source per run, so it needs retention.
+
+    Two weeks covers the rolling windows the staff dashboard renders; older rows
+    only consume space.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from catalog.tasks import HEALTH_CHECK_RETENTION_DAYS
+
+    stale = SourceHealthCheck.objects.create(source=monitored_source, is_healthy=True, http_status=200)
+    recent = SourceHealthCheck.objects.create(source=monitored_source, is_healthy=True, http_status=200)
+    now = timezone.now()
+    SourceHealthCheck.objects.filter(pk=stale.pk).update(
+        checked_at=now - timedelta(days=HEALTH_CHECK_RETENTION_DAYS + 1)
+    )
+    SourceHealthCheck.objects.filter(pk=recent.pk).update(
+        checked_at=now - timedelta(days=HEALTH_CHECK_RETENTION_DAYS - 1)
+    )
+
+    monkeypatch.setattr("catalog.tasks.check_source", lambda source: HealthResult(True, 200, 3))
+    result = check_provider_sources()
+
+    assert result["pruned"] == 1
+    assert not SourceHealthCheck.objects.filter(pk=stale.pk).exists()
+    assert SourceHealthCheck.objects.filter(pk=recent.pk).exists()
+
+
+@pytest.mark.django_db
 def test_task_skips_browser_only_iframe_sources(monitored_source, monkeypatch):
     monitored_source.provider.playback_adapter = "iframe_embed"
     monitored_source.provider.save(update_fields=["playback_adapter"])
@@ -81,7 +193,7 @@ def test_task_skips_browser_only_iframe_sources(monitored_source, monkeypatch):
         lambda source: pytest.fail("iframe source must not be checked from the backend"),
     )
 
-    assert check_provider_sources() == {"checked": 0, "failed": 0}
+    assert check_provider_sources() == {"checked": 0, "failed": 0, "pruned": 0}
     assert not SourceHealthCheck.objects.filter(source=monitored_source).exists()
 
 
