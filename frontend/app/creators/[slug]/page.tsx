@@ -7,6 +7,8 @@ import { PageShell } from "../../../components/page-shell";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { apiErrorStatus, getCreator } from "../../../lib/api";
 import { hasCharacterArt } from "../../../lib/character-image";
+import { NO_INDEX_ROBOTS } from "../../../lib/seo";
+import { absoluteUrl } from "../../../lib/site";
 import { getI18n } from "../../../i18n/server";
 import styles from "../creator.module.css";
 
@@ -22,11 +24,36 @@ function decodeRouteSlug(slug: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  const { t } = await getI18n();
   try {
     const creator = await getCreator(decodeRouteSlug(slug));
-    return { title: creator.name, alternates: { canonical: `/creators/${creator.slug}` } };
-  } catch {
-    return { title: "AniCast" };
+    const description = t("creator.metaDescription", {
+      name: creator.name,
+      count: creator.title_credits.length,
+    });
+    return {
+      title: creator.name,
+      description,
+      alternates: { canonical: `/creators/${creator.slug}` },
+      openGraph: {
+        type: "profile",
+        url: `/creators/${creator.slug}`,
+        title: creator.name,
+        description,
+        ...(hasCharacterArt(creator.image_url)
+          ? { images: [{ url: absoluteUrl(creator.image_url), alt: creator.name }] }
+          : {}),
+      },
+    };
+  } catch (error) {
+    // A degraded API renders the unavailable shell at 200, so that page must
+    // stay out of the index rather than replace the real one in search results.
+    if (apiErrorStatus(error) === 404) return { title: t("creator.eyebrow") };
+    return {
+      title: t("creator.eyebrow"),
+      alternates: { canonical: `/creators/${slug}` },
+      robots: NO_INDEX_ROBOTS,
+    };
   }
 }
 

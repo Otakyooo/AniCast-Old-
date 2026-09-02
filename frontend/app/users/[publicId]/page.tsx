@@ -16,7 +16,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     const data = await getPublicProfileServer(publicId);
     const canonical = `/users/${publicId}`;
     return {
-      title: `${data.profile.display_name} — AniCast`,
+      // The root layout appends the brand, so the name must not carry it too.
+      title: data.profile.display_name,
       description: metaDescription(data.profile.bio, t("social.profileDescription", { name: data.profile.display_name })),
       alternates: { canonical },
       openGraph: { type: "profile", url: canonical, title: data.profile.display_name },

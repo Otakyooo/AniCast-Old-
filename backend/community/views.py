@@ -1,5 +1,6 @@
 from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -68,7 +69,7 @@ class PublicReviewListView(ListAPIView):
 
 class PublicProfileView(APIView):
     permission_classes = [AllowAny]
-    authentication_classes = []
+    authentication_classes: list[type[BaseAuthentication]] = []
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)

@@ -1,9 +1,12 @@
 import json
 import logging
 from datetime import timedelta
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.utils import timezone as dj_timezone
 from rest_framework.test import APIClient
@@ -13,7 +16,12 @@ from rest_framework.test import APIRequestFactory
 from common import availability
 from common.logging import JsonFormatter
 from common.models import AvailabilitySample, DailyVisitStat
-from common.throttling import AniCastAnonRateThrottle, is_internal_safe_request
+from common.security import constant_time_equals
+from common.throttling import (
+    AniCastAnonRateThrottle,
+    AniCastUserRateThrottle,
+    is_internal_safe_request,
+)
 
 
 @pytest.mark.django_db
@@ -61,6 +69,70 @@ def test_internal_api_token_only_marks_safe_matching_requests():
     throttle = AniCastAnonRateThrottle()
     assert throttle.allow_request(safe, object()) is True
     assert throttle.scope == "ssr"
+
+
+@override_settings(INTERNAL_API_TOKEN="s" * 32)
+def test_non_ascii_internal_token_is_rejected_without_raising():
+    # Django decodes headers as latin-1, and hmac.compare_digest raises
+    # TypeError on non-ASCII str. Comparing bytes keeps a hostile header a
+    # plain mismatch instead of an unauthenticated 500 on every API request.
+    factory = APIRequestFactory()
+    request = Request(factory.get("/api/v1/titles/", HTTP_X_ANICAST_INTERNAL_TOKEN="é" * 32))
+    assert is_internal_safe_request(request) is False
+
+
+def test_constant_time_equals_fails_closed_on_unset_secret():
+    assert constant_time_equals("", "") is False
+    assert constant_time_equals("anything", "") is False
+    assert constant_time_equals("secret", "secret") is True
+    assert constant_time_equals("secret", "secrets") is False
+    assert constant_time_equals("é", "secret") is False
+
+
+@pytest.mark.django_db
+@override_settings(METRICS_BEARER_TOKEN="test-metrics-token")
+def test_metrics_reject_non_ascii_authorization_without_error():
+    response = APIClient().get("/internal/metrics", HTTP_AUTHORIZATION="Bearer " + "é" * 20)
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_authenticated_requests_are_throttled_per_account():
+    # AnonRateThrottle returns None for logged-in callers, so without a user
+    # bucket a single account could hammer the expensive personal endpoints.
+    user = get_user_model().objects.create_user(
+        email="rate@example.com", password="A-strong-passphrase-2042"
+    )
+    factory = APIRequestFactory()
+    request = Request(factory.get("/api/v1/library/"))
+    request.user = user
+
+    throttle = AniCastUserRateThrottle()
+    throttle.rate = "2/min"
+    throttle.num_requests, throttle.duration = throttle.parse_rate(throttle.rate)
+    assert throttle.allow_request(request, object()) is True
+    assert throttle.allow_request(request, object()) is True
+    assert throttle.allow_request(request, object()) is False
+
+
+@pytest.mark.django_db
+def test_user_throttle_leaves_anonymous_traffic_to_the_anon_bucket():
+    factory = APIRequestFactory()
+    request = Request(factory.get("/api/v1/titles/"))
+    throttle = AniCastUserRateThrottle()
+    assert throttle.get_cache_key(request, object()) is None
+
+
+@pytest.mark.django_db
+@override_settings(INTERNAL_API_TOKEN="s" * 32)
+def test_user_throttle_exempts_trusted_ssr_requests():
+    factory = APIRequestFactory()
+    request = Request(factory.get("/api/v1/titles/", HTTP_X_ANICAST_INTERNAL_TOKEN="s" * 32))
+    throttle = AniCastUserRateThrottle()
+    throttle.rate = "1/min"
+    throttle.num_requests, throttle.duration = throttle.parse_rate(throttle.rate)
+    assert throttle.allow_request(request, object()) is True
+    assert throttle.allow_request(request, object()) is True
 
 
 @pytest.mark.django_db
@@ -154,6 +226,88 @@ def test_visit_counter_requires_csrf_for_real_http_clients():
     )
     assert response.status_code == 200
     assert response.json()["counted"] is True
+
+
+def visit_rate(rate: str) -> dict[str, Any]:
+    """REST_FRAMEWORK override that changes only the visit bucket.
+
+    ``settings.REST_FRAMEWORK`` is typed as ``object``, so the mapping is read
+    through an explicit cast instead of being unpacked directly.
+    """
+    framework = cast(dict[str, Any], settings.REST_FRAMEWORK)
+    rates = cast(dict[str, str], framework["DEFAULT_THROTTLE_RATES"])
+    return {**framework, "DEFAULT_THROTTLE_RATES": {**rates, "visit": rate}}
+
+
+@pytest.mark.django_db
+@override_settings(REST_FRAMEWORK=visit_rate("2/hour"))
+def test_visit_counter_stops_counting_beyond_the_per_address_budget():
+    # The bot check reads the User-Agent and the dedupe check reads a cookie the
+    # client controls, so a script that discards cookies must still be bounded:
+    # every counted request takes a row lock on today's counter. Exhausting the
+    # budget only stops counting — the response stays a normal 200 summary.
+    client = APIClient()
+    for _ in range(2):
+        response = client.post(
+            "/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="203.0.113.7"
+        )
+        assert response.json()["counted"] is True
+        client.cookies.clear()
+
+    throttled = client.post(
+        "/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="203.0.113.7"
+    )
+    assert throttled.status_code == 200
+    assert throttled.json() == {"total": 2, "today": 2, "counted": False}
+    assert "anicast_visit_day" not in throttled.cookies
+    assert DailyVisitStat.objects.get().visits == 2
+
+    other_address = APIClient().post(
+        "/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="198.51.100.9"
+    )
+    assert other_address.json()["counted"] is True
+
+
+@pytest.mark.django_db
+@override_settings(REST_FRAMEWORK=visit_rate("1/hour"))
+def test_visit_budget_is_only_spent_by_counted_visits():
+    # A returning browser sends its signed cookie, so repeat page loads must not
+    # consume the bucket that protects the counter from cookie-less clients.
+    client = APIClient()
+    assert client.post(
+        "/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="203.0.113.8"
+    ).json()["counted"] is True
+    for _ in range(5):
+        repeat = client.post(
+            "/api/v1/analytics/visit/", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="203.0.113.8"
+        )
+        assert repeat.status_code == 200
+        assert repeat.json() == {"total": 1, "today": 1, "counted": False}
+
+
+@pytest.mark.django_db
+@override_settings(REST_FRAMEWORK=visit_rate("1/hour"))
+def test_visit_throttle_trusts_only_the_address_the_proxy_appended():
+    # Caddy appends the peer address to any inbound X-Forwarded-For. With
+    # NUM_PROXIES=1 only that last hop counts, so a client-supplied prefix
+    # cannot mint a fresh bucket per request.
+    first = APIClient()
+    assert first.post(
+        "/api/v1/analytics/visit/",
+        HTTP_USER_AGENT="Mozilla/5.0",
+        HTTP_X_FORWARDED_FOR="10.0.0.1, 203.0.113.9",
+        REMOTE_ADDR="127.0.0.1",
+    ).json()["counted"] is True
+
+    spoofed = APIClient()
+    throttled = spoofed.post(
+        "/api/v1/analytics/visit/",
+        HTTP_USER_AGENT="Mozilla/5.0",
+        HTTP_X_FORWARDED_FOR="10.9.9.9, 203.0.113.9",
+        REMOTE_ADDR="127.0.0.1",
+    )
+    assert throttled.json()["counted"] is False
+    assert DailyVisitStat.objects.get().visits == 1
 
 
 def test_json_formatter_uses_allowlist_and_omits_message():

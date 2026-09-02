@@ -1,4 +1,6 @@
 import pytest
+from datetime import timedelta
+
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -6,6 +8,7 @@ from catalog.models import Episode, Franchise, Genre, Provider, Source, Title, T
 from django.utils import timezone
 
 from library.models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
+from library.views import ContinueWatchingView
 
 
 @pytest.fixture
@@ -327,6 +330,120 @@ def test_continue_watching_is_private(users, titles):
     client = APIClient()
     client.force_login(users[0])
     assert client.get("/api/v1/continue-watching/").json() == []
+
+
+def _personal_shelf_fixture(user, count, *, with_progress=False):
+    """A page-sized shelf of fully populated titles for the budget tests.
+
+    ``translated_value`` calls ``instance.translations.all()`` per localized
+    field, and ``TitleSerializer`` also localizes every genre and the franchise.
+    Without a prefetch each row costs a handful of queries, so the fixture needs
+    real translations and genres for the budget to mean anything.
+    """
+    franchise = Franchise.objects.create(name="Shelf Franchise", slug="shelf-franchise")
+    genres = [Genre.objects.create(name=f"Genre {index}", slug=f"genre-{index}") for index in range(3)]
+    for genre in genres:
+        genre.translations.create(language="ru", name=f"Жанр {genre.slug}")
+    franchise.translations.create(language="ru", name="Франшиза")
+    created = []
+    for index in range(count):
+        title = Title.objects.create(
+            name=f"Shelf {index}", slug=f"shelf-{index}", status="ongoing", franchise=franchise
+        )
+        title.genres.set(genres)
+        TitleTranslation.objects.create(title=title, language="ru", name=f"Полка {index}", synopsis="Описание")
+        episode = Episode.objects.create(title=title, number=1, name=f"Episode {index}")
+        episode.translations.create(language="ru", name=f"Эпизод {index}", synopsis="Серия")
+        if with_progress:
+            make_playable(episode)
+        created.append((title, episode))
+    return created
+
+
+@pytest.mark.django_db
+def test_library_list_serializes_a_full_page_within_a_query_budget(users, django_assert_max_num_queries):
+    for title, _ in _personal_shelf_fixture(users[0], 20):
+        LibraryEntry.objects.create(user=users[0], title=title, status="watching")
+    client = APIClient()
+    client.force_login(users[0])
+
+    # Session, count, page, then one query per prefetched relation — never per
+    # row. The same budget must hold for 1 entry and for a full page of 20.
+    with django_assert_max_num_queries(11):
+        response = client.get("/api/v1/library/", HTTP_ACCEPT_LANGUAGE="ru")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 20
+    first = response.json()["results"][0]["title"]
+    assert first["name"].startswith("Полка")
+    assert first["franchise"]["name"] == "Франшиза"
+    assert all(genre["name"].startswith("Жанр") for genre in first["genres"])
+
+
+@pytest.mark.django_db
+def test_history_list_serializes_a_full_page_within_a_query_budget(users, django_assert_max_num_queries):
+    opened_at = timezone.now()
+    for index, (_, episode) in enumerate(_personal_shelf_fixture(users[0], 20, with_progress=True)):
+        EpisodeProgress.objects.create(
+            user=users[0], episode=episode, last_opened_at=opened_at - timedelta(minutes=index)
+        )
+    client = APIClient()
+    client.force_login(users[0])
+
+    # History nests both the title and the episode payloads, so it needs the
+    # episode translations on top of the title ones.
+    with django_assert_max_num_queries(14):
+        response = client.get("/api/v1/history/", HTTP_ACCEPT_LANGUAGE="ru")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 20
+    row = response.json()["results"][0]
+    assert row["episode"]["name"].startswith("Эпизод")
+    assert row["title"]["name"].startswith("Полка")
+
+
+@pytest.mark.django_db
+def test_notes_list_serializes_a_full_page_within_a_query_budget(users, django_assert_max_num_queries):
+    for title, _ in _personal_shelf_fixture(users[0], 20):
+        TitleNote.objects.create(user=users[0], title=title, body="Заметка")
+    client = APIClient()
+    client.force_login(users[0])
+
+    with django_assert_max_num_queries(11):
+        response = client.get("/api/v1/notes/", HTTP_ACCEPT_LANGUAGE="ru")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 20
+    assert response.json()["results"][0]["title"]["name"].startswith("Полка")
+
+
+@pytest.mark.django_db
+def test_continue_watching_cost_follows_the_shelf_cap_not_the_history_size(
+    users, django_assert_max_num_queries
+):
+    """The shelf resolves a resume source per shelf title, and nothing more.
+
+    Finding the first authorized episode is one bounded lookup per shelf title
+    by design, so the cost scales with ``title_limit`` — not with how much
+    history the viewer has, and not with the localized fields each row renders.
+    Twice the progress rows must leave the count unchanged.
+    """
+    opened_at = timezone.now()
+    for index, (_, episode) in enumerate(_personal_shelf_fixture(users[0], 24, with_progress=True)):
+        EpisodeProgress.objects.create(
+            user=users[0], episode=episode, last_opened_at=opened_at - timedelta(minutes=index)
+        )
+    client = APIClient()
+    client.force_login(users[0])
+
+    with django_assert_max_num_queries(38):
+        response = client.get("/api/v1/continue-watching/", HTTP_ACCEPT_LANGUAGE="ru")
+
+    assert response.status_code == 200
+    entries = response.json()
+    assert len(entries) == ContinueWatchingView.title_limit
+    assert entries[0]["resume_episode"]["name"].startswith("Эпизод")
+    assert entries[0]["title"]["name"].startswith("Полка")
 
 
 @pytest.mark.django_db

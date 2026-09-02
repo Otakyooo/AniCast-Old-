@@ -1,4 +1,3 @@
-import hmac
 from collections.abc import Iterable
 
 from django.conf import settings
@@ -6,6 +5,8 @@ from django.core.cache import cache
 from django.db.models import Count, Sum
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_safe
+
+from .security import constant_time_equals
 
 PREFIX = "anicast:metrics:v1"
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER")
@@ -156,8 +157,7 @@ def render_metrics() -> str:
 def metrics_view(request: HttpRequest) -> HttpResponse:
     token = settings.METRICS_BEARER_TOKEN
     supplied = request.headers.get("Authorization", "")
-    expected = f"Bearer {token}"
-    if not token or not hmac.compare_digest(supplied, expected):
+    if not constant_time_equals(supplied, f"Bearer {token}" if token else ""):
         return HttpResponse(status=404)
     try:
         body = render_metrics()

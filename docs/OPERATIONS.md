@@ -256,7 +256,15 @@ Rollback uses the database dump plus the verified media-volume backup. Do not re
 
 All server-side Next.js request paths, including public profiles and collections, use `INTERNAL_API_BASE_URL` over AWG and send `X-AniCast-Internal-Token`. Store the same random value (at least 32 characters) as `INTERNAL_API_TOKEN` on MainServer and VPS. Caddy strips that header from every public `/api/*` request. Valid safe internal requests use the separate `ssr=600/min` bucket; public anonymous traffic remains at `60/min`, and frontend retry is limited to transport failures only.
 
-The metrics endpoint aggregates 24-hour availability in bounded SQL and groups provider/source counts. Keep this path bounded: Prometheus scrapes every 30 seconds and a full Python scan of raw probe history would block the single Gunicorn worker.
+Every header-secret comparison (`INTERNAL_API_TOKEN`, `METRICS_BEARER_TOKEN`, both Telegram webhook secrets) goes through `common.security.constant_time_equals`. Django decodes request headers as latin-1, so a client can send code points 128–255; `hmac.compare_digest` raises `TypeError` on non-ASCII `str`, which on the default throttle path would have turned one hostile header into a 500 on every API request. Comparing bytes keeps a hostile header an ordinary mismatch, and an unset secret fails closed.
+
+Throttling is layered. Anonymous traffic uses `anon=60/min` per address, authenticated traffic `user=240/min` per account (DRF's `AnonRateThrottle` skips logged-in requests, so without the user bucket one cheap account could hammer account summary, recommendations and continue-watching without limit), trusted SSR `ssr=600/min`, login and registration `auth=10/min` per address, playback `playback=30/min`. `DJANGO_NUM_PROXIES` (default 1) matters here: exactly one trusted proxy sits in front, and without it DRF keys buckets on the whole `X-Forwarded-For`, so a client-supplied prefix would mint a fresh bucket per request and defeat every limit.
+
+The visit counter (`/api/v1/analytics/visit/`) is a plain Django view outside the DRF defaults, and both of its own guards are advisory: the bot check reads the User-Agent and the dedupe check reads a cookie the client controls. Only the counting branch is throttled at `visit=600/hour` per address, so returning browsers with their signed cookie never spend the budget, and a cookie-less script can no longer take a row lock on today's counter per request. Exhausting the bucket stops counting and still answers 200 — it never fails a page load for a vanity metric.
+
+Gunicorn runs 2 workers × 2 threads with `--timeout 30`, `--graceful-timeout 30`, `--keep-alive 5` and request recycling at 2000 (±200 jitter). The default single sync worker meant one slow request blocked the whole API including the container healthcheck. The timeout sits above the frontend's 10-second fetch budget so gunicorn never kills a request the client still awaits. With `CONN_MAX_AGE=60` (`DJANGO_CONN_MAX_AGE`) and `CONN_HEALTH_CHECKS`, persistent connections stay bounded at 4 per backend container. Access logging stays off: `ObservabilityMiddleware` already emits one structured JSON line per request, and gunicorn's plain-text log would mix two formats into the same stdout stream.
+
+The metrics endpoint aggregates 24-hour availability in bounded SQL and groups provider/source counts. Keep this path bounded: Prometheus scrapes every 30 seconds and a full Python scan of raw probe history would block a request-serving worker.
 
 ## VPS firewall
 
@@ -336,17 +344,27 @@ Adoption caveats: the first pipeline run moves image selection from `infra/<stac
 ```bash
 sh scripts/validate.sh
 cd backend
-python -m pytest
+DJANGO_DATABASE_URL=sqlite:///db.sqlite3 python -m pytest
 ruff check .
-mypy .
+DJANGO_DATABASE_URL=sqlite:///db.sqlite3 mypy .
 DJANGO_DATABASE_URL=sqlite:///db.sqlite3 python manage.py makemigrations --check --dry-run
 DJANGO_DATABASE_URL=sqlite:///db.sqlite3 python manage.py check
-DJANGO_DATABASE_URL=sqlite:///db.sqlite3 DJANGO_SECRET_KEY=ci-only-long-secret python manage.py check --deploy
+# The deploy audit runs against production-shaped settings and is gated: on
+# SQLite, SECURE_SSL_REDIRECT is off by design, so the check could only emit
+# warnings nobody could act on and nothing could enforce.
+DJANGO_SECRET_KEY=ci-only-secret-with-more-than-fifty-characters-and-plenty-of-variety-9182736450 \
+  DJANGO_DEBUG=0 DJANGO_ALLOWED_HOSTS=anicast.online \
+  DJANGO_CSRF_TRUSTED_ORIGINS=https://anicast.online \
+  python manage.py check --deploy --fail-level WARNING
+pip-audit --strict --requirement requirements.txt
 cd ../frontend
 npm ci
 npm run lint
 npm run typecheck
+npm test
 npm run build
 ```
 
 `scripts/validate.sh` runs shell syntax checks, Compose config validations for all three stacks, promtool/amtool checks of the monitoring configuration with placeholder secrets, the hermetic deploy/rollback test and rejects public metrics routes in Caddy. CI additionally builds both images and validates Caddy with the official image.
+
+`pip-audit` is part of the pinned requirements and gates CI. Pinned dependencies go stale silently, so a missed security release must fail the build instead of waiting to be discovered: the audit is what turns the pins into a maintained set rather than a snapshot. `DJANGO_SECRET_KEY` has no safe fallback in a non-SQLite deployment — the placeholder key signs sessions, the visit cookie and playback tokens, and the guard fires regardless of `DJANGO_DEBUG` so a stack accidentally booted with debug on cannot run on a publicly known key.

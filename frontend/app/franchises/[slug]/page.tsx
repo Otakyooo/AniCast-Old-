@@ -4,7 +4,8 @@ import { ApiUnavailableState } from "../../../components/api-unavailable";
 import { CatalogCard } from "../../../components/catalog-card";
 import { PageShell } from "../../../components/page-shell";
 import { apiErrorStatus, getFranchise } from "../../../lib/api";
-import { metaDescription } from "../../../lib/site";
+import { NO_INDEX_ROBOTS } from "../../../lib/seo";
+import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { getI18n } from "../../../i18n/server";
 import styles from "../franchises.module.css";
 
@@ -13,8 +14,33 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const { t } = await getI18n();
-  try { const item = await getFranchise(slug); return { title: item.name, description: metaDescription(item.description, t("franchise.subtitle")), alternates: { canonical: `/franchises/${item.slug}` } }; }
-  catch { return { title: t("franchise.title") }; }
+  try {
+    const item = await getFranchise(slug);
+    const description = metaDescription(item.description, t("franchise.subtitle"));
+    const canonical = `/franchises/${item.slug}`;
+    const poster = item.titles.find((title) => title.poster_url)?.poster_url;
+    return {
+      title: item.name,
+      description,
+      alternates: { canonical },
+      openGraph: {
+        type: "website",
+        url: canonical,
+        title: item.name,
+        description,
+        ...(poster ? { images: [{ url: absoluteUrl(poster), alt: item.name }] } : {}),
+      },
+    };
+  } catch (error) {
+    // A degraded API renders the unavailable shell at 200; that page must not
+    // take the franchise's place in the index.
+    if (apiErrorStatus(error) === 404) return { title: t("franchise.title") };
+    return {
+      title: t("franchise.title"),
+      alternates: { canonical: `/franchises/${encodeURIComponent(slug)}` },
+      robots: NO_INDEX_ROBOTS,
+    };
+  }
 }
 
 export default async function FranchisePage({ params }: { params: Promise<{ slug: string }> }) {

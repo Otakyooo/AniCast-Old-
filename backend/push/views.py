@@ -1,4 +1,3 @@
-import hmac
 from datetime import timedelta
 
 from django.conf import settings
@@ -13,6 +12,8 @@ from rest_framework.views import APIView
 
 from accounts.telegram_bot import create_challenge_token, hash_secret, valid_challenge_token
 from catalog.models import Title
+from catalog.serializers import schedule_title_payload_prefetch
+from common.security import constant_time_equals
 from library.views import LibraryPagination
 
 from .models import (
@@ -77,7 +78,7 @@ class DeliveryListView(ListAPIView):
     def get_queryset(self):
         return NotificationDelivery.objects.filter(subscription__user=self.request.user).select_related(
             "episode__title"
-        )
+        ).prefetch_related(*schedule_title_payload_prefetch("episode__title"))
 
 
 class SubscriptionListView(ListAPIView):
@@ -86,14 +87,22 @@ class SubscriptionListView(ListAPIView):
     pagination_class = LibraryPagination
 
     def get_queryset(self):
-        return TitleNotificationSubscription.objects.filter(user=self.request.user).select_related("title")
+        return TitleNotificationSubscription.objects.filter(user=self.request.user).select_related(
+            "title"
+        ).prefetch_related(*schedule_title_payload_prefetch("title"))
 
 
 class SubscriptionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, slug):
-        subscription = get_object_or_404(TitleNotificationSubscription.objects.select_related("title"), user=request.user, title__slug=slug)
+        subscription = get_object_or_404(
+            TitleNotificationSubscription.objects.select_related("title").prefetch_related(
+                *schedule_title_payload_prefetch("title")
+            ),
+            user=request.user,
+            title__slug=slug,
+        )
         return Response(SubscriptionSerializer(subscription).data)
 
     def put(self, request, slug):
@@ -113,7 +122,7 @@ class SubscriptionView(APIView):
 @permission_classes([AllowAny])
 def notification_webhook(request):
     provided = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if not settings.TELEGRAM_NOTIFY_WEBHOOK_SECRET or not hmac.compare_digest(provided, settings.TELEGRAM_NOTIFY_WEBHOOK_SECRET):
+    if not constant_time_equals(provided, settings.TELEGRAM_NOTIFY_WEBHOOK_SECRET):
         return Response({"detail": "Forbidden"}, status=403)
     message = request.data.get("message")
     if not isinstance(message, dict):

@@ -37,10 +37,18 @@ jobs:
       - run: python manage.py check
         env:
           DJANGO_DATABASE_URL: sqlite:///db.sqlite3
-      - run: python manage.py check --deploy
+      # Run the deploy audit against production-shaped settings and let it fail
+      # the build. On SQLite, SECURE_SSL_REDIRECT is off by design, so the check
+      # used to emit warnings nobody could act on and nothing could enforce.
+      - run: python manage.py check --deploy --fail-level WARNING
         env:
-          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
-          DJANGO_SECRET_KEY: ci-only-long-random-secret-not-used-in-production
+          DJANGO_SECRET_KEY: ci-only-secret-with-more-than-fifty-characters-and-plenty-of-variety-9182736450
+          DJANGO_DEBUG: "0"
+          DJANGO_ALLOWED_HOSTS: anicast.online
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://anicast.online
+      # Pinned application dependencies go stale silently; the audit turns a
+      # missed security release into a failing build instead of a discovery.
+      - run: pip-audit --strict --requirement requirements.txt
 
   frontend:
     runs-on: ubuntu-latest

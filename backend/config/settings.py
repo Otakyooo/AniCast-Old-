@@ -29,11 +29,15 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True, "OPTIONS": {"context_processors": ["django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
-DATABASES: dict[str, Any] = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ.get("POSTGRES_DB", "anicast"), "USER": os.environ.get("POSTGRES_USER", "anicast"), "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "anicast-dev"), "HOST": os.environ.get("POSTGRES_HOST", "postgres"), "PORT": os.environ.get("POSTGRES_PORT", "5432")}}
+DATABASES: dict[str, Any] = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ.get("POSTGRES_DB", "anicast"), "USER": os.environ.get("POSTGRES_USER", "anicast"), "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "anicast-dev"), "HOST": os.environ.get("POSTGRES_HOST", "postgres"), "PORT": os.environ.get("POSTGRES_PORT", "5432"), "CONN_MAX_AGE": int(os.environ.get("DJANGO_CONN_MAX_AGE", "60")), "CONN_HEALTH_CHECKS": True}}
 USE_SQLITE = os.environ.get("DJANGO_DATABASE_URL", "").startswith("sqlite")
 if USE_SQLITE:
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
-if SECRET_KEY == "dev-only-change-me" and not DEBUG and not USE_SQLITE and not os.environ.get("DJANGO_ALLOW_DEV_SECRET"):
+# The placeholder key signs sessions, the visit cookie and playback tokens, so
+# it must never reach a real deployment. DEBUG is deliberately not part of the
+# condition: a production stack booted with DJANGO_DEBUG=1 by accident would
+# otherwise run on a publicly known key.
+if SECRET_KEY == "dev-only-change-me" and not USE_SQLITE and not os.environ.get("DJANGO_ALLOW_DEV_SECRET"):
     from django.core.exceptions import ImproperlyConfigured
 
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set outside local development")
@@ -68,13 +72,27 @@ CSRF_TRUSTED_ORIGINS = [x for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS",
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
-    "DEFAULT_THROTTLE_CLASSES": ["common.throttling.AniCastAnonRateThrottle"],
+    # Anonymous and authenticated traffic need separate ceilings: DRF's
+    # AnonRateThrottle silently skips authenticated requests, which would leave
+    # every logged-in account unthrottled on the expensive personal endpoints.
+    "DEFAULT_THROTTLE_CLASSES": [
+        "common.throttling.AniCastAnonRateThrottle",
+        "common.throttling.AniCastUserRateThrottle",
+    ],
+    # Exactly one trusted proxy (Caddy) sits in front, and it appends the peer
+    # address to any inbound X-Forwarded-For. Without this setting DRF keys
+    # throttles on the whole header, so a client-supplied prefix would mint a
+    # fresh bucket per request and defeat every rate limit, including the login
+    # one. With 1, only the address Caddy appended is trusted.
+    "NUM_PROXIES": int(os.environ.get("DJANGO_NUM_PROXIES", "1")),
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/min",
+        "user": "240/min",
         "ssr": "600/min",
         "auth": "10/min",
         "playback": "30/min",
         "telegram_challenge": "20/min",
+        "visit": "600/hour",
     },
 }
 if USE_SQLITE:

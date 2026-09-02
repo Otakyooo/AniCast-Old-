@@ -264,10 +264,6 @@ export async function getGenres(): Promise<GenreOption[]> {
   return request<GenreOption[]>("/genres/", revalidated(300));
 }
 
-export async function getCatalogItem(slug: string): Promise<CatalogItem> {
-  return request<CatalogItem>(`/titles/${encodeURIComponent(slug)}/`, revalidated(60));
-}
-
 export async function getCatalogItemEpisodes(
   slug: string,
   page = 1,

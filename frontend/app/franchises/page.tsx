@@ -1,21 +1,57 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { PageShell } from "../../components/page-shell";
-import { emptyPage, getFranchises, type FranchiseResponse } from "../../lib/api";
+import { apiErrorStatus, emptyPage, getFranchises, type FranchiseResponse } from "../../lib/api";
 import { getI18n } from "../../i18n/server";
+import { catalogPageExists, franchiseSeoState, NO_INDEX_ROBOTS } from "../../lib/seo";
 import discovery from "../discovery.module.css";
 import styles from "./franchises.module.css";
 
 export const dynamic = "force-dynamic";
 
-export default async function FranchisesPage({ searchParams }: { searchParams: Promise<{ page?: string; q?: string }> }) {
-  const params = await searchParams;
+const PAGE_SIZE = 20;
+
+type SearchParams = { page?: string; q?: string };
+
+function readParams(params: SearchParams) {
   const parsed = Number.parseInt(params.page ?? "1", 10);
-  const page = Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
-  const query = params.q?.trim() ?? "";
+  return {
+    page: Number.isInteger(parsed) && parsed > 0 ? parsed : 1,
+    query: params.q?.trim() ?? "",
+  };
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
+  const { t } = await getI18n();
+  const { page, query } = readParams(await searchParams);
+  // Franchise search is a site-search result page: useful to a visitor, a weak
+  // and duplicate landing page for a crawler. Real pagination stays indexable.
+  let pageExists = true;
+  try {
+    const snapshot = await getFranchises(page, query);
+    pageExists = catalogPageExists(snapshot.count, page, PAGE_SIZE);
+  } catch (error) {
+    pageExists = apiErrorStatus(error) !== 404;
+  }
+  const seo = franchiseSeoState({ query, page }, pageExists);
+  return {
+    title: t("franchise.title"),
+    description: t("meta.franchisesDescription"),
+    alternates: { canonical: seo.canonical },
+    ...(!seo.index ? { robots: NO_INDEX_ROBOTS } : {}),
+  };
+}
+
+export default async function FranchisesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const { page, query } = readParams(await searchParams);
   const data = await getFranchises(page, query).catch((): FranchiseResponse => emptyPage());
   const { t } = await getI18n();
-  const pages = Math.max(1, Math.ceil(data.count / 20));
+  const pages = Math.max(1, Math.ceil(data.count / PAGE_SIZE));
   const href = (target: number) => {
     const search = new URLSearchParams();
     if (query) search.set("q", query);

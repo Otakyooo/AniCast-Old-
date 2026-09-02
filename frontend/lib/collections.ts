@@ -98,7 +98,3 @@ export function updateCollectionItem(slug: string, titleSlug: string, position: 
 export function deleteCollectionItem(slug: string, titleSlug: string, signal?: AbortSignal) {
   return mutation<void>(`/api/v1/collections/${encodeURIComponent(slug)}/items/${encodeURIComponent(titleSlug)}/`, "DELETE", undefined, signal);
 }
-
-export async function getPublicCollection(ownerPublicId: string, slug: string, signal?: AbortSignal) {
-  return parse<CollectionDetail>(await fetch(`/api/v1/public/collections/${encodeURIComponent(ownerPublicId)}/${encodeURIComponent(slug)}/`, { cache: "no-store", signal }));
-}

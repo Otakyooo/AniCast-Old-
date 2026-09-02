@@ -9,7 +9,6 @@ import { useI18n } from "./i18n-provider";
 export function PlaybackLink({
   sourceId,
   playbackMode,
-  onEmbed,
   label,
   className,
   slug,
@@ -17,7 +16,6 @@ export function PlaybackLink({
 }: {
   sourceId: number;
   playbackMode?: PlaybackMode | null;
-  onEmbed?: (url: string) => void;
   label?: string;
   className?: string;
   slug?: string;
@@ -26,7 +24,10 @@ export function PlaybackLink({
   const { t } = useI18n();
   const [error, setError] = useState("");
   async function open() {
-    const popup = playbackMode === "iframe_embed" && onEmbed ? null : window.open("about:blank", "_blank");
+    // Embedded playback is handled by ProviderPlayer, so this component always
+    // hands the resolved URL to a fresh tab. The blank popup is opened before
+    // the await so the click is still the trusted user gesture.
+    const popup = window.open("about:blank", "_blank");
     if (popup) popup.opener = null;
     setError("");
     try {
@@ -34,14 +35,8 @@ export function PlaybackLink({
       const target = safePlaybackTarget(payload, window.location.origin);
       if (playbackMode && target.mode !== playbackMode) throw new Error("Playback mode changed");
       if (slug && episodeNumber) void recordEpisodeOpen(slug, episodeNumber).catch(() => undefined);
-      if (target.mode === "iframe_embed" && onEmbed) {
-        popup?.close();
-        onEmbed(target.url);
-      } else if (popup) {
-        popup.location.href = target.url;
-      } else {
-        throw new Error("Popup blocked");
-      }
+      if (!popup) throw new Error("Popup blocked");
+      popup.location.href = target.url;
     } catch {
       popup?.close();
       setError(t("source.gone"));

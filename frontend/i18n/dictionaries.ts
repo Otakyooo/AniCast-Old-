@@ -1,7 +1,7 @@
 import type { Locale } from "./config";
 
 const ru: Record<string, string> = {
-  "meta.homeTitle":"AniCast — аниме-каталог, расписание и сообщество","meta.homeDescription":"Каталог аниме с описаниями, персонажами, расписанием новых серий, оценками и личной библиотекой.","meta.catalogDescription":"Каталог аниме AniCast: поиск по названию, жанрам, формату и статусу выхода.","meta.communityDescription":"Оценки и одобренные рецензии зрителей AniCast без скрытых спойлеров.","meta.mediaDescription":"Трейлеры, промо-материалы и изображения аниме с подтверждённой атрибуцией прав.",
+  "meta.homeTitle":"AniCast — аниме-каталог, расписание и сообщество","meta.homeDescription":"Каталог аниме с описаниями, персонажами, расписанием новых серий, оценками и личной библиотекой.","meta.catalogDescription":"Каталог аниме AniCast: поиск по названию, жанрам, формату и статусу выхода.","meta.communityDescription":"Оценки и одобренные рецензии зрителей AniCast без скрытых спойлеров.","meta.mediaDescription":"Трейлеры, промо-материалы и изображения аниме с подтверждённой атрибуцией прав.","meta.franchisesDescription":"Франшизы аниме на AniCast: связанные сезоны, фильмы и спешлы одной вселенной.",
   "meta.description":"Wiki, библиотека и просмотр аниме","common.login":"Войти","common.retry":"Повторить","common.loading":"Загрузка...","common.apiUnavailable":"Сайт временно недоступен","common.apiUnavailableText":"Сервис вернётся через несколько минут — мы уже знаем о проблеме.","common.back":"← Назад","common.next":"Вперёд →","common.save":"Сохранить","common.delete":"Удалить","common.cancel":"Отмена","common.search":"Найти","common.error":"Не удалось выполнить запрос.",
   "nav.main":"Основная навигация","nav.home":"Главная","nav.catalog":"Каталог","nav.schedule":"Расписание","nav.franchises":"Франшизы","nav.characters":"Персонажи","nav.media":"Медиа","nav.community":"Сообщество","nav.more":"Ещё","nav.profile":"Профиль","nav.notifications":"Уведомления","nav.libraryShort":"Библиотека","nav.library":"МОЯ БИБЛИОТЕКА","nav.allTitles":"Все тайтлы","nav.history":"История","nav.watching":"Смотрю","nav.planned":"Запланировано","nav.completed":"Просмотрено","nav.favorites":"Избранное","nav.notes":"Заметки","nav.recommendations":"Рекомендации","language.label":"Язык интерфейса",
   "home.eyebrow":"ТВОЯ АНИМЕ-БИБЛИОТЕКА","home.title":"Продолжи свой путь","home.subtitle":"Изучай миры, сохраняй личный контекст и возвращайся к просмотру.","home.openCatalog":"Открыть каталог","home.allCatalog":"Весь каталог →","home.empty":"Каталог пока пуст","home.catalogCount":"{count} аниме уже в каталоге",
@@ -23,7 +23,7 @@ const ru: Record<string, string> = {
 
 const en: Record<string, string> = {
   ...ru,
-  "meta.homeTitle":"AniCast — anime catalog, schedule and community","meta.homeDescription":"Explore anime descriptions, characters, upcoming episode schedules, viewer ratings and your personal library.","meta.catalogDescription":"Browse the AniCast anime catalog by title, genre, format and release status.","meta.communityDescription":"Ratings and moderated reviews from AniCast viewers, with spoilers kept under your control.","meta.mediaDescription":"Anime trailers, promotional materials and images with verified rights attribution.",
+  "meta.homeTitle":"AniCast — anime catalog, schedule and community","meta.homeDescription":"Explore anime descriptions, characters, upcoming episode schedules, viewer ratings and your personal library.","meta.catalogDescription":"Browse the AniCast anime catalog by title, genre, format and release status.","meta.communityDescription":"Ratings and moderated reviews from AniCast viewers, with spoilers kept under your control.","meta.mediaDescription":"Anime trailers, promotional materials and images with verified rights attribution.","meta.franchisesDescription":"Anime franchises on AniCast: related seasons, films and specials from one universe.",
   "meta.description":"Anime wiki, library and viewing","common.login":"Sign in","common.retry":"Try again","common.loading":"Loading...","common.apiUnavailable":"The site is temporarily unavailable","common.apiUnavailableText":"The service will be back in a few minutes — we already know about it.","common.back":"← Back","common.next":"Next →","common.save":"Save","common.delete":"Delete","common.cancel":"Cancel","common.search":"Search","common.error":"Request failed.",
   "nav.main":"Main navigation","nav.home":"Home","nav.catalog":"Catalog","nav.schedule":"Schedule","nav.franchises":"Franchises","nav.characters":"Characters","nav.media":"Media","nav.community":"Community","nav.more":"More","nav.profile":"Profile","nav.notifications":"Notifications","nav.libraryShort":"Library","nav.library":"MY LIBRARY","nav.allTitles":"All titles","nav.history":"History","nav.watching":"Watching","nav.planned":"Planned","nav.completed":"Completed","nav.favorites":"Favorites","nav.notes":"Notes","nav.recommendations":"Recommendations","language.label":"Interface language",
   "home.eyebrow":"YOUR ANIME LIBRARY","home.title":"Continue your journey","home.subtitle":"Explore worlds, keep your personal context and return to watching.","home.openCatalog":"Open catalog","home.allCatalog":"Full catalog →","home.empty":"Catalog is empty","home.catalogCount":"{count} anime already in the catalog",
@@ -92,12 +92,14 @@ Object.assign(en, {
 
 Object.assign(ru, {
   "watch.startEpisode":"Запустить {number} серию","watch.sourceFailed":"Эта озвучка сейчас не открывается. Повторите или выберите другую.",
-  "creator.eyebrow":"АВТОР","creator.works":"Работы","creator.worksCount":"Работ в каталоге: {count}"
+  "creator.eyebrow":"АВТОР","creator.works":"Работы","creator.worksCount":"Работ в каталоге: {count}",
+  "creator.metaDescription":"{name} в каталоге AniCast: работ в каталоге — {count}."
 });
 
 Object.assign(en, {
   "watch.startEpisode":"Start episode {number}","watch.sourceFailed":"This voice track is unavailable right now. Retry or choose another one.",
-  "creator.eyebrow":"CREATOR","creator.works":"Works","creator.worksCount":"Works in catalog: {count}"
+  "creator.eyebrow":"CREATOR","creator.works":"Works","creator.worksCount":"Works in catalog: {count}",
+  "creator.metaDescription":"{name} on AniCast: {count} works in the catalog."
 });
 
 Object.assign(en, {

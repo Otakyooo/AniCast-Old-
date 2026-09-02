@@ -4,6 +4,8 @@ import { SITE_URL } from "./site.ts";
 import {
   catalogPageExists,
   catalogSeoState,
+  franchiseSeoState,
+  jsonLdScript,
   titleOpenGraphType,
   titleSchemaType,
   titleWatchHref,
@@ -49,4 +51,28 @@ test("watch links keep playback on the title page and preserve its state", () =>
   );
   assert.equal(titleWatchHref("title", "invalid"), "/titles/title?episode=1#watch");
   assert.equal(titleWatchHref("title", 3, " dub "), "/titles/title?episode=3&voice=dub#watch");
+});
+
+test("franchise index keeps pagination indexable and consolidates search", () => {
+  assert.deepEqual(franchiseSeoState({}), { canonical: "/franchises", index: true });
+  assert.deepEqual(franchiseSeoState({ page: 2 }), { canonical: "/franchises?page=2", index: true });
+  assert.deepEqual(franchiseSeoState({ query: "gundam" }), { canonical: "/franchises", index: false });
+  assert.deepEqual(
+    franchiseSeoState({ query: "gundam", page: 3 }),
+    { canonical: "/franchises", index: false },
+  );
+  assert.deepEqual(franchiseSeoState({ page: 99 }, false), { canonical: "/franchises", index: false });
+});
+
+test("json-ld payloads cannot break out of their script element", () => {
+  // Synopses come from an external importer, so a closing tag inside the text
+  // would otherwise end the script early and turn the rest into markup.
+  const html = jsonLdScript({ description: "spoiler </script><img src=x onerror=alert(1)>" });
+  assert.equal(html.includes("</script"), false);
+  assert.equal(html.includes("<img"), false);
+  assert.equal(
+    JSON.parse(html).description,
+    "spoiler </script><img src=x onerror=alert(1)>",
+  );
+  assert.equal(jsonLdScript({ text: "line\u2028break" }).includes("\u2028"), false);
 });

@@ -7,7 +7,7 @@ import { PageShell } from "../components/page-shell";
 import { emptyPage, getCatalog, getSchedule, type CatalogItem, type ScheduleResponse } from "../lib/api";
 import { addDays, localDayKey } from "../lib/schedule";
 import { getI18n } from "../i18n/server";
-import { websiteJsonLd } from "../lib/seo";
+import { jsonLdScript, websiteJsonLd } from "../lib/seo";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +72,7 @@ export default async function HomePage() {
   const leadShelfItems = hasDenseAiringShelf ? ongoing.results : popular.results;
 
   return <PageShell active="home">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd(locale)) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
     <div className={styles.homeColumn}>
       <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
 

@@ -15,6 +15,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .metrics import increment
 from .models import DailyVisitStat
+from .throttling import VisitRateThrottle
 
 logger = logging.getLogger("anicast.health")
 
@@ -61,13 +62,23 @@ def record_visit(request):
     day = timezone.localdate()
     counted = False
     if not _is_automated_visit(request) and not _visit_was_counted(request, day):
-        with transaction.atomic():
-            stat, created = DailyVisitStat.objects.select_for_update().get_or_create(
-                day=day, defaults={"visits": 1}
-            )
-            if not created:
-                DailyVisitStat.objects.filter(pk=stat.pk).update(visits=F("visits") + 1)
-        counted = True
+        # Only the counting branch is rate limited. This is a plain Django view,
+        # so the DRF defaults never applied here, and both guards above are
+        # advisory: the bot check reads the User-Agent and the dedupe check reads
+        # a cookie the client controls. A script with a browser UA and no cookie
+        # jar would otherwise take a row lock on today's counter per request.
+        # Cookie-bearing repeat page loads never reach this branch, so shared
+        # NAT egress keeps working; exhausting the bucket only undercounts a
+        # vanity metric and never fails the response.
+        throttle = VisitRateThrottle()
+        if throttle.allow_request(request, None):
+            with transaction.atomic():
+                stat, created = DailyVisitStat.objects.select_for_update().get_or_create(
+                    day=day, defaults={"visits": 1}
+                )
+                if not created:
+                    DailyVisitStat.objects.filter(pk=stat.pk).update(visits=F("visits") + 1)
+            counted = True
 
     response = JsonResponse({**_visit_summary(day), "counted": counted})
     response["Cache-Control"] = "no-store"

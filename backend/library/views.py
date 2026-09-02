@@ -17,7 +17,12 @@ from rest_framework.views import APIView
 from catalog.i18n import translated_value
 from catalog.models import Episode, Genre, Title
 from catalog.playback import playback_available, playback_source_queryset, playback_sources_prefetch
-from catalog.serializers import ShelfEpisodeSerializer, TitleSerializer
+from catalog.serializers import (
+    ShelfEpisodeSerializer,
+    TitleSerializer,
+    episode_payload_prefetch,
+    title_payload_prefetch,
+)
 from community.models import TitleRating
 
 from .models import (
@@ -78,7 +83,7 @@ class LibraryListView(ListAPIView):
     def get_queryset(self):
         queryset = LibraryEntry.objects.filter(user=self.request.user).select_related(
             "title", "title__franchise"
-        ).prefetch_related("title__genres")
+        ).prefetch_related(*title_payload_prefetch("title"))
         entry_status = self.request.query_params.get("status", "").strip()
         if entry_status:
             valid_statuses = {choice for choice, _ in LibraryEntry.Status.choices}
@@ -102,7 +107,9 @@ class LibraryEntryView(APIView):
 
     def get_entry(self, request, slug):
         return get_object_or_404(
-            LibraryEntry.objects.select_related("title", "title__franchise").prefetch_related("title__genres"),
+            LibraryEntry.objects.select_related("title", "title__franchise").prefetch_related(
+                *title_payload_prefetch("title")
+            ),
             user=request.user,
             title__slug=slug,
         )
@@ -120,7 +127,7 @@ class LibraryEntryView(APIView):
             defaults=serializer.validated_data,
         )
         entry = LibraryEntry.objects.select_related("title", "title__franchise").prefetch_related(
-            "title__genres"
+            *title_payload_prefetch("title")
         ).get(pk=entry.pk)
         return Response(LibraryEntrySerializer(entry).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
@@ -139,7 +146,8 @@ class HistoryListView(ListAPIView):
             "episode", "episode__title", "episode__title__franchise"
         ).prefetch_related(
             playback_sources_prefetch("episode__sources"),
-            "episode__title__genres",
+            *episode_payload_prefetch("episode"),
+            *title_payload_prefetch("episode__title"),
         )
 
 
@@ -159,7 +167,8 @@ class EpisodeProgressView(APIView):
                 "episode", "episode__title", "episode__title__franchise"
             ).prefetch_related(
                 playback_sources_prefetch("episode__sources"),
-                "episode__title__genres",
+                *episode_payload_prefetch("episode"),
+                *title_payload_prefetch("episode__title"),
             ),
             user=request.user,
             episode__title__slug=slug,
@@ -268,11 +277,8 @@ class ContinueWatchingView(APIView):
             EpisodeProgress.objects.filter(user=request.user)
             .select_related("episode", "episode__title", "episode__title__franchise")
             .prefetch_related(
-                "episode__translations",
-                "episode__title__translations",
-                "episode__title__franchise__translations",
-                "episode__title__genres",
-                "episode__title__genres__translations",
+                *episode_payload_prefetch("episode"),
+                *title_payload_prefetch("episode__title"),
             )
             .order_by("-last_opened_at", "-id")[: self.title_limit * 20]
         )
@@ -316,6 +322,20 @@ class ContinueWatchingView(APIView):
                 if playback_available(source):
                     resume_by_title[title_id] = source.episode
                     break
+        # The source queryset joins the episode but not its translations, and
+        # every resume episode is serialized twice below. Re-hydrating them in
+        # one query keeps the localized name out of the per-row path.
+        if resume_by_title:
+            localized_episodes = {
+                episode.pk: episode
+                for episode in Episode.objects.filter(
+                    pk__in=[episode.pk for episode in resume_by_title.values()]
+                ).prefetch_related(*episode_payload_prefetch())
+            }
+            resume_by_title = {
+                title_id: localized_episodes.get(episode.pk, episode)
+                for title_id, episode in resume_by_title.items()
+            }
         context = {"request": request}
         ordered = sorted(latest_by_title.values(), key=lambda entry: entry.last_opened_at, reverse=True)
         return Response([
@@ -361,7 +381,7 @@ class TitleNoteListView(ListAPIView):
     def get_queryset(self):
         return TitleNote.objects.filter(user=self.request.user).select_related(
             "title", "title__franchise"
-        ).prefetch_related("title__genres")
+        ).prefetch_related(*title_payload_prefetch("title"))
 
 
 class TitleNoteView(APIView):
@@ -369,7 +389,9 @@ class TitleNoteView(APIView):
 
     def get_note(self, request, slug):
         return get_object_or_404(
-            TitleNote.objects.select_related("title", "title__franchise").prefetch_related("title__genres"),
+            TitleNote.objects.select_related("title", "title__franchise").prefetch_related(
+                *title_payload_prefetch("title")
+            ),
             user=request.user,
             title__slug=slug,
         )
@@ -386,7 +408,9 @@ class TitleNoteView(APIView):
             title=title,
             defaults={"body": serializer.validated_data["body"]},
         )
-        note = TitleNote.objects.select_related("title", "title__franchise").prefetch_related("title__genres").get(pk=note.pk)
+        note = TitleNote.objects.select_related("title", "title__franchise").prefetch_related(
+            *title_payload_prefetch("title")
+        ).get(pk=note.pk)
         return Response(TitleNoteSerializer(note).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
     def delete(self, request, slug):

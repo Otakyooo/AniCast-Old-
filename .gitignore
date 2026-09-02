@@ -29,3 +29,11 @@ coverage/
 **/secrets/
 **/credentials/
 /backups/
+
+# One-off audit output: screenshots and JSON captured while reviewing a screen.
+# These are evidence for a single review, not project sources, and they were
+# adding megabytes of binaries to the history.
+/artifacts/
+
+# Editor-local state that is not shared configuration
+.zed/

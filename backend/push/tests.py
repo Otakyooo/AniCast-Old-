@@ -174,9 +174,39 @@ def test_delivery_list_is_private_and_shaped(notification_data):
     assert APIClient().get("/api/v1/notifications/deliveries/").status_code in {401, 403}
 
 
+@pytest.mark.django_db
+def test_notification_lists_localize_titles_without_a_query_per_row(
+    notification_data, django_assert_max_num_queries
+):
+    """Both notification lists nest the compact title payload.
+
+    ``ScheduleTitleSerializer`` localizes the name through
+    ``instance.translations.all()``, so an unprefetched row costs one query per
+    entry. The budget must hold for a full page, not just for one row.
+    """
+    user, _, _ = notification_data
+    for index in range(20):
+        title = Title.objects.create(name=f"Feed {index}", slug=f"feed-{index}", status="ongoing")
+        TitleTranslation.objects.create(title=title, language="ru", name=f"Лента {index}", synopsis="о")
+        episode = Episode.objects.create(title=title, number=1, air_date=timezone.localdate())
+        subscription = TitleNotificationSubscription.objects.create(user=user, title=title)
+        NotificationDelivery.objects.create(subscription=subscription, episode=episode, status="sent")
+    client = APIClient()
+    client.force_login(user)
+
+    with django_assert_max_num_queries(8):
+        subscriptions = client.get("/api/v1/notifications/subscriptions/", HTTP_ACCEPT_LANGUAGE="ru")
+    with django_assert_max_num_queries(8):
+        deliveries = client.get("/api/v1/notifications/deliveries/", HTTP_ACCEPT_LANGUAGE="ru")
+
+    assert subscriptions.json()["count"] == 20
+    assert deliveries.json()["count"] == 20
+    assert subscriptions.json()["results"][0]["title"]["name"].startswith("Лента")
+    assert deliveries.json()["results"][0]["title"]["name"].startswith("Лента")
+
+
 def make_review(user, title, status=TitleReview.Status.PENDING):
     return TitleReview.objects.create(user=user, title=title, body="Отличный сериал на все времена.", status=status)
-
 
 def make_report(user, episode, status=SourceReport.Status.NEW):
     source = Source.objects.create(

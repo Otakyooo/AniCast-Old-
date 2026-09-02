@@ -5,6 +5,7 @@ import { PublicCollection } from "../../../../components/public-collection";
 import { ApiUnavailableState } from "../../../../components/api-unavailable";
 import { getI18n } from "../../../../i18n/server";
 import { getPublicCollectionServer, PublicCollectionError } from "../../../../lib/server-collections";
+import { NO_INDEX_ROBOTS } from "../../../../lib/seo";
 import { absoluteUrl, metaDescription } from "../../../../lib/site";
 
 type Params = { ownerPublicId: string; slug: string };
@@ -29,8 +30,13 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
         ...(poster ? { images: [{ url: absoluteUrl(poster), alt: collection.name }] } : {}),
       },
     };
-  } catch {
-    return {};
+  } catch (error) {
+    // The page owns the 404. A degraded API renders the unavailable shell at
+    // 200, and that must stay out of the index.
+    if (error instanceof PublicCollectionError && error.status === 404) {
+      return { title: t("collections.title") };
+    }
+    return { title: t("collections.title"), robots: NO_INDEX_ROBOTS };
   }
 }
 

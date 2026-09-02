@@ -1,3 +1,4 @@
+import { jsonLdScript } from "../lib/seo";
 import { absoluteUrl } from "../lib/site";
 
 /**
@@ -15,5 +16,5 @@ export function BreadcrumbsJsonLd({ items }: { items: Array<{ name: string; href
       item: absoluteUrl(item.href),
     })),
   };
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(data) }} />;
 }

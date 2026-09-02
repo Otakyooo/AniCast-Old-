@@ -8,6 +8,7 @@ import { PageShell } from "../../../components/page-shell";
 import { getI18n } from "../../../i18n/server";
 import { apiErrorStatus, getCharacter } from "../../../lib/api";
 import { hasCharacterArt } from "../../../lib/character-image";
+import { NO_INDEX_ROBOTS, jsonLdScript } from "../../../lib/seo";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import styles from "../../discovery.module.css";
 
@@ -33,8 +34,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
   } catch (error) {
     // The page component owns the 404: notFound() inside generateMetadata
-    // races the render and can answer 200 with the not-found UI.
-    return {};
+    // races the render and can answer 200 with the not-found UI. A degraded API
+    // still renders the unavailable state at 200, so that shell must stay out
+    // of the index instead of replacing the real page in search results.
+    if (apiErrorStatus(error) === 404) return { title: t("character.title") };
+    return {
+      title: t("character.title"),
+      alternates: { canonical: `/characters/${encodeURIComponent(slug)}` },
+      robots: NO_INDEX_ROBOTS,
+    };
   }
 }
 
@@ -56,7 +64,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ slug
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{
-        __html: JSON.stringify({
+        __html: jsonLdScript({
           "@context": "https://schema.org",
           "@type": "Person",
           name: character.name,

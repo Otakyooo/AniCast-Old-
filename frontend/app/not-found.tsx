@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { NotFoundState } from "../components/not-found-state";
 import { getI18n } from "../i18n/server";
 
-export const metadata: Metadata = { title: "404 — AniCast" };
+// `absolute` bypasses the root title template; a plain string would be wrapped
+// into "404 — AniCast — AniCast".
+export const metadata: Metadata = { title: { absolute: "404 — AniCast" } };
 
 export default async function NotFound() {
   const { t } = await getI18n();

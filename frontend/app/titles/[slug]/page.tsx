@@ -31,7 +31,7 @@ import {
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { hasCharacterArt } from "../../../lib/character-image";
 import { titleRating } from "../../../lib/rating";
-import { NO_INDEX_ROBOTS, titleOpenGraphType, titleSchemaType, titleWatchHref } from "../../../lib/seo";
+import { NO_INDEX_ROBOTS, jsonLdScript, titleOpenGraphType, titleSchemaType, titleWatchHref } from "../../../lib/seo";
 import { resolveTitleEpisodeRequest, titleTemplateState } from "../../../lib/title-template";
 import { getI18n } from "../../../i18n/server";
 import { intlLocale } from "../../../i18n/config";
@@ -62,7 +62,9 @@ export async function generateMetadata({
     // generateMetadata races the render and can answer 200.
     if (apiErrorStatus(error) === 404) return { title: t("title.notFound") };
     return {
-      title: "AniCast",
+      // A plain "AniCast" would come back as "AniCast — AniCast" through the
+      // root template, so the fallback title is set absolutely.
+      title: { absolute: "AniCast" },
       description: t("meta.description"),
       alternates: { canonical: `/titles/${encodeURIComponent(slug)}` },
       robots: NO_INDEX_ROBOTS,
@@ -106,16 +108,21 @@ function TitleJsonLd({ item }: { item: CatalogItem }) {
   if (item.year) data.datePublished = String(item.year);
   if (item.genres?.length) data.genre = item.genres.map((genre) => genre.name);
   if (template.structuredEpisodeCount) data.numberOfEpisodes = template.structuredEpisodeCount;
-  if (item.rating_average && item.rating_count) {
+  // Structured data must match what the page shows. The badge needs
+  // MIN_RATING_VOTES before an average reads as anything but noise, so the same
+  // gate decides the markup — otherwise a single vote would publish a rating
+  // that appears nowhere on the page.
+  const rating = titleRating(item);
+  if (rating) {
     data.aggregateRating = {
       "@type": "AggregateRating",
-      ratingValue: item.rating_average,
-      ratingCount: item.rating_count,
+      ratingValue: rating.average,
+      ratingCount: rating.count,
       bestRating: 10,
       worstRating: 1,
     };
   }
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(data) }} />;
 }
 
 function isTab(value: string | undefined): value is Tab {

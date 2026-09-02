@@ -47,6 +47,28 @@ export function catalogPageExists(total: number, page: number, pageSize = 20) {
   return page <= Math.max(1, Math.ceil(Math.max(total, 0) / pageSize));
 }
 
+/**
+ * Franchise index: same reasoning as the catalog, one facet instead of five.
+ *
+ * A franchise search result page is a weak landing page and a duplicate of the
+ * index, so `?q=` consolidates onto `/franchises`. Real pagination stays
+ * self-canonical and indexable; a page past the last result does not.
+ */
+export function franchiseSeoState(
+  { query, page = 1 }: { query?: string; page?: number },
+  pageExists = true,
+) {
+  const hasQuery = Boolean(query?.trim());
+  const resolvedPage = Number.isInteger(page) && page > 1 ? page : 1;
+  return {
+    canonical:
+      hasQuery || !pageExists || resolvedPage === 1
+        ? "/franchises"
+        : `/franchises?page=${resolvedPage}`,
+    index: !hasQuery && pageExists,
+  };
+}
+
 export function titleSchemaType(titleType?: string | null) {
   return titleType === "movie" ? "Movie" : "TVSeries";
 }
@@ -64,4 +86,20 @@ export function websiteJsonLd(locale: Locale) {
     url: SITE_URL,
     inLanguage: locale,
   };
+}
+
+/**
+ * Serialize a JSON-LD payload for an inline `<script>`.
+ *
+ * The values come from an external metadata importer, so a synopsis containing
+ * `</script` would otherwise close the element early and turn the rest of the
+ * payload into markup. Escaping `<` covers that, and escaping the line and
+ * paragraph separators keeps the result valid JavaScript source as well as
+ * valid JSON.
+ */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }

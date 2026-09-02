@@ -1,4 +1,3 @@
-import hmac
 from datetime import timedelta
 
 from django.conf import settings
@@ -13,6 +12,8 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
+
+from common.security import constant_time_equals
 
 from .models import ExternalIdentity, TelegramLoginChallenge, User
 from .serializers import (
@@ -288,7 +289,7 @@ telegram_challenge_complete.throttle_scope = "telegram_challenge"
 @permission_classes([AllowAny])
 def telegram_webhook(request):
     provided_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if not settings.TELEGRAM_WEBHOOK_SECRET or not hmac.compare_digest(provided_secret, settings.TELEGRAM_WEBHOOK_SECRET):
+    if not constant_time_equals(provided_secret, settings.TELEGRAM_WEBHOOK_SECRET):
         return Response({"detail": "Forbidden"}, status=403)
     message = request.data.get("message")
     if not isinstance(message, dict):

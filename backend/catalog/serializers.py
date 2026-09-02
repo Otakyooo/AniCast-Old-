@@ -4,6 +4,40 @@ from . import portraits, posters
 from .i18n import request_language, translated_value
 from .models import Character, Creator, MediaAsset, Episode, Franchise, Genre, Source, SourceReport, Title, TitleCharacter
 
+
+def title_payload_prefetch(prefix: str = "") -> tuple[str, ...]:
+    """Related names :class:`TitleSerializer` reads for every row.
+
+    ``translated_value`` calls ``instance.translations.all()``, so an
+    unprefetched title costs one query per localized field and one more per
+    genre. Callers that nest ``TitleSerializer`` under another model pass the
+    relation prefix, e.g. ``title_payload_prefetch("title")``.
+    """
+    base = f"{prefix}__" if prefix else ""
+    return (
+        f"{base}translations",
+        f"{base}franchise__translations",
+        f"{base}genres",
+        f"{base}genres__translations",
+    )
+
+
+def episode_payload_prefetch(prefix: str = "") -> tuple[str, ...]:
+    """Related names the episode serializers read for every row."""
+    base = f"{prefix}__" if prefix else ""
+    return (f"{base}translations",)
+
+
+def schedule_title_payload_prefetch(prefix: str = "") -> tuple[str, ...]:
+    """Related names :class:`ScheduleTitleSerializer` reads for every row.
+
+    The compact payload carries only the localized name, so it needs the
+    translations but not genres or the franchise.
+    """
+    base = f"{prefix}__" if prefix else ""
+    return (f"{base}translations",)
+
+
 class GenreSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
 

@@ -1,18 +1,66 @@
-.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px}.filters a,.primary,.secondary,.favoriteActive,.danger,.pagination a{padding:10px 14px;border:1px solid var(--border);border-radius:9px;background:var(--surface-1);color:var(--text);cursor:pointer}.filters a:hover,.pagination a:hover{border-color:var(--primary)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:22px}.entry{position:relative}.entryMeta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.entryMeta span{padding:5px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted);font-size:12px}.control{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:22px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}.control p{width:100%;margin:0;color:var(--muted)}.control label{display:grid;gap:6px}.control label span{color:var(--muted);font-size:12px}.control select{min-height:41px;padding:0 32px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}.primary{display:inline-block;border-color:var(--primary);background:var(--primary);color:var(--on-primary)}.secondary{background:transparent}.favoriteActive{border-color:var(--favorite-border);background:var(--favorite-surface);color:var(--favorite)}.danger{background:transparent;color:var(--danger)}.error{width:100%;color:var(--danger);font-size:13px}.pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:30px;color:var(--muted)}@media(max-width:640px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.control>*{width:100%}.control button{text-align:center}}
+/* Library tab: filters, title grid and pagination.
+   The per-title status control lives in components/title-actions.tsx and owns
+   its own styles, so this module no longer carries the select/favorite/danger
+   button set that the removed library-control component used. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.filters a,
+.primary,
+.pagination a {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-1);
+  color: var(--text);
+  cursor: pointer;
+}
+.filters a:hover,
+.pagination a:hover { border-color: var(--primary) }
+.filters a:active,
+.pagination a:active { background: var(--surface-2) }
+.filterActive { border-color: var(--primary); background: var(--primary-soft-strong) }
 
-/* Interaction states for library controls. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 22px;
+}
+.entry { position: relative }
+.entryMeta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
+.entryMeta span {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.primary {
+  display: inline-block;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
 .primary:hover:not(:disabled) { background: var(--primary-hover) }
-.secondary:hover:not(:disabled), .danger:hover:not(:disabled), .favoriteActive:hover:not(:disabled) { border-color: var(--primary) }
-.secondary:active:not(:disabled), .danger:active:not(:disabled) { background: var(--surface-2) }
-.control select:hover:not(:disabled) { border-color: var(--primary) }
-.primary:disabled, .secondary:disabled, .danger:disabled, .favoriteActive:disabled, .control select:disabled {
+.primary:disabled {
   border-color: var(--border);
   background: var(--surface-1);
   color: var(--muted-2);
   cursor: not-allowed;
 }
-.filters a:active, .pagination a:active { background: var(--surface-2) }
-.filterActive { border-color: var(--primary); background: var(--primary-soft-strong) }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 30px;
+  color: var(--muted);
+}
 
 /* Sibling views of the profile library tab: titles vs collections. */
 .viewSwitch { display: flex; gap: 8px; margin-bottom: 16px }
@@ -28,3 +76,7 @@
 }
 .viewSwitch a:hover { color: var(--text); border-color: var(--primary) }
 .viewActive { border-color: var(--primary); background: var(--primary-soft-strong); color: var(--text) }
+
+@media (max-width: 640px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+}
