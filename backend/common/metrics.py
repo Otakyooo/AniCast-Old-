@@ -130,6 +130,26 @@ def render_metrics() -> str:
     except Exception:
         pass
 
+    try:
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+
+        # A model that references columns the schema does not have answers 500
+        # on every request touching them. That is exactly how a missed migration
+        # stayed unnoticed for an hour: nothing reported the mismatch, only its
+        # symptom. Exporting the pending count makes the cause alertable.
+        executor = MigrationExecutor(connection)
+        pending = executor.migration_plan(executor.loader.graph.leaf_nodes())
+        lines += _family(
+            "anicast_pending_migrations",
+            "Migrations defined in code but not applied to the database.",
+            "gauge",
+            [f"anicast_pending_migrations {len(pending)}"],
+        )
+    except Exception:
+        # Telemetry must never affect the application path it observes.
+        pass
+
     from catalog.models import Provider, Source
 
     provider_counts = {

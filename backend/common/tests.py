@@ -150,6 +150,23 @@ def test_metrics_are_private_and_prometheus_compatible():
     assert "test-metrics-token" not in body
 
 
+@pytest.mark.django_db
+def test_pending_migrations_are_exported_so_schema_drift_is_alertable():
+    """A missed migration is only visible as 500s unless the cause is exported.
+
+    A model referencing columns the schema lacks answers 500 on every request
+    that touches them, which is what happened in production for an hour: the
+    symptom alerted, the cause did not. The test database is migrated, so the
+    healthy value is zero.
+    """
+    from common.metrics import render_metrics
+
+    body = render_metrics()
+    assert "# HELP anicast_pending_migrations" in body
+    assert "# TYPE anicast_pending_migrations gauge" in body
+    assert "anicast_pending_migrations 0" in body
+
+
 # ---------- Anonymous visit counter ----------
 
 

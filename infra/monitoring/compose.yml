@@ -50,6 +50,10 @@ services:
       - ./nginx/metrics-proxy.conf:/etc/nginx/conf.d/default.conf:ro
     mem_limit: 48m
     logging: *container-logging
+    # `backend` is the scrape-only network that carries the backend alone. The
+    # proxy used to join mainserver_internal, which also carries PostgreSQL and
+    # Redis, so the monitoring stack held a path into the application's data
+    # tier for the sake of one HTTP endpoint.
     networks: [monitoring, backend]
   blackbox-exporter:
     image: prom/blackbox-exporter:v0.28.0
@@ -80,6 +84,6 @@ networks:
   monitoring:
   backend:
     external: true
-    name: mainserver_internal
+    name: mainserver_metrics
 volumes:
   prometheus_data:

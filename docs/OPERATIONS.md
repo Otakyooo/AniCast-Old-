@@ -17,7 +17,19 @@ curl --fail --silent --show-error \
   http://10.78.0.2:8000/internal/metrics
 ```
 
-Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.1`. The self-hosted Prometheus runs on MainServer (see Monitoring stack) and scrapes through an nginx sidecar attached to the `mainserver_internal` Docker network; keep its UI bound to `127.0.0.1` and access it through SSH port forwarding. Never add `/internal/metrics` or a Prometheus port to the public Caddyfile.
+Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.1`. The self-hosted Prometheus runs on MainServer (see Monitoring stack) and scrapes through an nginx sidecar attached to the scrape-only `mainserver_metrics` Docker network; keep its UI bound to `127.0.0.1` and access it through SSH port forwarding. Never add `/internal/metrics` or a Prometheus port to the public Caddyfile.
+
+## Redis
+
+Redis requires a password (`REDIS_PASSWORD`, passed to `--requirepass`), and the same value must appear in `CACHE_URL`, `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` as `redis://:PASSWORD@redis:6379/N`. This is not defence in depth: Redis holds the Celery broker, task names are public, and anything that can write to the broker executes code in the worker. An unauthenticated Redis on a shared Docker network is a remote code execution path, not a cache.
+
+Rotating the password means editing four values in the env file and recreating everything that connects, in one step:
+
+```bash
+docker compose -f infra/mainserver/compose.yml up -d
+```
+
+The healthcheck reads `REDISCLI_AUTH` from the environment, so `redis-cli ping` from outside the container returns `NOAUTH Authentication required` — that is the expected, healthy answer.
 
 Counters use the shared Redis cache and reset after Redis data loss. Gauges for providers and sources are read from PostgreSQL at scrape time. Labels are fixed to endpoint groups, method/status families, known Celery tasks and bounded result enums.
 
@@ -101,12 +113,14 @@ scripts/restore-db.sh --force [dump]
 
 ## Monitoring stack
 
-`infra/monitoring/compose.yml` runs on MainServer as a separate Compose project joined to the external `mainserver_internal` network:
+`infra/monitoring/compose.yml` runs on MainServer as a separate Compose project joined to the external `mainserver_metrics` network:
 
 - Prometheus (retention 15d, `127.0.0.1:9090`) scrapes the backend through the nginx sidecar, which adds the `X-Forwarded-Proto: https` header Django requires and keeps the bearer token flow intact;
 - Alertmanager (`127.0.0.1:9093`) delivers alerts with the native Telegram receiver;
 - node-exporter provides host disk, memory and CPU metrics;
 - every service is memory-limited; the whole stack uses roughly 110 MiB.
+
+The sidecar joins `mainserver_metrics`, a scrape-only network that carries the backend and nothing else. It previously joined `mainserver_internal`, which also carries PostgreSQL and Redis, so the monitoring stack held a path into the application's data tier for the sake of one HTTP endpoint. Docker DNS answers are per-network, so a container attached only to `mainserver_metrics` cannot even resolve `postgres` or `redis`. Keep it that way: never add a data-tier service to that network, and never reattach monitoring to `mainserver_internal`.
 
 Access the UIs from a workstation:
 
@@ -115,7 +129,15 @@ ssh -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 anicast-main
 # Prometheus: http://localhost:9090  Alertmanager: http://localhost:9093
 ```
 
-Alert rules live in `infra/monitoring/rules/anicast-alerts.yml`: backend down, HTTP 5xx rate, Celery task failures, provider check failures, notification failures, disk below 15%/7%, memory below 10% and monitoring self-checks.
+Alert rules live in `infra/monitoring/rules/anicast-alerts.yml`: backend down, HTTP 5xx volume and per-endpoint-group error ratio, pending migrations, alert-delivery failures, Celery task failures, provider check failures, notification failures, disk below 15%/7%, memory below 10% and monitoring self-checks.
+
+Three of those exist because of specific incidents:
+
+- `EndpointGroupErrorRatio` catches what the absolute 5xx counter misses. On a low-traffic site, one endpoint group answering 500 for every request produces few errors per minute; a ratio does not care about volume. During the 2026-09-02 incident the API group ran at 48% errors while the site as a whole looked healthy.
+- `PendingMigrations` alerts on the cause rather than the symptom. `anicast_pending_migrations` is exported by `/internal/metrics`; a model referencing columns the schema lacks answers 500 on every request that touches them, and that state went unnoticed for an hour because only the symptom was visible.
+- `AlertDeliveryFailing` watches the notification path itself. Every other rule is worthless if the message never lands: Alertmanager retried Telegram 274 times and gave up each time while egress from MainServer was blocked, and nothing said so.
+
+**Known gap: Telegram is unreachable from MainServer.** `api.telegram.org` times out from the host, from the backend container and from Alertmanager, while the same request from the VPS returns 302 and Jikan is reachable from MainServer — so this is not DNS, not routing and not a general egress block. It affects both alert delivery and user notifications (`push/telegram.py`), and it needs an infrastructure decision (relay through the VPS, a different alert channel, or an egress proxy). `AlertDeliveryFailing` now makes the state visible, but visibility over a broken channel only helps once the channel is fixed.
 
 The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s), and a node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the VPS firewall is disabled) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
 

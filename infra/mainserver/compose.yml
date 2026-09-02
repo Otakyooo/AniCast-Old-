@@ -20,11 +20,17 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     mem_limit: 256m
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "200mb", "--maxmemory-policy", "noeviction"]
+    # Redis holds the Celery broker, so anything that can reach it can execute
+    # code in the worker: task names are public. requirepass is the difference
+    # between "reachable" and "exploitable".
+    command: ["sh", "-c", "exec redis-server --appendonly yes --maxmemory 200mb --maxmemory-policy noeviction --requirepass \"$$REDIS_PASSWORD\""]
+    env_file: ${ANICAST_ENV_FILE:-.env}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # REDISCLI_AUTH keeps the password out of the process list and out of
+      # redis-cli's "using a password with -a" warning on stderr.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,7 +57,11 @@ services:
       retries: 5
       start_period: 30s
     logging: *container-logging
-    networks: [internal]
+    # The metrics network exists so the monitoring stack can scrape the backend
+    # without joining the network that also carries PostgreSQL and Redis. Docker
+    # DNS answers are per-network, so a container attached only to `metrics`
+    # cannot even resolve `postgres` or `redis`.
+    networks: [internal, metrics]
   celery-worker:
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
@@ -88,6 +98,10 @@ services:
     networks: [internal]
 networks:
   internal:
+  # Scrape-only network shared with the monitoring stack. It carries the backend
+  # and nothing else, so joining it grants no path to PostgreSQL or Redis.
+  metrics:
+    name: mainserver_metrics
 volumes:
   postgres_data:
   redis_data:

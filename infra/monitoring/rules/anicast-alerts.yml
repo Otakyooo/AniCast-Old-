@@ -15,6 +15,43 @@ groups:
           severity: critical
         annotations:
           summary: "Растёт число 5xx-ответов backend: {{ $value | humanize }} за 15 минут"
+      - alert: EndpointGroupErrorRatio
+        # The absolute counter above only fires on volume. One endpoint group
+        # answering 500 for every request while the rest of the site is healthy
+        # produces few errors per minute on a low-traffic site, so a ratio is
+        # what actually catches a broken feature. The 20-request floor keeps a
+        # single stray error from alerting on an idle group.
+        expr: |
+          sum by (endpoint) (increase(anicast_http_requests_total{status_family="5xx"}[15m]))
+            /
+          clamp_min(sum by (endpoint) (increase(anicast_http_requests_total[15m])), 1) > 0.2
+          and
+          sum by (endpoint) (increase(anicast_http_requests_total[15m])) >= 20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Группа {{ $labels.endpoint }} отвечает ошибками: {{ $value | humanizePercentage }} запросов за 15 минут"
+      - alert: PendingMigrations
+        # A model referencing columns the schema lacks answers 500 on every
+        # request that touches them. In production that state went unnoticed for
+        # an hour because only the symptom was visible; this alerts on the cause.
+        expr: anicast_pending_migrations > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Есть неприменённые миграции ({{ $value }}): схема БД отстаёт от кода"
+      - alert: AlertDeliveryFailing
+        # Every rule in this file is worthless if the notification never lands.
+        # Alertmanager retried Telegram 274 times and gave up each time while the
+        # egress path from MainServer was blocked, and nothing said so.
+        expr: increase(alertmanager_notifications_failed_total[30m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager не может доставить уведомления ({{ $labels.integration }}): {{ $value | humanize }} сбоев за 30 минут"
       - alert: CeleryTaskFailures
         expr: sum(increase(anicast_celery_tasks_total{result="failure"}[30m])) > 3
         for: 5m
