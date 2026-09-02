@@ -147,9 +147,12 @@ Local-image releases: the GHCR credentials stored on MainServer only carry `read
 
 ```bash
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
+sh scripts/backup-db.sh
 docker build -t anicast-backend:local-$stamp backend
 sed -i "s|^BACKEND_IMAGE=.*|BACKEND_IMAGE=anicast-backend:local-$stamp|" infra/mainserver/.env
 docker compose -f infra/mainserver/compose.yml run --rm --no-deps --entrypoint python backend manage.py migrate --plan
+# Applying is a separate, mandatory step. --plan only prints.
+docker compose -f infra/mainserver/compose.yml run --rm --no-deps --entrypoint python backend manage.py migrate --noinput
 docker compose -f infra/mainserver/compose.yml up -d backend celery-worker celery-beat
 
 docker build --build-arg NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=anicast_auth_bot \
@@ -160,7 +163,16 @@ scp /tmp/frontend-$stamp.tar.gz root@10.78.0.1:/tmp/
 ssh root@10.78.0.1 "gunzip -c /tmp/frontend-$stamp.tar.gz | docker load"
 ssh root@10.78.0.1 "sed -i 's|^FRONTEND_IMAGE=.*|FRONTEND_IMAGE=anicast-frontend:local-$stamp|' /opt/anicast/infra/vps/.env"
 ssh root@10.78.0.1 "cd /opt/anicast/infra/vps && docker compose up -d frontend"
+
+# After the rollout, prove no migration is left behind. This must print [].
+docker exec mainserver-backend-1 python -c "import django, os; \
+os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); django.setup(); \
+from django.db import connection; from django.db.migrations.executor import MigrationExecutor; \
+e = MigrationExecutor(connection); \
+print([f'{m.app_label}.{m.name}' for m, _ in e.migration_plan(e.loader.graph.leaf_nodes())])"
 ```
+
+`migrate --noinput` is not optional in this manual path. The `deploy.sh` pipeline runs migrations itself, but the live stacks are deployed by hand, and a release that only ran `migrate --plan` shipped a model referencing columns that did not exist: every request touching playback progress answered HTTP 500 for over an hour before anyone noticed (2026-09-02, `library.0006`). Nothing alerted, because a 500 rate on one endpoint group does not trip the current rules. The pending-migration check above is the cheap guard against repeating it.
 
 The frontend build args must be passed explicitly: `NEXT_PUBLIC_*` values are inlined at build time, and omitting them silently disables the Telegram login and notification prompts. Take a verified `pg_dump` first, keep the previous digests written down (image-only rollback is the only automatic path), and delete the transferred tarball from both hosts afterwards. Restore GHCR digest pins as soon as a token with `write:packages` is available, since local tags carry no provenance.
 

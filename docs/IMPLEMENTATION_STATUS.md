@@ -32,6 +32,17 @@
 
 Проверка: backend 284 passed на SQLite и 283 passed на реальном PostgreSQL 17 (единственный fail — `seed_catalog`, dev-фикстура, заблокированная вне локальной разработки); ruff, mypy (145 файлов), `makemigrations --check` — чисто. Frontend: 58/58 unit, lint, typecheck, production build. `scripts/validate.sh` пройден. Миграции применены к восстановленному production-дампу: обе прошли, индексы созданы, `SET enable_seqscan=off` подтверждает, что планировщик может использовать `catalog_title_name_slug_idx`.
 
+Production rollout 2026-09-02 (второй за день):
+
+- образы `anicast-backend:local-20260902T200853Z` и `anicast-frontend:local-20260902T200853Z`; MainServer, Celery worker/beat, PostgreSQL, Redis, frontend и Caddy healthy, 5xx после развёртывания — `0`, firing alerts — `0`;
+- проверенный predeploy dump `backups/db/anicast-20260902T200806Z.dump` (3 185 761 байт). Точки отката — образы `local-20260902T141159Z`; миграции index-only и expand-safe, поэтому предыдущий релиз работает на этой схеме;
+- **обнаружен и устранён незамеченный сбой прода**: `library.0006_episodeprogress_playback_time` из релиза 2026-09-01 никогда не применялась. Модель ссылалась на `watched_seconds`/`duration_seconds`, которых не было в схеме, поэтому каждый запрос, читающий прогресс, отдавал `ProgrammingError` → 500. В логах backend'а за 17:49–19:00 UTC — 72 таких ответа. Причина процессная, не кодовая: релиз применял `migrate --plan` (только просмотр) и не запускал `migrate`. Формальный `scripts/deploy.sh` выполняет миграции сам, но live-стек развёртывается вручную; на будущее шаг `migrate --noinput` обязателен в manual-процедуре `docs/OPERATIONS.md`;
+- production-проверки после релиза: 13 публичных маршрутов и API-эндпоинтов 200 (0,3–1,8 с), `/internal/metrics` публично 404;
+- границы подтверждены на реальных данных: `/api/v1/titles/21-one-piece/` без параметров отдаёт `episodes_count: 1180` при 20 эпизодах в payload (46 754 байта) и `characters_count: 1483` при 60 в payload; `?episodes_page=3&episodes_page_size=5` по-прежнему возвращает `[11..15]`, а `?episodes_page=9999` — 404;
+- коллекции проверены end-to-end через реальную сессию: карточка содержит `item_count`, `preview_items` и `contains_title`, вложенного `items` в списке нет, а detail по-прежнему отдаёт полный `title`; `?title=` возвращает `True` для участника и `False` для чужого slug. Тестовый аккаунт и его данные удалены после проверки;
+- индексы созданы в проде: `catalog_title_name_slug_idx`, `library_entry_recent_idx`, `library_entry_status_idx`, `library_progress_watched_idx`; удалённый `library_lib_user_id_94ed00_idx` отсутствует;
+- `check_provider_sources(limit=5)` выполнен вручную: возвращает `{'checked': 0, 'failed': 0, 'pruned': 0}` — единственный включённый провайдер использует `iframe_embed` и корректно исключается из серверных проб.
+
 ## Лимиты API, SEO-регрессии и N+1 — 2026-09-02
 
 Аудит проекта (уязвимости, производительность, SEO, мусор) выявил набор дефектов, которые исправлены одним релизом.
