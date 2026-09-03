@@ -117,7 +117,9 @@ export function CommunityPanel({ slug }: { slug: string }) {
         <h3>{t("community.publicReviews")}</h3>
         {data.reviews.length ? data.reviews.map((review) => (
           <article className={styles.review} key={review.id}>
-            <strong>{review.author_name}</strong>
+            {/* Empty means the reviewer never set a display name; the API returns
+                it verbatim because the placeholder is a locale decision. */}
+            <strong>{review.author_name.trim() || t("account.viewer")}</strong>
             {review.contains_spoilers ? <details><summary>{t("community.showSpoiler")}</summary><p>{review.body}</p></details> : <p>{review.body}</p>}
           </article>
         )) : <p>{t("community.noReviews")}</p>}

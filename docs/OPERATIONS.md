@@ -143,6 +143,22 @@ The stack also watches the public site itself: blackbox-exporter probes `https:/
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 
+## Taking user content down
+
+Clearing `is_active` on the account in `/staff/` is the takedown mechanism. It blocks sign-in, hides the public profile, blocks following, withdraws approved reviews from every title page and the community feed, and makes public collections answer 404. Nothing is deleted, so it is reversible.
+
+That reach is deliberate and enforced in one place each: `community.views.published_reviews` filters `user__is_active`, and `PublicCollectionDetailView` filters `owner__is_active`. Before those filters existed, deactivation hid the profile while leaving the reviews and collections readable — a takedown that looked complete and was not. Any new endpoint that publishes user-authored content has to apply the same filter.
+
+Public review payloads carry `author_name` verbatim, including empty, and the client substitutes a localized placeholder. Do not reintroduce a server-side fallback built from account fields: the previous one embedded the internal primary key, which exposed registration order and a rough user count for precisely the authors whose `public_id` is withheld because their profile is private.
+
+## Staff dashboard cost
+
+`/staff/` renders attention cards plus a status-page availability section, and everything on it must stay bounded — an editor loads it constantly, and it shares the request path with the public API.
+
+`common.availability.summarize` computes its rolling windows with aggregates (`Count`/`Avg`/`Min`/`Max` with `filter`), not by loading rows. It used to read the whole 7-day window into Python: at minute resolution that is ~13k rows per target and ~39k per render, to produce a handful of percentages. Measured on production data, the dashboard went from 0.94 s to 0.065–0.082 s warm; the first render after a restart is ~0.7 s because those index and heap pages come from disk. A query-budget test asserts the count does not grow when the history doubles.
+
+`_poster_tier_counts` deliberately still classifies filenames in Python: measured at 0.16 s over two queries, and the SQL alternative is five unindexed `LIKE` scans plus a second copy of the poster filename grammar. Do not "optimize" it without a measurement showing the current version is the bottleneck.
+
 ## Image publication
 
 GitHub Actions publishes both images to GHCR on every push to `main` and on `v*` tags (`.github/workflows/publish.yml`) using the built-in `GITHUB_TOKEN`; the job summary prints ready-to-use digest lines. Resolve a tag into a deploy release manifest with:
@@ -324,7 +340,11 @@ All server-side Next.js request paths, including public profiles and collections
 
 Every header-secret comparison (`INTERNAL_API_TOKEN`, `METRICS_BEARER_TOKEN`, both Telegram webhook secrets) goes through `common.security.constant_time_equals`. Django decodes request headers as latin-1, so a client can send code points 128–255; `hmac.compare_digest` raises `TypeError` on non-ASCII `str`, which on the default throttle path would have turned one hostile header into a 500 on every API request. Comparing bytes keeps a hostile header an ordinary mismatch, and an unset secret fails closed.
 
-Throttling is layered. Anonymous traffic uses `anon=60/min` per address, authenticated traffic `user=240/min` per account (DRF's `AnonRateThrottle` skips logged-in requests, so without the user bucket one cheap account could hammer account summary, recommendations and continue-watching without limit), trusted SSR `ssr=600/min`, login and registration `auth=10/min` per address, playback `playback=30/min`. `DJANGO_NUM_PROXIES` (default 1) matters here: exactly one trusted proxy sits in front, and without it DRF keys buckets on the whole `X-Forwarded-For`, so a client-supplied prefix would mint a fresh bucket per request and defeat every limit.
+Throttling is layered. Anonymous traffic uses `anon=60/min` per address, authenticated traffic `user=240/min` per account (DRF's `AnonRateThrottle` skips logged-in requests, so without the user bucket one cheap account could hammer account summary, recommendations and continue-watching without limit), trusted SSR `ssr=600/min`, login `auth=10/min` per address, registration `register=20/hour` per address, playback `playback=30/min`. `DJANGO_NUM_PROXIES` (default 1) matters here: exactly one trusted proxy sits in front, and without it DRF keys buckets on the whole `X-Forwarded-For`, so a client-supplied prefix would mint a fresh bucket per request and defeat every limit.
+
+Registration gets its own, much tighter bucket because it answers a question login refuses to. Login is deliberately generic ("wrong email or password"), but registration has to tell a returning user their address is taken — without email verification there is no other way to say it — which makes it an account-enumeration oracle. Sharing login's per-minute budget allowed roughly 14k probes a day from one address; a person registering once never notices an hourly limit. The real fix is verification by email: answer "check your inbox" either way and let the message differ. That needs mail delivery this host does not have yet, and the same blocked egress that stops Telegram is the reason to verify before assuming SMTP works.
+
+All AniCast throttles mix in `common.throttling.LiveRatesMixin`. DRF binds `THROTTLE_RATES` to the class body at import time, so a settings override never reaches it: a changed rate looks applied while the old value is still enforced, and any test asserting on a limit silently asserts on the default instead. Keep the mixin on new throttle classes.
 
 The visit counter (`/api/v1/analytics/visit/`) is a plain Django view outside the DRF defaults, and both of its own guards are advisory: the bot check reads the User-Agent and the dedupe check reads a cookie the client controls. Only the counting branch is throttled at `visit=600/hour` per address, so returning browsers with their signed cookie never spend the budget, and a cookie-less script can no longer take a row lock on today's counter per request. Exhausting the bucket stops counting and still answers 200 — it never fails a page load for a vanity metric.
 

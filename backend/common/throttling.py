@@ -19,7 +19,21 @@ def is_internal_safe_request(request) -> bool:
     )
 
 
-class AniCastAnonRateThrottle(AnonRateThrottle):
+class LiveRatesMixin:
+    """Resolve the throttle rate per instance instead of per class.
+
+    DRF binds ``THROTTLE_RATES`` to the class body at import time, so a settings
+    override never reaches it and a rate change looks applied while the old value
+    is still enforced. Reading it per instance makes the configured limits both
+    authoritative and testable.
+    """
+
+    @property
+    def THROTTLE_RATES(self):  # noqa: N802 - overrides a DRF class attribute
+        return api_settings.DEFAULT_THROTTLE_RATES
+
+
+class AniCastAnonRateThrottle(LiveRatesMixin, AnonRateThrottle):
     """Keep public throttling while giving trusted SSR GETs their own bucket."""
 
     def allow_request(self, request, view):
@@ -36,7 +50,7 @@ class AniCastAnonRateThrottle(AnonRateThrottle):
         return super().get_cache_key(request, view)
 
 
-class AniCastUserRateThrottle(UserRateThrottle):
+class AniCastUserRateThrottle(LiveRatesMixin, UserRateThrottle):
     """Per-account ceiling for authenticated traffic.
 
     ``AnonRateThrottle`` returns ``None`` for authenticated requests, so without
@@ -65,7 +79,7 @@ class AniCastUserRateThrottle(UserRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": user.pk}
 
 
-class VisitRateThrottle(SimpleRateThrottle):
+class VisitRateThrottle(LiveRatesMixin, SimpleRateThrottle):
     """IP-scoped ceiling for the anonymous visit counter.
 
     ``/analytics/visit/`` is a plain Django view, so the DRF defaults never
@@ -77,13 +91,6 @@ class VisitRateThrottle(SimpleRateThrottle):
     """
 
     scope = "visit"
-
-    @property
-    def THROTTLE_RATES(self):  # noqa: N802 - overrides a DRF class attribute
-        # DRF resolves the rate table once at class definition, which happens
-        # before ``override_settings`` in tests can take effect. Reading it per
-        # instance keeps the configured rate authoritative.
-        return api_settings.DEFAULT_THROTTLE_RATES
 
     def get_cache_key(self, request, view):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}

@@ -37,12 +37,23 @@ export function CommunityFeed() {
       <div className={styles.reviewHeader}>
         <Link href={`/titles/${review.title.slug}`}><strong>{review.title.name}</strong></Link>
         {review.author_public_id ? (
-          <Link className={styles.author} href={`/users/${review.author_public_id}`}>{review.author_name}</Link>
-        ) : <span className={styles.author}>{review.author_name}</span>}
+          <Link className={styles.author} href={`/users/${review.author_public_id}`}>{authorLabel(review, t)}</Link>
+        ) : <span className={styles.author}>{authorLabel(review, t)}</span>}
       </div>
       {review.contains_spoilers ? <details><summary>{t("community.showSpoiler")}</summary><p>{review.body}</p></details> : <p>{review.body}</p>}
     </article>
   ))}</div></>;
+}
+
+/**
+ * A reviewer who never set a display name is shown as a generic viewer.
+ *
+ * The API returns the name verbatim, including empty, because the placeholder is
+ * a locale decision. It used to substitute the account's internal primary key,
+ * which put registration order and a rough user count into a public payload.
+ */
+function authorLabel(review: Review, t: (key: string) => string) {
+  return review.author_name.trim() || t("account.viewer");
 }
 
 function FollowingFeedCard({ item }: { item:FollowingFeedItem }) {

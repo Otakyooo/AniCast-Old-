@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
 from common.security import constant_time_equals
+from common.throttling import LiveRatesMixin
 
 from .models import ExternalIdentity, TelegramLoginChallenge, User
 from .serializers import (
@@ -26,7 +27,7 @@ from .serializers import (
 from .telegram_bot import create_challenge_token, hash_secret, valid_challenge_token
 
 
-class AuthRateThrottle(SimpleRateThrottle):
+class AuthRateThrottle(LiveRatesMixin, SimpleRateThrottle):
     """IP-scoped auth throttle that also applies to authenticated callers.
 
     DRF's AnonRateThrottle skips logged-in requests entirely, which let a
@@ -37,6 +38,24 @@ class AuthRateThrottle(SimpleRateThrottle):
 
     def get_cache_key(self, request, view):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+class RegisterRateThrottle(AuthRateThrottle):
+    """Tighter bucket for registration, because it answers a question login does not.
+
+    Login is deliberately generic ("wrong email or password"), so it reveals
+    nothing about which addresses exist. Registration must tell a returning user
+    that their account already exists — without email verification there is no
+    other way to say it — and that makes it an account-enumeration oracle.
+
+    Sharing login's 10/min budget allowed ~14k probes a day from one address. A
+    genuine person registers once, so an hourly bucket is invisible to them while
+    cutting enumeration throughput by roughly thirty times. The real fix is
+    verification by email: answer "check your inbox" either way and let the
+    message differ. That needs mail delivery this host does not yet have.
+    """
+
+    scope = "register"
 
 
 def enforce_csrf(request):
@@ -56,7 +75,7 @@ def csrf(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@throttle_classes([AuthRateThrottle])
+@throttle_classes([RegisterRateThrottle])
 def register(request):
     enforce_csrf(request)
     serializer = RegisterSerializer(data=request.data)

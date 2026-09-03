@@ -31,15 +31,26 @@ class CommunityPagination(PageNumberPagination):
     max_page_size = 50
 
 
+def published_reviews():
+    """Approved reviews whose author is still an active account.
+
+    Deactivating a user is the project's takedown mechanism, and it already hides
+    the profile (`PublicProfileView`) and blocks following. Without the same
+    filter here a deactivated author's reviews stayed readable on every title
+    page, so the takedown was partial.
+    """
+    return TitleReview.objects.filter(
+        status=TitleReview.Status.APPROVED, user__is_active=True
+    ).select_related("user", "title").prefetch_related("title__translations")
+
+
 class CommunitySummaryView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
         title = get_object_or_404(Title, slug=slug)
         rating = TitleRating.objects.filter(title=title).aggregate(average=Avg("value"))
-        reviews = TitleReview.objects.filter(title=title, status=TitleReview.Status.APPROVED).select_related(
-            "user", "title"
-        ).prefetch_related("title__translations")[:20]
+        reviews = published_reviews().filter(title=title)[:20]
         own_rating = own_review = None
         if request.user.is_authenticated:
             own_rating = TitleRating.objects.filter(title=title, user=request.user).first()
@@ -59,9 +70,7 @@ class PublicReviewListView(ListAPIView):
     pagination_class = CommunityPagination
 
     def get_queryset(self):
-        queryset = TitleReview.objects.filter(status=TitleReview.Status.APPROVED).select_related(
-            "user", "title"
-        ).prefetch_related("title__translations")
+        queryset = published_reviews()
         if slug := self.request.query_params.get("title", "").strip():
             queryset = queryset.filter(title__slug=slug)
         return queryset

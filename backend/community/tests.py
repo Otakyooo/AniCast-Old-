@@ -85,6 +85,77 @@ def test_review_links_only_to_an_opted_in_public_profile(community_data):
 
 
 @pytest.mark.django_db
+def test_review_author_without_a_display_name_exposes_no_internal_id(community_data):
+    """A missing display name must not fall back to the account's primary key.
+
+    Email registration leaves `display_name` optional, so the fallback used to put
+    the internal id into a public payload — revealing registration order and a
+    rough user count, for exactly the reviewers whose `public_id` is withheld.
+    The client renders its own localized placeholder for an empty name.
+    """
+    author = User.objects.create_user(
+        email="nameless@example.com", password="A-strong-passphrase-2042"
+    )
+    _, _, title = community_data
+    TitleReview.objects.create(
+        user=author,
+        title=title,
+        body="An approved review written by someone with no display name.",
+        status=TitleReview.Status.APPROVED,
+        published_at=timezone.now(),
+    )
+    payload = APIClient().get("/api/v1/community/reviews/").json()["results"][0]
+    assert payload["author_name"] == ""
+    assert payload["author_public_id"] is None
+    # The removed fallback rendered the primary key as "AniCast #<pk>".
+    assert "AniCast #" not in str(payload)
+    assert f"AniCast #{author.pk}" not in payload["author_name"]
+
+
+@pytest.mark.django_db
+def test_deactivating_an_account_withdraws_its_public_reviews(community_data):
+    """Deactivation is the takedown mechanism, so it must reach published content.
+
+    It already hides the profile and blocks following; leaving reviews readable on
+    every title page made the takedown partial.
+    """
+    first, _, title = community_data
+    TitleReview.objects.create(
+        user=first,
+        title=title,
+        body="An approved review that must disappear with its author.",
+        status=TitleReview.Status.APPROVED,
+        published_at=timezone.now(),
+    )
+    client = APIClient()
+    assert client.get("/api/v1/community/reviews/").json()["count"] == 1
+    assert len(client.get(f"/api/v1/titles/{title.slug}/community/").json()["reviews"]) == 1
+
+    first.is_active = False
+    first.save(update_fields=["is_active"])
+
+    assert client.get("/api/v1/community/reviews/").json()["count"] == 0
+    assert client.get(f"/api/v1/titles/{title.slug}/community/").json()["reviews"] == []
+
+
+@pytest.mark.django_db
+def test_deactivating_an_account_withdraws_its_public_collections(community_data):
+    first, _, title = community_data
+    collection = TitleCollection.objects.create(
+        owner=first, name="Public picks", slug="public-picks", is_public=True
+    )
+    TitleCollectionItem.objects.create(collection=collection, title=title, position=0)
+    url = f"/api/v1/public/collections/{first.public_id}/{collection.slug}/"
+    client = APIClient()
+    assert client.get(url).status_code == 200
+
+    first.is_active = False
+    first.save(update_fields=["is_active"])
+
+    assert client.get(url).status_code == 404
+
+
+@pytest.mark.django_db
 def test_public_profile_exposes_only_approved_and_explicitly_public_content(community_data):
     first, _, title = community_data
     assert APIClient().get(f"/api/v1/public/users/{first.public_id}/").status_code == 404

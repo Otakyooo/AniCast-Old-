@@ -1,7 +1,18 @@
+from typing import Any, cast
+
 import pytest
+from django.conf import settings
+from django.test import override_settings
 from rest_framework.test import APIClient
 
 from accounts.models import User
+
+
+def throttle_rate(scope: str, rate: str) -> dict[str, Any]:
+    """REST_FRAMEWORK override that changes exactly one throttle scope."""
+    framework = cast(dict[str, Any], settings.REST_FRAMEWORK)
+    rates = cast(dict[str, str], framework["DEFAULT_THROTTLE_RATES"])
+    return {**framework, "DEFAULT_THROTTLE_RATES": {**rates, scope: rate}}
 
 
 def csrf_client():
@@ -50,6 +61,74 @@ def test_duplicate_email_is_rejected_case_insensitively():
     )
     assert response.status_code == 400
     assert User.objects.count() == 1
+
+
+@pytest.mark.django_db
+@override_settings(REST_FRAMEWORK=throttle_rate("register", "3/hour"))
+def test_registration_probing_is_bounded_separately_from_login():
+    """Registration answers a question login refuses to, so it needs its own bucket.
+
+    Login is generic on purpose, but registration must tell a returning user their
+    address is taken — without email verification there is no other way to say it.
+    Sharing login's per-minute budget therefore left an enumeration oracle running
+    at roughly 14k probes a day from one address.
+    """
+    User.objects.create_user(email="known@example.com", password="A-strong-passphrase-2042")
+
+    def probe(email):
+        # A fresh client per probe: registering signs the caller in and rotates the
+        # CSRF token, and an enumerating script would not reuse a session either.
+        # The throttle is keyed on the address, which stays the same.
+        return APIClient().post(
+            "/api/v1/auth/register/",
+            {"email": email, "password": "Another-strong-passphrase-2042"},
+            format="json",
+            REMOTE_ADDR="203.0.113.42",
+        ).status_code
+
+    assert probe("known@example.com") == 400
+    assert probe("other-known@example.com") == 201
+    assert probe("third@example.com") == 201
+    # Budget spent: further probes learn nothing about which addresses exist.
+    assert probe("fourth@example.com") == 429
+    assert not User.objects.filter(email="fourth@example.com").exists()
+
+    # Login keeps its own, more generous bucket: mistyping a password must not
+    # lock someone out because a registration probe ran from the same address.
+    assert APIClient().post(
+        "/api/v1/auth/login/",
+        {"email": "known@example.com", "password": "A-strong-passphrase-2042"},
+        format="json",
+        REMOTE_ADDR="203.0.113.42",
+    ).status_code == 200
+
+
+@pytest.mark.django_db
+def test_csrf_token_is_delivered_in_the_body_not_a_readable_cookie():
+    """The token travels in the response body, so the cookie needs no script access.
+
+    `getCsrfToken` in the frontend reads the body; nothing reads
+    `document.cookie` for it. Leaving the cookie script-readable therefore only
+    handed an injected script the token.
+    """
+    client = APIClient()
+    response = client.get("/api/v1/auth/csrf/")
+    assert response.status_code == 200
+    assert response.json()["csrfToken"]
+    cookie = response.cookies["csrftoken"]
+    assert cookie["httponly"] is True
+    assert cookie["samesite"] == "Lax"
+
+    # HttpOnly is a browser-side restriction, so the header flow still works.
+    enforcing = APIClient(enforce_csrf_checks=True)
+    token = enforcing.get("/api/v1/auth/csrf/").json()["csrfToken"]
+    created = enforcing.post(
+        "/api/v1/auth/register/",
+        {"email": "httponly@example.com", "password": "A-strong-passphrase-2042"},
+        format="json",
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert created.status_code == 201
 
 
 @pytest.mark.django_db

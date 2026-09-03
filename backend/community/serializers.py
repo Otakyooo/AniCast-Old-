@@ -21,7 +21,12 @@ class PublicReviewSerializer(serializers.ModelSerializer):
     title = ScheduleTitleSerializer(read_only=True)
 
     def get_author_name(self, obj):
-        return obj.user.display_name or f"AniCast #{obj.user_id}"
+        # An empty display name stays empty; the client renders its own localized
+        # placeholder. The previous fallback embedded the internal primary key,
+        # which exposed registration order and a rough user count in a public
+        # payload — and it did so precisely for the reviewers whose public_id is
+        # deliberately withheld below.
+        return obj.user.display_name
 
     def get_author_public_id(self, obj):
         return str(obj.user.public_id) if obj.user.profile_is_public else None

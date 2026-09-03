@@ -476,6 +476,39 @@ def test_availability_samples_use_bounded_aggregate_queries(django_assert_num_qu
 
 
 @pytest.mark.django_db
+def test_summarize_cost_does_not_grow_with_the_sample_window(django_assert_max_num_queries):
+    """The summary is aggregate-only, so more history must not cost more work.
+
+    At minute resolution a 7-day window is ~10k rows per target, and the staff
+    dashboard summarizes three of them on every load. Loading those rows into
+    Python to count them was the single slowest thing in the admin (measured at
+    0.76 s of a 0.94 s render on production data).
+    """
+    now = dj_timezone.now()
+    for minutes in range(400):
+        _sample("site", now - timedelta(minutes=minutes), minutes not in (120, 121))
+
+    # Aggregates, latest row, and the streak lookup after the last failure.
+    with django_assert_max_num_queries(3):
+        summary = availability.summarize("site", now=now)
+
+    assert summary["currently_up"] is True
+    assert summary["samples_24h"] == 400
+    assert summary["uptime_24h"] == f"{100.0 * 398 / 400:.2f}%"
+    assert summary["last_incident"] == now - timedelta(minutes=120)
+    assert summary["streak_started"] == now - timedelta(minutes=119)
+    assert summary["avg_latency_ms"] == 42
+
+    # Twice the history, same query count.
+    for minutes in range(400, 800):
+        _sample("site", now - timedelta(minutes=minutes), True)
+    with django_assert_max_num_queries(3):
+        wider = availability.summarize("site", now=now)
+    assert wider["samples_24h"] == 800
+    assert wider["last_incident"] == now - timedelta(minutes=120)
+
+
+@pytest.mark.django_db
 def test_beat_task_persists_samples_for_every_target():
     from common.tasks import probe_site_availability
 

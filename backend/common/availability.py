@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import Avg, Count, Max, Min, Q
 from django.utils import timezone
 
 from common.models import AvailabilitySample
@@ -114,37 +115,56 @@ def format_duration(delta: timedelta) -> str:
 
 
 def summarize(target_key: str, now=None) -> dict:
-    """Rolling-window availability summary for one target."""
+    """Rolling-window availability summary for one target.
+
+    Everything is derived from bounded aggregates. Loading the raw window into
+    Python cost ~10k rows per target — 30k per staff dashboard render at minute
+    resolution — for numbers Postgres can compute in place. The Prometheus path
+    below already worked this way; this brings the admin path in line.
+    """
     now = now or timezone.now()
     week_ago = now - timedelta(days=7)
-    samples = list(
-        AvailabilitySample.objects.filter(target=target_key, checked_at__gte=week_ago)
-        .order_by("checked_at")
-        .values("checked_at", "ok", "latency_ms")
+    day_ago = now - timedelta(hours=24)
+    window = AvailabilitySample.objects.filter(target=target_key, checked_at__gte=week_ago)
+
+    totals = window.aggregate(
+        week_total=Count("id"),
+        week_healthy=Count("id", filter=Q(ok=True)),
+        day_total=Count("id", filter=Q(checked_at__gte=day_ago)),
+        day_healthy=Count("id", filter=Q(ok=True, checked_at__gte=day_ago)),
+        day_latency=Avg("latency_ms", filter=Q(checked_at__gte=day_ago)),
+        first_at=Min("checked_at"),
+        last_failure_at=Max("checked_at", filter=Q(ok=False)),
     )
 
-    def uptime_percent(window_start) -> str:
-        window = [s for s in samples if s["checked_at"] >= window_start]
-        if not window:
+    def uptime_percent(healthy: int, total: int) -> str:
+        if not total:
             return "—"
-        share = 100.0 * sum(1 for s in window if s["ok"]) / len(window)
-        return f"{share:.2f}%"
+        return f"{100.0 * healthy / total:.2f}%"
 
-    currently_up = bool(samples and samples[-1]["ok"])
-    last_failure_index = next(
-        (index for index in range(len(samples) - 1, -1, -1) if not samples[index]["ok"]),
-        -1,
-    )
+    latest = window.order_by("-checked_at", "-id").values("checked_at", "ok").first()
+    currently_up = bool(latest and latest["ok"])
+
+    last_failure_at = totals["last_failure_at"]
     streak_started = None
     last_incident = None
-    if samples:
-        if last_failure_index < 0:  # no outage ever recorded: up since first probe
-            streak_started = samples[0]["checked_at"]
-        elif last_failure_index == len(samples) - 1:  # failing right now
-            streak_started = samples[last_failure_index]["checked_at"]
+    if latest is not None:
+        if last_failure_at is None:
+            # No outage inside the window: up since the first probe in it.
+            streak_started = totals["first_at"]
+        elif not currently_up:
+            # Failing right now, so the current streak is the outage itself and
+            # there is no earlier incident to report separately.
+            streak_started = last_failure_at
         else:
-            streak_started = samples[last_failure_index + 1]["checked_at"]
-            last_incident = samples[last_failure_index]["checked_at"]
+            # Recovered: the streak starts at the first success after the outage.
+            streak_started = (
+                window.filter(checked_at__gt=last_failure_at)
+                .order_by("checked_at", "id")
+                .values_list("checked_at", flat=True)
+                .first()
+            )
+            last_incident = last_failure_at
 
     lines = []
     if currently_up and streak_started:
@@ -154,18 +174,13 @@ def summarize(target_key: str, now=None) -> dict:
     if last_incident is not None:
         lines.append(f"последний сбой {timezone.localtime(last_incident):%d.%m %H:%M}")
 
-    day_ago = now - timedelta(hours=24)
-    day_window = [s for s in samples if s["checked_at"] >= day_ago]
-    avg_latency = (
-        round(sum(s["latency_ms"] for s in day_window) / len(day_window)) if day_window else None
-    )
     return {
         "currently_up": currently_up,
-        "uptime_24h": uptime_percent(day_ago),
-        "uptime_7d": uptime_percent(week_ago),
-        "avg_latency_ms": avg_latency,
-        "samples_24h": len(day_window),
-        "last_checked_at": samples[-1]["checked_at"] if samples else None,
+        "uptime_24h": uptime_percent(totals["day_healthy"], totals["day_total"]),
+        "uptime_7d": uptime_percent(totals["week_healthy"], totals["week_total"]),
+        "avg_latency_ms": round(totals["day_latency"]) if totals["day_latency"] is not None else None,
+        "samples_24h": totals["day_total"],
+        "last_checked_at": latest["checked_at"] if latest else None,
         "detail_line": " · ".join(lines) or "данные собираются",
         "streak_started": streak_started,
         "last_incident": last_incident,

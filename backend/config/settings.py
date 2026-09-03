@@ -61,12 +61,19 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 ROOT_URLCONF = "config.urls"
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
-CSRF_COOKIE_HTTPONLY = False
+# The frontend never reads this cookie: it takes the token from the body of
+# /api/v1/auth/csrf/ (frontend/lib/auth.ts:getCsrfToken). Keeping it readable by
+# script bought nothing and handed any injected script the token for free.
+CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
+# Rolling expiry rather than absolute: an active viewer stays signed in, an idle
+# one is logged out after 30 days. The cost is one session UPDATE per request,
+# which is measurable only well above current traffic. Turning it off would log
+# everyone out 30 days after login regardless of use, so it stays deliberate.
 SESSION_SAVE_EVERY_REQUEST = True
 CSRF_TRUSTED_ORIGINS = [x for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if x]
 REST_FRAMEWORK = {
@@ -96,6 +103,11 @@ REST_FRAMEWORK = {
         "user": "240/min",
         "ssr": "600/min",
         "auth": "10/min",
+        # Registration is an account-enumeration oracle by construction: unlike
+        # login it must tell a returning user their address is taken. An hourly
+        # bucket is invisible to someone registering once and makes probing
+        # impractical. See RegisterRateThrottle.
+        "register": "20/hour",
         "playback": "30/min",
         "telegram_challenge": "20/min",
         "visit": "600/hour",

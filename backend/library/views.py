@@ -852,7 +852,14 @@ class PublicCollectionDetailView(APIView):
         return response
 
     def get(self, request, public_id, slug):
+        # `owner__is_active` matters here: deactivating an account is the takedown
+        # mechanism, and it already hides the profile, so leaving public
+        # collections readable would make that takedown partial.
         collection = get_object_or_404(
-            collection_queryset(), owner__public_id=public_id, slug=slug, is_public=True
+            collection_queryset(),
+            owner__public_id=public_id,
+            owner__is_active=True,
+            slug=slug,
+            is_public=True,
         )
         return Response(PublicCollectionSerializer(collection, context={"request": request}).data)
