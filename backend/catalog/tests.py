@@ -578,6 +578,51 @@ def test_global_search_matches_translated_names(catalog_data):
 
 
 @pytest.mark.django_db
+def test_search_returns_each_match_once_across_several_translations(catalog_data):
+    """Two matching translations must not duplicate the row.
+
+    The previous shape joined the translation table and OR-ed the predicates,
+    which fanned out one entity into several rows and needed `.distinct()` to
+    collapse them. Filtering per table removes the fan-out; this pins that the
+    behaviour is the same without the deduplicating sort.
+    """
+    TitleTranslation.objects.create(title=catalog_data, language="ru", name="Небесный тест")
+    TitleTranslation.objects.create(title=catalog_data, language="uk", name="Небесний тест")
+    character = Character.objects.create(name="Sky Hero", slug="sky-hero")
+    character.translations.create(language="ru", name="Небесный герой")
+    character.translations.create(language="uk", name="Небесний герой")
+
+    body = APIClient().get("/api/v1/search/?q=Небес").json()
+    assert [item["slug"] for item in body["titles"]] == ["sky-test"]
+    assert [item["slug"] for item in body["characters"]] == ["sky-hero"]
+
+    # The paginated lists share the same helper and must agree.
+    titles = APIClient().get("/api/v1/titles/?q=Небес").json()
+    assert titles["count"] == 1
+    characters = APIClient().get("/api/v1/characters/?q=Небес").json()
+    assert characters["count"] == 1
+
+
+@pytest.mark.django_db
+def test_search_matches_own_fields_and_original_names(catalog_data):
+    """Every branch of the rewritten filter still matches what it used to."""
+    by_original = Character.objects.create(
+        name="Unrelated Label", slug="original-only", original_name="モンキー・D・ルフィ"
+    )
+    TitleCharacter.objects.create(title=catalog_data, character=by_original)
+
+    body = APIClient().get("/api/v1/search/?q=ルフィ").json()
+    assert [item["slug"] for item in body["characters"]] == ["original-only"]
+
+    # Title original_name, the third branch on the title side.
+    catalog_data.original_name = "Tenkuu Test"
+    catalog_data.save(update_fields=["original_name"])
+    assert [
+        item["slug"] for item in APIClient().get("/api/v1/search/?q=Tenkuu").json()["titles"]
+    ] == ["sky-test"]
+
+
+@pytest.mark.django_db
 def test_global_search_bounds_the_query_and_group_sizes(catalog_data):
     for index in range(8):
         Title.objects.create(name=f"Sky Extra {index}", slug=f"sky-extra-{index}")

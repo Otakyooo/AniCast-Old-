@@ -179,6 +179,19 @@ The stack also watches the public site itself: blackbox-exporter probes `https:/
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 
+## Catalog search
+
+Search is by fragment (`ILIKE '%нару%'`), which no B-tree can serve. Two pieces make it indexable and both are required:
+
+- `pg_trgm` GIN indexes on `UPPER(column::text)` for every searched name field (migration `catalog.0019`). The expression matters: Django compiles `icontains` to `UPPER(name::text) LIKE UPPER('%…%')`, so an index on the bare column is never consulted — verified on the production dump, where raw-column indexes left the query scanning all three tables in 31ms.
+- The query shape in `catalog/search.py`. `Q(name__icontains=q) | Q(translations__name__icontains=q)` becomes a JOIN with an OR across two tables, which Postgres cannot serve from per-table indexes. Matching ids are collected as a `UNION` of one indexed subquery per field instead.
+
+Measured on the production dump, character search (7007 rows, 13986 translations) with a 3+ character term: 14.3ms → 1.5ms. Scaled to 70070 characters: 80ms unindexed, 10ms indexed.
+
+**Two-character terms are not indexed and cannot be.** A trigram needs three characters, so `%lu%` yields none and the planner scans — 83ms at 70k rows. `min_query_length` is 2 because two characters are a meaningful query in Japanese, so the shortest allowed term is exactly the case the index misses. The `s-maxage=300` response cache covers it. If that becomes the bottleneck, the options are a prefix index or a three-character minimum, not a different trigram setting.
+
+These indexes are created as raw SQL behind a vendor guard, not as `Meta.indexes`: `GinIndex(OpClass(Upper(...)))` raises `OperationalError` when SQLite applies it, and the test database is SQLite. The consequence is that they are invisible to Django's model state, so `makemigrations` cannot detect drift on them. If you drop one, drop it in the migration.
+
 ## Taking user content down
 
 Clearing `is_active` on the account in `/staff/` is the takedown mechanism. It blocks sign-in, hides the public profile, blocks following, withdraws approved reviews from every title page and the community feed, and makes public collections answer 404. Nothing is deleted, so it is reversible.

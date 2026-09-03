@@ -42,6 +42,7 @@ from .playback import (
     source_selection_key_parts,
     validate_provider_configuration,
 )
+from .search import search_characters, search_franchises, search_titles
 from .serializers import (
     EpisodeDetailSerializer,
     FranchiseDetailSerializer,
@@ -124,9 +125,7 @@ class TitleListView(PublicCacheMixin, ListAPIView):
         params = self.request.query_params
         query = params.get("q", "").strip()[:120]
         if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query) | Q(original_name__icontains=query) | Q(translations__name__icontains=query)
-            )
+            queryset = search_titles(queryset, query)
         if genre := params.get("genre", "").strip():
             queryset = queryset.filter(genres__slug=genre)
         if status := params.get("status", "").strip():
@@ -488,9 +487,7 @@ class FranchiseListView(PublicCacheMixin, ListAPIView):
             "sort_order", "name"
         )
         if query := self.request.query_params.get("q", "").strip()[:120]:
-            queryset = queryset.filter(
-                Q(name__icontains=query) | Q(translations__name__icontains=query)
-            ).distinct()
+            queryset = search_franchises(queryset, query)
         return queryset
 
 
@@ -515,9 +512,9 @@ class GlobalSearchView(PublicCacheMixin, APIView):
     in one response so the suggestion panel needs a single request."""
 
     permission_classes = [AllowAny]
-    # Three unindexed ILIKE scans per request, one per entity. Repeated terms are
-    # the common case for a suggestion panel, so a shared cache absorbs the
-    # duplicates that debounce alone cannot.
+    # Each entity is one trigram-indexed lookup (see catalog/search.py). Repeated
+    # terms are the common case for a suggestion panel, so a shared cache still
+    # absorbs the duplicates that debounce alone cannot.
     cache_seconds = 300
     group_limit = 5
     min_query_length = 2
@@ -528,37 +525,27 @@ class GlobalSearchView(PublicCacheMixin, APIView):
         if len(query) < self.min_query_length:
             raise ValidationError({"q": "Запрос должен содержать не менее двух символов."})
         # Bound the term so an oversized value cannot turn into an expensive
-        # multi-table ILIKE scan.
+        # multi-table scan.
         query = query[: self.max_query_length]
         context = {"request": request}
         titles = annotate_rating_aggregates(
-            Title.objects.filter(
-                Q(name__icontains=query)
-                | Q(original_name__icontains=query)
-                | Q(translations__name__icontains=query)
-            )
+            search_titles(Title.objects.all(), query)
         ).select_related("franchise").prefetch_related(
             "translations", "franchise__translations", "genres", "genres__translations"
-        ).distinct().order_by("name", "slug")[: self.group_limit]
+        ).order_by("name", "slug")[: self.group_limit]
         characters = (
-            Character.objects.filter(
-                Q(name__icontains=query)
-                | Q(original_name__icontains=query)
-                | Q(translations__name__icontains=query)
-            )
+            search_characters(Character.objects.all(), query)
             .annotate(title_count=Count("titles", distinct=True))
             .prefetch_related("translations")
-            .distinct()
             .order_by("name", "slug")[: self.group_limit]
         )
         franchises = (
-            Franchise.objects.filter(Q(name__icontains=query) | Q(translations__name__icontains=query))
+            search_franchises(Franchise.objects.all(), query)
             .annotate(title_count=Count("titles", distinct=True))
             .filter(title_count__gt=1)
             .prefetch_related(
                 "translations", Prefetch("titles", queryset=Title.objects.only("franchise_id", "poster_url", "year"))
             )
-            .distinct()
             .order_by("sort_order", "name")[: self.group_limit]
         )
         return Response({
@@ -591,9 +578,7 @@ class CharacterListView(PublicCacheMixin, ListAPIView):
         queryset = Character.objects.annotate(title_count=Count("titles", distinct=True)).prefetch_related("translations")
         query = self.request.query_params.get("q", "").strip()[:120]
         if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query) | Q(original_name__icontains=query) | Q(translations__name__icontains=query)
-            ).distinct()
+            queryset = search_characters(queryset, query)
         return queryset.order_by("name", "slug")
 
 
