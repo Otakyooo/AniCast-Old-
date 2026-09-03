@@ -159,6 +159,19 @@ export interface GlobalSearchResponse {
 export interface MediaAsset { id: number; kind: string; url: string; thumbnail_url: string; caption: string; credit: string; title: Pick<CatalogItem, "name" | "slug" | "status" | "title_type"> | null; character: CharacterSummary | null }
 export interface MediaResponse { count: number; next: string | null; previous: string | null; results: MediaAsset[] }
 
+/** Approved review as published by the community endpoints. */
+export interface PublicReview {
+  id: number;
+  title: { name: string; slug: string };
+  author_name: string;
+  author_public_id: string | null;
+  body: string;
+  contains_spoilers: boolean;
+  published_at: string | null;
+  updated_at: string;
+}
+export interface PublicReviewsResponse { count: number; next: string | null; previous: string | null; results: PublicReview[] }
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 // Server-side renders reach the backend directly across the private tunnel
 // instead of looping through the public edge (VPS -> internet -> Caddy ->
@@ -346,10 +359,11 @@ export async function globalSearch(query: string, signal?: AbortSignal): Promise
   return request<GlobalSearchResponse>(`/search/?q=${encodeURIComponent(query)}`, { cache: "no-store", signal });
 }
 
-export async function getFranchises(page = 1, search = ""): Promise<FranchiseResponse> {
+export async function getFranchises(page = 1, search = "", pageSize?: number): Promise<FranchiseResponse> {
   const query = new URLSearchParams();
   if (search.trim()) query.set("q", search.trim());
   if (page > 1) query.set("page", String(page));
+  if (pageSize) query.set("page_size", String(pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
   return request<FranchiseResponse>(`/franchises/${suffix}`, revalidated(300));
 }
@@ -358,10 +372,11 @@ export async function getFranchise(slug: string): Promise<FranchiseDetail> {
   return request<FranchiseDetail>(`/franchises/${encodeURIComponent(slug)}/`, revalidated(300));
 }
 
-export async function getCharacters(search = "", page = 1): Promise<CharacterResponse> {
+export async function getCharacters(search = "", page = 1, pageSize?: number): Promise<CharacterResponse> {
   const query = new URLSearchParams();
   if (search.trim()) query.set("q", search.trim());
   if (page > 1) query.set("page", String(page));
+  if (pageSize) query.set("page_size", String(pageSize));
   return request<CharacterResponse>(`/characters/${query.size ? `?${query}` : ""}`, revalidated(300));
 }
 
@@ -371,6 +386,20 @@ export async function getCharacter(slug: string): Promise<CharacterDetail> {
 
 export async function getCreator(slug: string): Promise<CreatorDetail> {
   return request<CreatorDetail>(`/creators/${encodeURIComponent(slug)}/`, revalidated(300));
+}
+
+/**
+ * Approved public reviews, fetchable during SSR.
+ *
+ * `lib/community.ts` has a browser-only version built on a relative URL. This one
+ * goes through `request()`, so it also works on the server: the community feed is
+ * public content and has to exist in the HTML, both for crawlers and because it
+ * is the only page that links to public profiles and collections.
+ */
+export async function getPublicReviewsPage(page = 1, pageSize = 20): Promise<PublicReviewsResponse> {
+  const query = new URLSearchParams({ page_size: String(pageSize) });
+  if (page > 1) query.set("page", String(page));
+  return request<PublicReviewsResponse>(`/community/reviews/?${query}`, revalidated(60));
 }
 
 export async function getMedia(kind = ""): Promise<MediaResponse> {

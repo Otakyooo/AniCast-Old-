@@ -19,7 +19,6 @@ async function mutate(path:string, method:string, body?:object) {
 export async function setRating(slug:string,value:number){const r=await mutate(`ratings/${encodeURIComponent(slug)}/`,"PUT",{value});if(!r.ok)throw new Error("Rating failed");}
 export async function saveReview(slug:string,body:string,contains_spoilers:boolean){const r=await mutate(`reviews/${encodeURIComponent(slug)}/`,"PUT",{body,contains_spoilers});if(!r.ok)throw new Error("Review failed");}
 export async function deleteReview(slug:string){const r=await mutate(`reviews/${encodeURIComponent(slug)}/`,"DELETE");if(!r.ok)throw new Error("Delete failed");}
-export async function getPublicReviews(signal?:AbortSignal){const r=await fetch("/api/v1/community/reviews/",{cache:"no-store",signal});if(!r.ok)throw new Error("Reviews failed");return r.json() as Promise<{count:number;results:Review[]}>;}
 
 export async function getFollowState(publicId:string, signal?:AbortSignal) {
   const response = await fetch(`/api/v1/community/follows/${encodeURIComponent(publicId)}/`, { credentials:"same-origin", cache:"no-store", signal });
