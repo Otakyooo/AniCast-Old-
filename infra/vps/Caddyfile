@@ -15,6 +15,50 @@ www.anicast.online {
 	redir https://anicast.online{uri} permanent
 }
 
+# Telegram relay for MainServer.
+#
+# api.telegram.org is unreachable from MainServer: it times out from the host,
+# from the backend container and from Alertmanager, while the same request from
+# this VPS returns 302 and unrelated upstreams (Jikan) work fine from MainServer.
+# So alert delivery and user notifications both had no path out.
+#
+# Plain HTTP is deliberate: this listener is bound to the AmneziaWG address, the
+# tunnel is already encrypted, and it matches how MainServer's own API is reached
+# (10.78.0.2:8000, also plain HTTP inside the tunnel). Terminating TLS here would
+# mean issuing a certificate for an IP address for no gain. The hop to Telegram
+# itself is HTTPS and verified against the system trust store.
+#
+# There is deliberately no `log` directive here. The bot token is part of the
+# Bot API URL path, so an access log on this site would write live credentials to
+# disk on every notification. Caddy access logs are opt-in per site, so the
+# omission is the control — do not add one for debugging without redacting the
+# path first.
+http://10.78.0.1:8443 {
+	# `bind` is what actually restricts the socket. A site address in Caddy only
+	# matches the Host header — without this the listener comes up on *:8443 and
+	# the port's exposure depends entirely on ufw. Verified: before adding this,
+	# `ss -tlnp` showed `*:8443`.
+	bind 10.78.0.1
+
+	# Three further restrictions on top of the socket. Matching the source range
+	# and the Bot API shape means a routing or firewall mistake alone does not
+	# turn this into a general-purpose proxy.
+	@telegram {
+		remote_ip 10.78.0.0/24
+		path /bot*
+		method POST GET
+	}
+	handle @telegram {
+		reverse_proxy https://api.telegram.org {
+			header_up Host api.telegram.org
+		}
+	}
+	# Anything else — wrong source, wrong path, wrong verb — learns nothing.
+	handle {
+		respond 404
+	}
+}
+
 anicast.online {
 	encode zstd gzip
 	log {
@@ -33,10 +77,14 @@ anicast.online {
 
 	# Public media (posters, portraits) is content-addressed: the filename carries
 	# a SHA-256 prefix, so a URL never changes meaning and Django answers with
-	# `immutable`. Browsers therefore refetch nothing on repeat visits, but every
-	# cold request still crosses the AWG tunnel to MainServer. Caching that at the
-	# edge needs an actual cache module (Caddy ships none), which is a separate
-	# decision about a custom image — see docs/OPERATIONS.md.
+	# `immutable`. Browsers therefore refetch nothing on repeat visits.
+	#
+	# An edge cache here was considered and rejected on measurement: over a
+	# 56-minute window media was 16 of 691 edge requests with a repeat ratio of
+	# 1.0 (no URL fetched twice), p95 latency 0.55s. A cache with nothing to hit
+	# would add a custom Caddy build and its supply chain for no gain. The real
+	# cost was crawler traffic, which robots.txt now handles. Revisit if the
+	# repeat ratio rises — that is the number that decides it.
 	handle /api/* {
 		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000} {
 			header_up -X-AniCast-Internal-Token

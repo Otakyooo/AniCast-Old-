@@ -12,6 +12,19 @@ import { SITE_URL } from "../lib/site";
  */
 const PUBLIC_MEDIA_PATH = "/api/v1/media/";
 
+/**
+ * Backlink and keyword crawlers, kept out of the image path only.
+ *
+ * These are not search engines: nobody reaches AniCast through them, and they do
+ * not render pages, so poster bytes are pure cost. Measured over a 56-minute
+ * window at the edge, MJ12bot alone was 242 of 691 requests (35%) and this group
+ * together was 46%, and every media byte crosses the AmneziaWG tunnel from
+ * MainServer. They keep full access to HTML, links and metadata, so the site
+ * still shows up in Ahrefs/Semrush reports the owner may rely on; only the
+ * artwork is withheld. Search engines are unaffected.
+ */
+const LINK_ANALYSIS_CRAWLERS = ["MJ12bot", "SemrushBot", "AhrefsBot", "Amazonbot"];
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -23,6 +36,11 @@ export default function robots(): MetadataRoute.Robots {
           "/staff",
         ],
       },
+      ...LINK_ANALYSIS_CRAWLERS.map((userAgent) => ({
+        userAgent,
+        allow: "/",
+        disallow: ["/api/", "/staff"],
+      })),
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
   };

@@ -135,9 +135,45 @@ Three of those exist because of specific incidents:
 
 - `EndpointGroupErrorRatio` catches what the absolute 5xx counter misses. On a low-traffic site, one endpoint group answering 500 for every request produces few errors per minute; a ratio does not care about volume. During the 2026-09-02 incident the API group ran at 48% errors while the site as a whole looked healthy.
 - `PendingMigrations` alerts on the cause rather than the symptom. `anicast_pending_migrations` is exported by `/internal/metrics`; a model referencing columns the schema lacks answers 500 on every request that touches them, and that state went unnoticed for an hour because only the symptom was visible.
-- `AlertDeliveryFailing` watches the notification path itself. Every other rule is worthless if the message never lands: Alertmanager retried Telegram 274 times and gave up each time while egress from MainServer was blocked, and nothing said so.
+- `AlertDeliveryFailing` watches the notification path itself. Every other rule is worthless if the message never lands: Alertmanager retried Telegram 274 times and gave up each time while egress from MainServer was blocked, and nothing said so. The expression sums by `integration` on purpose — the counter also carries a `reason` label, so the bare metric raises one alert per failure reason for the same broken channel.
 
-**Known gap: Telegram is unreachable from MainServer.** `api.telegram.org` times out from the host, from the backend container and from Alertmanager, while the same request from the VPS returns 302 and Jikan is reachable from MainServer — so this is not DNS, not routing and not a general egress block. It affects both alert delivery and user notifications (`push/telegram.py`), and it needs an infrastructure decision (relay through the VPS, a different alert channel, or an egress proxy). `AlertDeliveryFailing` now makes the state visible, but visibility over a broken channel only helps once the channel is fixed.
+## Telegram relay
+
+`api.telegram.org` is unreachable from MainServer. It times out from the host, from the backend container and from Alertmanager, while the same request from the VPS returns 302 and unrelated upstreams (Jikan) work fine from MainServer — so this is not DNS, not routing and not a general egress block. Everything Telegram-shaped therefore goes through a relay Caddy exposes on the VPS inside the AmneziaWG tunnel:
+
+```
+MainServer (backend, Celery, Alertmanager, backup scripts)
+  -> http://10.78.0.1:8443/bot<token>/<method>   (plain HTTP, inside the tunnel)
+  -> VPS Caddy
+  -> https://api.telegram.org                    (HTTPS, verified)
+```
+
+Consumers, all pointing at the same relay:
+
+- `TELEGRAM_API_BASE_URL` in `infra/mainserver/.env` — user notifications (`push/telegram.py`). Unset means direct upstream, which is the right default for local development and any host with working egress.
+- `api_url` in `infra/monitoring/alertmanager.yml` — alert delivery.
+- `TELEGRAM_API_BASE_URL` (same default) in `scripts/backup-db.sh` and `scripts/backup-posters.sh`. These were calling Telegram directly, which meant a failing backup reported itself only to stderr on a cron run — the alert was discarded exactly when it mattered.
+
+Four things keep the relay from becoming an open proxy, and all four matter:
+
+1. `bind 10.78.0.1` — **this is the actual restriction**. A site address in Caddy only matches the Host header; without `bind` the listener comes up on `*:8443`. Verified in production: the first deploy showed `*:8443` in `ss -tlnp` and only the firewall stood between it and the internet.
+2. `remote_ip 10.78.0.0/24` — a routing or firewall mistake alone does not expose it.
+3. `path /bot*` and `method POST GET` — the Bot API shape, not a general-purpose proxy.
+4. No `log` directive on that site. The bot token is part of the URL path, so an access log would write live credentials to disk on every notification. Do not add one for debugging without redacting the path.
+
+Verify the relay after touching the Caddyfile or the tunnel:
+
+```bash
+ss -tlnp | grep 8443                      # on the VPS: must show 10.78.0.1:8443, not *:8443
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.78.0.1:8443/bot123:invalid/getMe   # 401 from Telegram
+curl -s -o /dev/null -w '%{http_code}\n' http://10.78.0.1:8443/                               # 404
+docker exec mainserver-celery-worker-1 python -c "import os,django;\
+os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings');django.setup();\
+import json,urllib.request;from django.conf import settings;\
+print(json.load(urllib.request.urlopen(f\"{settings.TELEGRAM_API_BASE_URL}/bot{settings.TELEGRAM_NOTIFY_BOT_TOKEN}/getMe\"))['ok'])"
+```
+
+`getMe` is the right probe: it proves the path end to end without delivering anything to a user.
 
 The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s), and a node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the VPS firewall is disabled) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
 
@@ -324,7 +360,9 @@ Images go through the Next optimizer, which caches variants in `.next/cache/imag
 - `formats: ["image/webp"]`. Without it Next negotiates nothing and a browser advertising WebP still received the original PNG/JPEG. AVIF is **not** listed on purpose: measured on the production VPS (1 vCPU) with a real 6.2 MB poster at quality 92, WebP is 88.6 KB in 1.9 s while AVIF is 122.1 KB in 6.8 s. At this quality AVIF is both larger and 3.5x slower, and Next would negotiate it first. Revisit only with a fresh measurement at a lower AVIF-specific quality.
 - `minimumCacheTTL` of 30 days. Poster filenames are content-addressed (a SHA-256 prefix), so a URL never changes meaning and a long TTL cannot serve stale art. The 60-second default re-encoded the same posters all day; a cold miss costs up to 4 s through the tunnel, a hit about 0.5 s.
 
-Not done, and needing a decision: edge caching for `/api/v1/media/*`. Django already answers `public, max-age=31536000, immutable`, so browsers refetch nothing, but every cold request still crosses the AWG tunnel to MainServer. Caddy ships no cache module, so this means either a custom Caddy image with `cache-handler` or a CDN in front — a build-and-supply-chain decision, not a config change.
+Edge caching for `/api/v1/media/*` was considered and rejected on measurement. Over a 56-minute window at the edge, media was 16 of 691 requests with a repeat ratio of 1.0 — not a single URL fetched twice — at p95 0.55s. A cache with nothing to hit would buy a custom Caddy build and its supply chain for no gain, and Django already answers `public, max-age=31536000, immutable`, so browsers refetch nothing on repeat visits.
+
+What the earlier measurement actually found was crawler load: 46% of edge requests came from backlink and keyword crawlers (MJ12bot alone 35%), and every poster byte they pulled crossed the tunnel. `frontend/app/robots.ts` now denies that group the media path only — they keep HTML, links and metadata, so the site still appears in Ahrefs/Semrush reports, and search engines are untouched. Revisit an edge cache if the repeat ratio rises; that ratio is the number that decides it, not the absolute request count.
 
 **HTTP/3 cannot be enabled on this host.** AmneziaWG listens on UDP/443 (`ListenPort = 443` in `/etc/amnezia/amneziawg/awg0.conf`) to disguise tunnel traffic as QUIC. Caddy's h3 listener therefore fails with `bind: address already in use`, and Caddy treats that as a fatal config error: the container restart-loops and the whole site goes down, not just h3. This was verified in production on 2026-09-03 — the site was unreachable for roughly two minutes until `protocols h1 h2` was restored. Enabling h3 requires moving the tunnel off 443 first, which trades its DPI camouflage for a protocol upgrade; on a network that already blocks Telegram egress from this host, that camouflage is doing real work. Do not re-add `h3` without changing the tunnel port and re-testing.
 

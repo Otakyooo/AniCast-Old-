@@ -14,4 +14,9 @@ receivers:
       - bot_token_file: /etc/alertmanager/secrets/telegram-token
         chat_id_file: /etc/alertmanager/secrets/telegram-chat-id
         send_resolved: true
-        api_url: https://api.telegram.org
+        # api.telegram.org is unreachable from this host, so alerts go through
+        # the relay Caddy exposes inside the AmneziaWG tunnel. Pointing this at
+        # Telegram directly means every notification is retried and dropped —
+        # 274 failed deliveries before the relay existed, with nothing to show
+        # for them. See docs/OPERATIONS.md.
+        api_url: http://10.78.0.1:8443

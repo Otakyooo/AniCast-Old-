@@ -21,6 +21,11 @@ pg_db=$(sed -n 's/^POSTGRES_DB=//p' "$root/infra/mainserver/.env")
 }
 
 ops_env=$root/infra/monitoring/.env
+# api.telegram.org is unreachable from this host, so failure alerts go through the
+# relay inside the tunnel. Calling Telegram directly meant a failing backup
+# reported itself only to stderr, which nobody reads on a cron run — the alert was
+# silently discarded exactly when it mattered.
+telegram_api=${TELEGRAM_API_BASE_URL:-http://10.78.0.1:8443}
 alert() {
     message=$1
     echo "$message" >&2
@@ -28,7 +33,7 @@ alert() {
     token=$(sed -n 's/^OPS_TELEGRAM_BOT_TOKEN=//p' "$ops_env")
     chat_id=$(sed -n 's/^OPS_TELEGRAM_CHAT_ID=//p' "$ops_env")
     [ -n "$token" ] && [ -n "$chat_id" ] || return 0
-    curl -fsS -m 20 "https://api.telegram.org/bot${token}/sendMessage" \
+    curl -fsS -m 20 "${telegram_api%/}/bot${token}/sendMessage" \
         --data-urlencode "chat_id=${chat_id}" \
         --data-urlencode "text=${message}" >/dev/null 2>&1 || true
 }

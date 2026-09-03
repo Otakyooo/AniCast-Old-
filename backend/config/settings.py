@@ -123,6 +123,10 @@ TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 TELEGRAM_NOTIFY_BOT_TOKEN = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN", "")
 TELEGRAM_NOTIFY_BOT_USERNAME = os.environ.get("TELEGRAM_NOTIFY_BOT_USERNAME", "")
 TELEGRAM_NOTIFY_WEBHOOK_SECRET = os.environ.get("TELEGRAM_NOTIFY_WEBHOOK_SECRET", "")
+# api.telegram.org is unreachable from MainServer, so production points this at
+# the relay Caddy exposes inside the tunnel. The default is the direct upstream:
+# local development and any host with working egress need no configuration.
+TELEGRAM_API_BASE_URL = os.environ.get("TELEGRAM_API_BASE_URL", "https://api.telegram.org")
 KODIK_API_TOKEN = os.environ.get("KODIK_API_TOKEN", "")
 INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "")
 PLAYBACK_URL_TTL_SECONDS = int(os.environ.get("PLAYBACK_URL_TTL_SECONDS", "60"))

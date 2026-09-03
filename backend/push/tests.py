@@ -49,6 +49,68 @@ def test_title_watch_path_targets_canonical_title_player():
     assert title_watch_path("notify-title", 12) == "/titles/notify-title?episode=12#watch"
 
 
+@override_settings(
+    TELEGRAM_NOTIFY_BOT_TOKEN="notify-token",
+    TELEGRAM_API_BASE_URL="http://10.78.0.1:8443",
+)
+def test_notifications_go_through_the_configured_api_base(monkeypatch):
+    """The Bot API host must be configurable, not hardcoded.
+
+    api.telegram.org is unreachable from MainServer, so production routes through
+    a relay inside the tunnel. Hardcoding the upstream made user notifications
+    impossible to deliver from that host at all.
+    """
+    from push import telegram
+
+    captured = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["method"] = req.get_method()
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(telegram.request, "urlopen", fake_urlopen)
+    telegram.send_notification(4242, "Новый эпизод вышел.")
+
+    assert captured["url"] == "http://10.78.0.1:8443/botnotify-token/sendMessage"
+    assert captured["method"] == "POST"
+    assert captured["timeout"] == 10
+
+
+@override_settings(TELEGRAM_NOTIFY_BOT_TOKEN="notify-token")
+def test_notifications_default_to_the_direct_telegram_upstream(monkeypatch):
+    """Unset configuration must keep working for hosts with normal egress."""
+    from push import telegram
+
+    captured = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(
+        telegram.request, "urlopen",
+        lambda req, timeout=None: (captured.update(url=req.full_url), FakeResponse())[1],
+    )
+    telegram.send_notification(1, "text")
+    assert captured["url"].startswith("https://api.telegram.org/bot")
+
+
 @override_settings(**NOTIFY_SETTINGS)
 @pytest.mark.django_db
 def test_notification_bot_challenge_links_channel(notification_data):

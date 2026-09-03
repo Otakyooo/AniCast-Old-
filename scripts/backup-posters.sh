@@ -16,6 +16,9 @@ retention_days=${RETENTION_DAYS:-30}
 offsite_min_age_days=${OFFSITE_MIN_AGE_DAYS:-90}
 
 ops_env=$root/infra/monitoring/.env
+# See backup-db.sh: Telegram is unreachable from this host, so the alert path goes
+# through the relay inside the tunnel.
+telegram_api=${TELEGRAM_API_BASE_URL:-http://10.78.0.1:8443}
 alert() {
     message=$1
     echo "$message" >&2
@@ -23,7 +26,7 @@ alert() {
     token=$(sed -n 's/^OPS_TELEGRAM_BOT_TOKEN=//p' "$ops_env")
     chat_id=$(sed -n 's/^OPS_TELEGRAM_CHAT_ID=//p' "$ops_env")
     [ -n "$token" ] && [ -n "$chat_id" ] || return 0
-    curl -fsS --max-time 10 -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+    curl -fsS --max-time 10 -X POST "${telegram_api%/}/bot${token}/sendMessage" \
         -d chat_id="$chat_id" --data-urlencode text="$message" >/dev/null 2>&1 || true
 }
 
