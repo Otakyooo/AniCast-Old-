@@ -297,6 +297,21 @@ Kitsu fallback tier `k` (2026-08-24): while Jikan cannot serve MAL art, the pipe
 
 Rollback uses the database dump plus the verified media-volume backup. Do not restore public fields to upstream URLs. The portrait migration is reversible for application rollback, while new local files remain compatible with the established `/api/v1/media/posters/` route.
 
+## Caching and image delivery
+
+Public catalog GETs carry `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300` (search: `s-maxage=300`, since it runs three unindexed ILIKE scans per request) plus `Vary: Accept, Accept-Language, Cookie`. The `Vary` is the load-bearing half: payloads are localized from `?lang=`, the `anicast_lang` cookie and `Accept-Language`, so a shared cache that ignored those would serve one visitor's language to another. `max-age=0` keeps browsers revalidating while allowing an intermediary to serve within the window.
+
+Authenticated responses are deliberately never marked cacheable, and playback endpoints keep `no-store, private`. Both are covered by tests, because the failure mode of getting this wrong is serving one session's data to another.
+
+Images go through the Next optimizer, which caches variants in `.next/cache/images` keyed by source URL and parameters. Two settings matter:
+
+- `formats: ["image/webp"]`. Without it Next negotiates nothing and a browser advertising WebP still received the original PNG/JPEG. AVIF is **not** listed on purpose: measured on the production VPS (1 vCPU) with a real 6.2 MB poster at quality 92, WebP is 88.6 KB in 1.9 s while AVIF is 122.1 KB in 6.8 s. At this quality AVIF is both larger and 3.5x slower, and Next would negotiate it first. Revisit only with a fresh measurement at a lower AVIF-specific quality.
+- `minimumCacheTTL` of 30 days. Poster filenames are content-addressed (a SHA-256 prefix), so a URL never changes meaning and a long TTL cannot serve stale art. The 60-second default re-encoded the same posters all day; a cold miss costs up to 4 s through the tunnel, a hit about 0.5 s.
+
+Not done, and needing a decision: edge caching for `/api/v1/media/*`. Django already answers `public, max-age=31536000, immutable`, so browsers refetch nothing, but every cold request still crosses the AWG tunnel to MainServer. Caddy ships no cache module, so this means either a custom Caddy image with `cache-handler` or a CDN in front — a build-and-supply-chain decision, not a config change.
+
+**HTTP/3 cannot be enabled on this host.** AmneziaWG listens on UDP/443 (`ListenPort = 443` in `/etc/amnezia/amneziawg/awg0.conf`) to disguise tunnel traffic as QUIC. Caddy's h3 listener therefore fails with `bind: address already in use`, and Caddy treats that as a fatal config error: the container restart-loops and the whole site goes down, not just h3. This was verified in production on 2026-09-03 — the site was unreachable for roughly two minutes until `protocols h1 h2` was restored. Enabling h3 requires moving the tunnel off 443 first, which trades its DPI camouflage for a protocol upgrade; on a network that already blocks Telegram egress from this host, that camouflage is doing real work. Do not re-add `h3` without changing the tunnel port and re-testing.
+
 ## Title detail and episode pages
 
 `/api/v1/titles/<slug>/` always paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`. Pagination is not opt-in: a request without parameters — a crawler, a curl probe, an older client — would otherwise serialize the whole series, and One Piece alone is 1180 episodes with 4236 sources. Cast lists are bounded the same way through `characters_page` / `characters_count`. `episode_sources=0` is the opt-in compact mode used by the title UI: episode rows omit playback sources and avoid their queries; the dedicated episode endpoint still returns playback-gated sources. Metadata additionally requests one episode and one character with a 60-second revalidation window.

@@ -369,6 +369,69 @@ def test_title_detail_is_read_only_and_bounded_page_size(catalog_data):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/titles/",
+        "/api/v1/titles/sky-test/",
+        "/api/v1/titles/sky-test/similar/",
+        "/api/v1/titles/sky-test/episodes/1/",
+        "/api/v1/titles/sky-test/watch-navigation/",
+        "/api/v1/schedule/",
+        "/api/v1/genres/",
+        "/api/v1/franchises/",
+        "/api/v1/franchises/test-franchise/",
+        "/api/v1/characters/",
+        "/api/v1/media/",
+        "/api/v1/search/?q=sky",
+    ],
+)
+def test_public_catalog_responses_are_shared_cacheable_and_vary_on_language(catalog_data, path):
+    """Public catalog data is identical for every anonymous visitor of a language.
+
+    Without these headers every catalog page, schedule and suggestion query hit
+    PostgreSQL on each request. `Vary` is the load-bearing half: the payload is
+    localized from ?lang=, the anicast_lang cookie and Accept-Language, so a
+    shared cache that ignored those would serve one visitor's language to
+    another.
+    """
+    response = APIClient().get(path)
+    assert response.status_code == 200
+    directives = {part.strip() for part in response["Cache-Control"].split(",")}
+    assert "public" in directives
+    assert "max-age=0" in directives
+    assert "s-maxage=60" in directives or "s-maxage=300" in directives
+    assert "stale-while-revalidate=300" in directives
+    vary = {part.strip().lower() for part in response["Vary"].split(",")}
+    assert {"accept-language", "cookie"} <= vary
+
+
+@pytest.mark.django_db
+def test_authenticated_catalog_responses_are_never_shared_cached(catalog_data):
+    """A shared cache keyed without the session must never see a logged-in body.
+
+    DRF varies on Cookie, but the safe move is to not mark authenticated
+    responses cacheable at all: no catalog endpoint returns anything personal
+    that would justify the risk of a misconfigured intermediary.
+    """
+    user = User.objects.create_user(email="cache@example.com", password="A-strong-passphrase-2042")
+    client = APIClient()
+    client.force_login(user)
+    response = client.get("/api/v1/titles/")
+    assert response.status_code == 200
+    assert not response.has_header("Cache-Control")
+
+
+@pytest.mark.django_db
+def test_playback_endpoints_keep_their_no_store_headers(authorized_source):
+    """Signed playback URLs are short-lived and per-request: never cache them."""
+    source, _, _ = authorized_source
+    response = APIClient().get(f"/api/v1/sources/{source.pk}/playback/")
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "no-store, private"
+
+
+@pytest.mark.django_db
 def test_schedule_defaults_to_seven_days_and_orders_episodes(catalog_data):
     today = timezone.localdate()
     catalog_data.episodes.update(air_date=today)

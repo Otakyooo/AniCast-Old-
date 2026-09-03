@@ -1,5 +1,12 @@
 {
 	servers {
+		# HTTP/3 cannot be enabled on this host: AmneziaWG listens on UDP/443
+		# (`ListenPort = 443` in awg0.conf) to disguise tunnel traffic as QUIC,
+		# so Caddy's h3 listener fails with "address already in use" and Caddy
+		# refuses the whole config — taking the site down, not just h3.
+		# Verified in production on 2026-09-03. Moving the tunnel off 443 would
+		# trade its DPI camouflage for a protocol upgrade; on a network that
+		# already blocks Telegram egress, that camouflage is doing real work.
 		protocols h1 h2
 	}
 }
@@ -24,6 +31,12 @@ anicast.online {
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
 
+	# Public media (posters, portraits) is content-addressed: the filename carries
+	# a SHA-256 prefix, so a URL never changes meaning and Django answers with
+	# `immutable`. Browsers therefore refetch nothing on repeat visits, but every
+	# cold request still crosses the AWG tunnel to MainServer. Caching that at the
+	# edge needs an actual cache module (Caddy ships none), which is a separate
+	# decision about a custom image — see docs/OPERATIONS.md.
 	handle /api/* {
 		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000} {
 			header_up -X-AniCast-Internal-Token

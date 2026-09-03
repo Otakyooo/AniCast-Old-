@@ -6,6 +6,7 @@ from django.http import FileResponse, HttpResponseBase, HttpResponseNotFound, Ht
 from django.db.models import Avg, Case, Count, F, FloatField, Prefetch, Q, Value, When
 from django.db.models.functions import Cast
 from django.utils import timezone
+from django.utils.cache import patch_vary_headers
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_safe
 from rest_framework.exceptions import ValidationError
@@ -63,6 +64,42 @@ class CatalogPagination(PageNumberPagination):
     max_page_size = 50
 
 
+# Public catalog data changes on the sync cadence (Kodik hourly, Jikan every 15
+# minutes), not per request, so a short shared window is honest. `Vary` is the
+# load-bearing part: the payload is localized from ?lang=, the anicast_lang
+# cookie and Accept-Language, and DRF already varies on Accept for content
+# negotiation. Getting that wrong would serve one visitor's language to another.
+PUBLIC_CACHE_SECONDS = 60
+PUBLIC_STALE_WHILE_REVALIDATE_SECONDS = 300
+
+
+class PublicCacheMixin:
+    """Attach shared-cache headers to safe, anonymous catalog responses.
+
+    Authenticated responses are excluded: DRF varies on Cookie, but a shared
+    cache that ignores it would leak one session's payload to another, and no
+    catalog endpoint returns anything personal that is worth that risk.
+    """
+
+    cache_seconds = PUBLIC_CACHE_SECONDS
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        cacheable = (
+            request.method in ("GET", "HEAD")
+            and response.status_code == 200
+            and not request.user.is_authenticated
+            and not response.has_header("Cache-Control")
+        )
+        if cacheable:
+            response["Cache-Control"] = (
+                f"public, max-age=0, s-maxage={self.cache_seconds}, "
+                f"stale-while-revalidate={PUBLIC_STALE_WHILE_REVALIDATE_SECONDS}"
+            )
+            patch_vary_headers(response, ("Accept-Language", "Cookie"))
+        return response
+
+
 def annotate_rating_aggregates(queryset):
     """Attach community rating aggregates for TitleSerializer. The annotation is
     part of the list SELECT, so serialized cards never query ratings per row;
@@ -73,7 +110,7 @@ def annotate_rating_aggregates(queryset):
     )
 
 
-class TitleListView(ListAPIView):
+class TitleListView(PublicCacheMixin, ListAPIView):
     serializer_class = TitleSerializer
     pagination_class = CatalogPagination
     # Ordering stays opt-in: without the parameter the queryset keeps the
@@ -130,7 +167,7 @@ class CharacterPagination(PageNumberPagination):
     max_page_size = 100
 
 
-class TitleDetailView(RetrieveAPIView):
+class TitleDetailView(PublicCacheMixin, RetrieveAPIView):
     # Episodes are fetched by the serializer as a paginated queryset, so the
     # detail view never loads the full episode list of a long-running series.
     queryset = annotate_rating_aggregates(
@@ -162,7 +199,7 @@ class TitleDetailView(RetrieveAPIView):
         return context
 
 
-class CreatorDetailView(RetrieveAPIView):
+class CreatorDetailView(PublicCacheMixin, RetrieveAPIView):
     queryset = Creator.objects.prefetch_related(
         Prefetch(
             "title_credits",
@@ -176,7 +213,7 @@ class CreatorDetailView(RetrieveAPIView):
     lookup_field = "slug"
 
 
-class EpisodeDetailView(APIView):
+class EpisodeDetailView(PublicCacheMixin, APIView):
     def get(self, request, slug, number):
         episode = get_object_or_404(
             Episode.objects.select_related("title").prefetch_related(
@@ -188,7 +225,7 @@ class EpisodeDetailView(APIView):
         return Response(EpisodeDetailSerializer(episode, context={"request": request}).data)
 
 
-class WatchNavigationView(APIView):
+class WatchNavigationView(PublicCacheMixin, APIView):
     """Compact episode/voice-over matrix for the unified watch screen.
 
     The response contains no provider URL. Playback remains available only via
@@ -310,7 +347,7 @@ class WatchNavigationView(APIView):
         })
 
 
-class SimilarTitleListView(ListAPIView):
+class SimilarTitleListView(PublicCacheMixin, ListAPIView):
     serializer_class = TitleSerializer
     permission_classes = [AllowAny]
     pagination_class = None
@@ -352,7 +389,7 @@ class SchedulePagination(PageNumberPagination):
     max_page_size = 200
 
 
-class ScheduleView(ListAPIView):
+class ScheduleView(PublicCacheMixin, ListAPIView):
     serializer_class = ScheduleEpisodeSerializer
     pagination_class = SchedulePagination
 
@@ -440,7 +477,7 @@ class PlaybackResolveView(APIView):
         return response
 
 
-class FranchiseListView(ListAPIView):
+class FranchiseListView(PublicCacheMixin, ListAPIView):
     serializer_class = FranchiseSummarySerializer
     pagination_class = CatalogPagination
 
@@ -457,7 +494,7 @@ class FranchiseListView(ListAPIView):
         return queryset
 
 
-class GenreListView(ListAPIView):
+class GenreListView(PublicCacheMixin, ListAPIView):
     """Public genre list for the catalog filter bar, most used first. Genres
     without titles are useless as filters, so they are excluded."""
 
@@ -473,11 +510,15 @@ class GenreListView(ListAPIView):
         )
 
 
-class GlobalSearchView(APIView):
+class GlobalSearchView(PublicCacheMixin, APIView):
     """Cross-entity search used by the header: titles, characters and franchises
     in one response so the suggestion panel needs a single request."""
 
     permission_classes = [AllowAny]
+    # Three unindexed ILIKE scans per request, one per entity. Repeated terms are
+    # the common case for a suggestion panel, so a shared cache absorbs the
+    # duplicates that debounce alone cannot.
+    cache_seconds = 300
     group_limit = 5
     min_query_length = 2
     max_query_length = 120
@@ -528,7 +569,7 @@ class GlobalSearchView(APIView):
         })
 
 
-class FranchiseDetailView(RetrieveAPIView):
+class FranchiseDetailView(PublicCacheMixin, RetrieveAPIView):
     serializer_class = FranchiseDetailSerializer
     lookup_field = "slug"
     queryset = Franchise.objects.annotate(title_count=Count("titles")).prefetch_related(
@@ -542,7 +583,7 @@ class FranchiseDetailView(RetrieveAPIView):
     )
 
 
-class CharacterListView(ListAPIView):
+class CharacterListView(PublicCacheMixin, ListAPIView):
     serializer_class = CharacterSummarySerializer
     pagination_class = CatalogPagination
 
@@ -556,7 +597,7 @@ class CharacterListView(ListAPIView):
         return queryset.order_by("name", "slug")
 
 
-class CharacterDetailView(RetrieveAPIView):
+class CharacterDetailView(PublicCacheMixin, RetrieveAPIView):
     serializer_class = CharacterDetailSerializer
     lookup_field = "slug"
     queryset = Character.objects.annotate(title_count=Count("titles", distinct=True)).prefetch_related(
@@ -564,7 +605,7 @@ class CharacterDetailView(RetrieveAPIView):
     )
 
 
-class MediaAssetListView(ListAPIView):
+class MediaAssetListView(PublicCacheMixin, ListAPIView):
     serializer_class = MediaAssetSerializer
     pagination_class = SchedulePagination
 
