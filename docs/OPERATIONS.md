@@ -179,6 +179,44 @@ The stack also watches the public site itself: blackbox-exporter probes `https:/
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 
+Every file holding a secret is `600`: the three `infra/*/.env` files and all of `infra/monitoring/secrets/`. `infra/vps/.env` (which carries `INTERNAL_API_TOKEN`) and the monitoring secrets were world-readable until 2026-09-04; only the `750` on `/home/lama_admin` stood between them and any other account on the host. Docker reads them as root, so the tighter mode costs nothing.
+
+## Account mail
+
+Password reset, address verification and the password-changed notice go out over SMTP with **no relay** — unlike Telegram. Measured from MainServer on 2026-09-04, from the host and from inside `mainserver-backend-1`: 587 and 465 connect and STARTTLS completes against Gmail, Yandex, Resend, Postmark and SES, while `api.telegram.org:443` still times out from the same container. So the block that forced the Telegram relay is specific to Telegram's address range, and account mail needs credentials, not a proxy.
+
+Re-run the check before blaming mail configuration:
+
+```bash
+docker exec mainserver-backend-1 python -c "import smtplib,ssl;\
+s=smtplib.SMTP('smtp.resend.com',587,timeout=15);s.ehlo('anicast.online');\
+s.starttls(context=ssl.create_default_context());print(s.ehlo('anicast.online'));s.quit()"
+```
+
+Configuration lives in `infra/mainserver/.env` (`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL`, `ACCOUNT_LINK_TTL_SECONDS`). **`EMAIL_HOST` empty is a supported state, not an outage**: `/auth/password/reset/` and `/auth/email/verify/` answer 503 with a reason, no ledger row is written, and registration and login are unaffected. Never let those endpoints answer "check your inbox" without a transport — an unrecoverable account is the failure this whole feature exists to prevent.
+
+Before switching a provider on, `anicast.online` needs SPF, DKIM and DMARC. As of 2026-09-04 the zone (`ns*.dnsowl.com`) has no `MX`, no `SPF`, no `_dmarc` and no DKIM selector, so mail from that domain lands in spam or is dropped outright. The provider issues the exact records; the `DEFAULT_FROM_EMAIL` address must be one it is authorised to send for.
+
+The delivery shape mirrors Telegram notifications, and for the same reason:
+
+- `accounts/mail.py` composes and sends one message, raising on failure. Nothing else touches SMTP.
+- `accounts/tasks.dispatch_account_emails` owns the ledger and the retries: three attempts, then the row stays FAILED. Beat re-scans every 5 minutes, so a broker outage delays a reset link instead of losing it.
+- `AccountEmail` is the ledger; the request path writes the row and only then enqueues (`enqueue_account_email`).
+- PENDING rows older than an hour are closed as EXPIRED instead of being sent. A reset link that arrives after the person gave up is worse than none — they have already asked again.
+
+**The link secret is minted inside the delivery attempt, not at request time.** `AccountEmail` holds no token, `AccountToken` holds only a SHA-256, so no usable link exists at rest and its lifetime starts when the mail actually goes out. Both tables are read-only in `/staff/`: re-sending from the admin would mint a second live link for one account.
+
+Two orderings in the flow are load-bearing:
+
+- A reset requested for an **unverified** address mails a verification link instead, with a byte-identical response. Registration accepted any address, so an account may hold one that was a typo or somebody else's; mailing a reset link there hands over the account. Opening a verification link then proves the mailbox, and the next request is a real reset. Confirming a link also verifies the address for the same reason.
+- Verification proves *the address the link was sent to*, not whatever the account holds when it is opened (`AccountToken.email`). Otherwise requesting a link and then changing the address would confirm the new one with nobody ever reading mail there.
+
+A reset ends **every** session for that account, since it is the remedy for a compromise and a 30-day rolling cookie would otherwise keep the attacker signed in for another month. A password change ends every *other* session, keeps the caller signed in (`update_session_auth_hash`) and deletes any pending reset token, so an older mailbox capture cannot undo it. `/auth/sessions/revoke/` does the same without changing the password, and that is the case where row deletion is the whole mechanism: Django already rejects sessions whose password-derived hash no longer matches, so after a password change the other devices are unauthenticated regardless — deleting the rows makes the reported count truthful and drops the leftover data. Finding a user's sessions means walking unexpired rows and decoding each, since sessions are opaque; acceptable only because these are explicit, throttled actions.
+
+Existing accounts are **not** backfilled as verified: nobody checked those addresses, and the reset flow already handles the state. `anicast_account_emails_total{result="failed"}` drives `AccountEmailFailures` (critical after one failure in an hour, unlike Telegram pushes where a blocked bot is routine) because the failure mode here is silence: the person sees "check your inbox" and nothing arrives.
+
+Enqueueing runs on the user's request path, so Kombu's retry policy is capped at 2 quick attempts (`CELERY_TASK_PUBLISH_RETRY_POLICY`). The default 20 retries at one-second intervals turned "Redis is down" into a 20-second wait on registration and password reset before the identical beat fallback ran — measured at 19.0 s, now 0.27 s. The worker keeps `broker_connection_retry_on_startup`, since nothing is waiting on it.
+
 ## Catalog search
 
 Search is by fragment (`ILIKE '%нару%'`), which no B-tree can serve. Two pieces make it indexable and both are required:
@@ -379,6 +417,23 @@ What the earlier measurement actually found was crawler load: 46% of edge reques
 
 **HTTP/3 cannot be enabled on this host.** AmneziaWG listens on UDP/443 (`ListenPort = 443` in `/etc/amnezia/amneziawg/awg0.conf`) to disguise tunnel traffic as QUIC. Caddy's h3 listener therefore fails with `bind: address already in use`, and Caddy treats that as a fatal config error: the container restart-loops and the whole site goes down, not just h3. This was verified in production on 2026-09-03 — the site was unreachable for roughly two minutes until `protocols h1 h2` was restored. Enabling h3 requires moving the tunnel off 443 first, which trades its DPI camouflage for a protocol upgrade; on a network that already blocks Telegram egress from this host, that camouflage is doing real work. Do not re-add `h3` without changing the tunnel port and re-testing.
 
+## Response headers and CSP
+
+`infra/vps/Caddyfile` sends the site's security headers. The policy is anchored on `default-src 'self'`; before that was added, only `img-src` and `frame-src` were set, so `script-src`, `connect-src`, `object-src` and `base-uri` fell back to unrestricted and an injected `<script src>` from any origin would have run.
+
+Each exception is measured against the live HTML, not assumed:
+
+- `script-src 'self' 'unsafe-inline'` — the App Router streams its bootstrap and RSC payloads through inline `<script>` tags (32 on the home page) plus the JSON-LD blocks. Nonces would require `headers()` per request, which opts every page out of static rendering — a real cost for a catalog whose value is cacheable HTML. Read this honestly: the directive stops remote script injection, not a successful inline XSS.
+- `style-src 'self' 'unsafe-inline'` — React inline `style` attributes (progress bars, genre shares; 29 on the home page) are `style-src-attr`. CSS Modules themselves are files.
+- `connect-src 'self'` — the frontend calls only its own `/api/*`, which Caddy proxies. Verified: no third-party fetch target anywhere in `frontend/`.
+- `font-src 'self'` — fonts are system stacks (`ui-sans-serif, system-ui, …`), no webfont is loaded.
+- `frame-src 'self' https://kodikplayer.com` — the only embed, matching the provider's `allowed_hosts`. The iframe also carries `sandbox` and `referrerPolicy="no-referrer"`.
+- `object-src 'none'`, `base-uri 'none'`, `form-action 'self'` — nothing on the site uses `<object>`/`<embed>` or a `<base>` tag, and every form posts to its own origin.
+
+`frame-ancestors 'none'` is what actually prevents framing in current browsers; `X-Frame-Options` stays for older ones and now says `DENY`. It previously said `SAMEORIGIN` here while Django sent `DENY` on `/api` and `/staff`, so the two layers disagreed about the same site. Validate after editing: `docker run --rm -v "$PWD/infra/vps/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile`.
+
+Recovery pages are excluded from crawling in two independent places, because they carry a single-use token in the query string. `frontend/next.config.ts` adds `X-Robots-Tag: noindex` to `/forgot-password`, `/reset-password` and `/verify-email`, and `frontend/app/robots.ts` additionally *disallows* the two token paths. The `Disallow` is the one that matters: `noindex` only takes effect after the URL is fetched, and fetching is the harm — a crawler following a leaked reset link spends it before the person opens their mail.
+
 ## Title detail and episode pages
 
 `/api/v1/titles/<slug>/` always paginates the embedded episode list (`episodes_page`, `episodes_page_size`, default 20, max 50) and reports the total in `episodes_count`. Pagination is not opt-in: a request without parameters — a crawler, a curl probe, an older client — would otherwise serialize the whole series, and One Piece alone is 1180 episodes with 4236 sources. Cast lists are bounded the same way through `characters_page` / `characters_count`. `episode_sources=0` is the opt-in compact mode used by the title UI: episode rows omit playback sources and avoid their queries; the dedicated episode endpoint still returns playback-gated sources. Metadata additionally requests one episode and one character with a 60-second revalidation window.
@@ -391,15 +446,30 @@ All server-side Next.js request paths, including public profiles and collections
 
 Every header-secret comparison (`INTERNAL_API_TOKEN`, `METRICS_BEARER_TOKEN`, both Telegram webhook secrets) goes through `common.security.constant_time_equals`. Django decodes request headers as latin-1, so a client can send code points 128–255; `hmac.compare_digest` raises `TypeError` on non-ASCII `str`, which on the default throttle path would have turned one hostile header into a 500 on every API request. Comparing bytes keeps a hostile header an ordinary mismatch, and an unset secret fails closed.
 
-Throttling is layered. Anonymous traffic uses `anon=60/min` per address, authenticated traffic `user=240/min` per account (DRF's `AnonRateThrottle` skips logged-in requests, so without the user bucket one cheap account could hammer account summary, recommendations and continue-watching without limit), trusted SSR `ssr=600/min`, login `auth=10/min` per address, registration `register=20/hour` per address, playback `playback=30/min`. `DJANGO_NUM_PROXIES` (default 1) matters here: exactly one trusted proxy sits in front, and without it DRF keys buckets on the whole `X-Forwarded-For`, so a client-supplied prefix would mint a fresh bucket per request and defeat every limit.
+Throttling is layered. Anonymous traffic uses `anon=60/min` per address, authenticated traffic `user=240/min` per account (DRF's `AnonRateThrottle` skips logged-in requests, so without the user bucket one cheap account could hammer account summary, recommendations and continue-watching without limit), trusted SSR `ssr=600/min`, login `auth=10/min` per address, registration `register=20/hour` per address, account mail `account_mail=10/hour` per target address, playback `playback=30/min`. `DJANGO_NUM_PROXIES` (default 1) matters here: exactly one trusted proxy sits in front, and without it DRF keys buckets on the whole `X-Forwarded-For`, so a client-supplied prefix would mint a fresh bucket per request and defeat every limit.
 
-Registration gets its own, much tighter bucket because it answers a question login refuses to. Login is deliberately generic ("wrong email or password"), but registration has to tell a returning user their address is taken — without email verification there is no other way to say it — which makes it an account-enumeration oracle. Sharing login's per-minute budget allowed roughly 14k probes a day from one address; a person registering once never notices an hourly limit. The real fix is verification by email: answer "check your inbox" either way and let the message differ. That needs mail delivery this host does not have yet, and the same blocked egress that stops Telegram is the reason to verify before assuming SMTP works.
+Registration gets its own, much tighter bucket because it answers a question login refuses to. Login is deliberately generic ("wrong email or password"), but registration has to tell a returning user their address is taken — silently attaching a second registration to someone else's account would be worse than the disclosure — which makes it an account-enumeration oracle. Sharing login's per-minute budget allowed roughly 14k probes a day from one address; a person registering once never notices an hourly limit.
+
+`account_mail` is keyed on the **target address**, not the caller, because the cost of abuse falls on the mailbox owner and a botnet has many addresses while the victim has one inbox. The key is the SHA-256 of the address: throttle keys share the Redis instance with the cache, so raw keys would let anything that can read Redis enumerate which addresses were tried. A throttled reset request is indistinguishable from an accepted one.
 
 All AniCast throttles mix in `common.throttling.LiveRatesMixin`. DRF binds `THROTTLE_RATES` to the class body at import time, so a settings override never reaches it: a changed rate looks applied while the old value is still enforced, and any test asserting on a limit silently asserts on the default instead. Keep the mixin on new throttle classes.
 
 The visit counter (`/api/v1/analytics/visit/`) is a plain Django view outside the DRF defaults, and both of its own guards are advisory: the bot check reads the User-Agent and the dedupe check reads a cookie the client controls. Only the counting branch is throttled at `visit=600/hour` per address, so returning browsers with their signed cookie never spend the budget, and a cookie-less script can no longer take a row lock on today's counter per request. Exhausting the bucket stops counting and still answers 200 — it never fails a page load for a vanity metric.
 
 Gunicorn runs 2 workers × 2 threads with `--timeout 30`, `--graceful-timeout 30`, `--keep-alive 5` and request recycling at 2000 (±200 jitter). The default single sync worker meant one slow request blocked the whole API including the container healthcheck. The timeout sits above the frontend's 10-second fetch budget so gunicorn never kills a request the client still awaits. With `CONN_MAX_AGE=60` (`DJANGO_CONN_MAX_AGE`) and `CONN_HEALTH_CHECKS`, persistent connections stay bounded at 4 per backend container. Access logging stays off: `ObservabilityMiddleware` already emits one structured JSON line per request, and gunicorn's plain-text log would mix two formats into the same stdout stream.
+
+## Dependency pins
+
+`backend/requirements.txt` holds the 15 direct dependencies; `backend/constraints.txt` holds the 52 transitive ones, generated from the exact set the production image installs. Regenerate it from a freshly built image after changing requirements:
+
+```bash
+docker exec mainserver-backend-1 pip freeze     # keep only entries absent from requirements.txt
+docker build backend && docker run --rm <image> pip freeze | diff - <expected>   # must be identical
+```
+
+Do not pin a direct dependency in both files: pip resolves the conflict in favour of the constraint, so the two would disagree silently.
+
+The pins are for reproducibility, not for the audit. `pip-audit --requirement` resolves the whole dependency graph rather than only the named pins — verified: a file containing just `requests==2.34.2` audits `urllib3`, `idna`, `certifi` and `charset-normalizer` as well, and the full run reports 66 packages against 15 direct pins. What the empty constraints file actually cost was determinism: a rebuild could pick up any newer transitive release, so an image built today could differ from the one the suite passed on. Verified after generating it — a fresh `docker build backend` produces a package set byte-identical to the tested one.
 
 The metrics endpoint aggregates 24-hour availability in bounded SQL and groups provider/source counts. Keep this path bounded: Prometheus scrapes every 30 seconds and a full Python scan of raw probe history would block a request-serving worker.
 

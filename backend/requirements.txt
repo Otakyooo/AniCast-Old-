@@ -18,6 +18,3 @@ uvicorn==0.35.0
 gunicorn==23.0.0
 
 -c constraints.txt
-
-
-# constraints.txt is intentionally generated separately for reproducible installs.

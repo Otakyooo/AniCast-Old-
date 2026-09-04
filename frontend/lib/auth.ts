@@ -5,6 +5,10 @@ export interface SessionUser {
   id: number;
   public_id: string;
   email: string | null;
+  /** Whether the address was proven by opening a mailed link. */
+  email_verified: boolean;
+  /** False for Telegram-only accounts: they set a first password, not change one. */
+  has_password: boolean;
   display_name: string;
   bio: string;
   profile_is_public: boolean;
@@ -105,6 +109,15 @@ function writeCachedSession(user: SessionUser | null) {
   }
 }
 
+function clearCachedSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(SESSION_CACHE_KEY);
+  } catch {
+    // See writeCachedSession: the cache is optional.
+  }
+}
+
 export async function getSessionUser(): Promise<SessionUser | null> {
   const response = await fetch("/api/v1/auth/me/", { credentials: "same-origin", cache: "no-store" });
   if (response.status === 401 || response.status === 403) {
@@ -130,6 +143,67 @@ export async function updatePublicProfile(payload: PublicProfileInput): Promise<
   const user = (await response.json()) as SessionUser;
   writeCachedSession(user);
   return user;
+}
+
+/** Thrown when the backend has no mail transport configured (HTTP 503). */
+export class MailUnavailableError extends Error {}
+
+async function postJson(path: string, payload?: Record<string, unknown>) {
+  const csrf = await getCsrfToken();
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+    body: payload ? JSON.stringify(payload) : undefined,
+  });
+  if (response.status === 503) {
+    throw new MailUnavailableError(
+      clientMessage("Отправка писем пока не настроена.", "Email delivery is not configured yet."),
+    );
+  }
+  if (!response.ok) throw new Error(await parseError(response));
+  return response;
+}
+
+/** Ask for a reset link. Resolves the same way whether or not the account exists. */
+export async function requestPasswordReset(email: string) {
+  await postJson("/api/v1/auth/password/reset/", { email });
+}
+
+export async function confirmPasswordReset(token: string, password: string): Promise<SessionUser> {
+  const response = await postJson("/api/v1/auth/password/reset/confirm/", { token, password });
+  const user = (await response.json()) as SessionUser;
+  // The backend signs the person in as part of the reset, so the cached session
+  // must be replaced rather than left showing the pre-reset state.
+  writeCachedSession(user);
+  return user;
+}
+
+/** Omit `currentPassword` for Telegram-only accounts, which have none to prove. */
+export async function changePassword(password: string, currentPassword?: string): Promise<number> {
+  const response = await postJson("/api/v1/auth/password/change/", {
+    password,
+    ...(currentPassword ? { current_password: currentPassword } : {}),
+  });
+  const body = (await response.json()) as { revoked: number };
+  return body.revoked;
+}
+
+export async function requestEmailVerification() {
+  await postJson("/api/v1/auth/email/verify/");
+}
+
+export async function confirmEmailVerification(token: string) {
+  await postJson("/api/v1/auth/email/verify/confirm/", { token });
+  // `email_verified` changed, so the cached copy is stale.
+  clearCachedSession();
+}
+
+export async function revokeOtherSessions(): Promise<number> {
+  const response = await postJson("/api/v1/auth/sessions/revoke/");
+  const body = (await response.json()) as { revoked: number };
+  return body.revoked;
 }
 
 export interface GenreShare {

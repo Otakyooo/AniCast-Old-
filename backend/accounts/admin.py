@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import ExternalIdentity, TelegramLoginChallenge, User
+from .models import AccountEmail, AccountToken, ExternalIdentity, TelegramLoginChallenge, User
 
 
 class ExternalIdentityInline(admin.TabularInline):
@@ -19,12 +19,12 @@ class ExternalIdentityInline(admin.TabularInline):
 class UserAdmin(DjangoUserAdmin):
     model = User
     ordering = ["email", "id"]
-    list_display = ["email", "display_name", "profile_is_public", "preferred_language", "is_staff", "is_active", "date_joined"]
+    list_display = ["email", "display_name", "email_verified_at", "profile_is_public", "preferred_language", "is_staff", "is_active", "date_joined"]
     list_filter = ["profile_is_public", "is_staff", "is_active", "is_superuser", "date_joined"]
-    search_fields = ["email", "display_name", "external_identities__username", "external_identities__subject"]
-    readonly_fields = ["public_id"]
+    search_fields = ["email", "display_name", "public_id", "external_identities__username", "external_identities__subject"]
+    readonly_fields = ["public_id", "email_verified_at"]
     fieldsets = [
-        (None, {"fields": ["email", "password"]}),
+        (None, {"fields": ["email", "email_verified_at", "password"]}),
         ("Профиль", {"fields": ["public_id", "display_name", "bio", "profile_is_public", "first_name", "last_name", "preferred_language"]}),
         ("Доступ", {"fields": ["is_active", "is_staff", "is_superuser", "groups", "user_permissions"]}),
         ("Даты", {"fields": ["last_login", "date_joined"]}),
@@ -71,3 +71,39 @@ class TelegramLoginChallengeAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(AccountEmail)
+class AccountEmailAdmin(admin.ModelAdmin):
+    """Read-only view of the mail ledger — the answer to "did the link go out?".
+
+    Nothing here is editable: retries belong to the beat task, and re-sending
+    from the admin would mint a second live link for the same account.
+    """
+
+    list_display = ["to_address", "kind", "status", "attempts", "created_at", "sent_at", "error"]
+    list_filter = ["kind", "status", "created_at"]
+    search_fields = ["to_address", "user__email", "user__display_name"]
+    readonly_fields = [field.name for field in AccountEmail._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AccountToken)
+class AccountTokenAdmin(admin.ModelAdmin):
+    """Audit trail of issued links. The secret itself is never stored."""
+
+    list_display = ["id", "user", "purpose", "email", "created_at", "expires_at", "consumed_at"]
+    list_filter = ["purpose", "created_at"]
+    search_fields = ["email", "user__email", "user__display_name"]
+    readonly_fields = [field.name for field in AccountToken._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return request.method in {"GET", "HEAD", "OPTIONS"} and super().has_change_permission(request, obj)

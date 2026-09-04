@@ -16,6 +16,7 @@ TASKS = (
     "catalog.tasks.check_provider_sources",
     "catalog.tasks.refresh_title_posters",
     "push.tasks.dispatch_episode_notifications",
+    "accounts.tasks.dispatch_account_emails",
     "other",
 )
 TASK_RESULTS = ("success", "failure", "retry")
@@ -103,6 +104,13 @@ def render_metrics() -> str:
     ])
     delivery_samples = [_sample("anicast_notification_deliveries_total", {"result": result}, value("notification_deliveries", result)) for result in ("sent", "failed")]
     lines += _family("anicast_notification_deliveries_total", "Notification delivery outcomes.", "counter", delivery_samples)
+
+    # Account mail is the only channel a locked-out person depends on, so its
+    # failures need to be alertable separately from Telegram pushes: a broken
+    # SMTP credential means nobody can recover an account, and the symptom is
+    # silence.
+    mail_samples = [_sample("anicast_account_emails_total", {"result": result}, value("account_emails", result)) for result in ("sent", "failed")]
+    lines += _family("anicast_account_emails_total", "Account email delivery outcomes.", "counter", mail_samples)
 
     poster_samples = [_sample("anicast_poster_refresh_total", {"result": result}, value("poster_refresh", result)) for result in POSTER_RESULTS]
     lines += _family("anicast_poster_refresh_total", "Poster refresh outcomes.", "counter", poster_samples)

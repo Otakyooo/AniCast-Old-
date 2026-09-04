@@ -19,7 +19,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/constraints.txt
       - run: pip install -r requirements.txt
       - run: python manage.py collectstatic --noinput
         env:
@@ -48,6 +50,8 @@ jobs:
           DJANGO_CSRF_TRUSTED_ORIGINS: https://anicast.online
       # Pinned application dependencies go stale silently; the audit turns a
       # missed security release into a failing build instead of a discovery.
+      # It resolves the whole graph, not just the named pins, so it covers
+      # transitive packages too — constraints.txt exists for reproducibility.
       - run: pip-audit --strict --requirement requirements.txt
 
   frontend:

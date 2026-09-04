@@ -16,6 +16,12 @@ const nextConfig: NextConfig = {
       { source: "/collections/manage/:path*", headers: noIndex },
       { source: "/login", headers: noIndex },
       { source: "/register", headers: noIndex },
+      // Recovery pages carry a single-use token in the query string. Beyond
+      // having nothing to index, a crawler that followed such a URL would spend
+      // the link before the person ever opened it.
+      { source: "/forgot-password", headers: noIndex },
+      { source: "/reset-password", headers: noIndex },
+      { source: "/verify-email", headers: noIndex },
     ];
   },
   images: {

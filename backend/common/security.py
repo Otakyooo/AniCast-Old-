@@ -1,6 +1,11 @@
-"""Shared primitives for comparing client-supplied secrets."""
+"""Shared primitives for handling client-supplied secrets."""
 
+import hashlib
 import hmac
+import re
+import secrets
+
+TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,64}$")
 
 
 def constant_time_equals(supplied: str, expected: str) -> bool:
@@ -26,3 +31,18 @@ def constant_time_equals(supplied: str, expected: str) -> bool:
         # such a value cannot equal a latin-1 secret anyway.
         return False
     return hmac.compare_digest(supplied_bytes, expected_bytes)
+
+
+def create_link_token() -> str:
+    """Mint a URL-safe one-time secret for a link we send to a person."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_secret(value: str) -> str:
+    """Hash a link secret for storage: a database read must not yield a link."""
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def valid_link_token(value) -> bool:
+    """Cheap shape check so junk never reaches a lookup or a row lock."""
+    return isinstance(value, str) and TOKEN_PATTERN.fullmatch(value) is not None

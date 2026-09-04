@@ -6,16 +6,29 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
+    # Boolean rather than the timestamp: the client only ever asks whether the
+    # address is proven, and the exact moment is staff-facing data.
+    email_verified = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
 
     def get_avatar_url(self, obj):
         identity = obj.external_identities.exclude(avatar_url="").order_by("id").first()
         return identity.avatar_url if identity else ""
 
+    def get_email_verified(self, obj) -> bool:
+        return obj.email_verified_at is not None
+
+    def get_has_password(self, obj) -> bool:
+        # Telegram-only accounts are created with an unusable password, so the
+        # settings screen must offer "set a password", not "change" — and the
+        # change form must not ask for a current password that cannot exist.
+        return obj.has_usable_password()
+
     class Meta:
         model = User
         fields = [
-            "id", "public_id", "email", "display_name", "bio", "profile_is_public",
-            "preferred_language", "date_joined", "avatar_url",
+            "id", "public_id", "email", "email_verified", "has_password", "display_name", "bio",
+            "profile_is_public", "preferred_language", "date_joined", "avatar_url",
         ]
 
 
@@ -74,4 +87,44 @@ class LoginSerializer(serializers.Serializer):
         if not user.is_active:
             raise serializers.ValidationError("Аккаунт отключён.")
         attrs["user"] = user
+        return attrs
+
+
+class EmailRequestSerializer(serializers.Serializer):
+    """Address for a reset request. Whether it exists is never revealed."""
+
+    email = serializers.EmailField()
+
+    def validate_email(self, value: str) -> str:
+        return User.objects.normalize_email(value).lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=64, trim_whitespace=True)
+    password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """Change the password of the signed-in account.
+
+    ``current_password`` is required whenever the account has a usable one: a
+    stolen session must not be enough to take the account over permanently.
+    Telegram-only accounts have no password to prove, so for them this sets the
+    first one — and they have a proven Telegram identity instead.
+    """
+
+    current_password = serializers.CharField(
+        max_length=128, write_only=True, required=False, allow_blank=True, trim_whitespace=False,
+    )
+    password = serializers.CharField(max_length=128, write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        user = self.context["user"]
+        if user.has_usable_password():
+            current = attrs.get("current_password") or ""
+            if not user.check_password(current):
+                raise serializers.ValidationError({"current_password": "Неверный текущий пароль."})
+        password_validation.validate_password(attrs["password"], user)
+        if user.check_password(attrs["password"]):
+            raise serializers.ValidationError({"password": "Новый пароль совпадает с текущим."})
         return attrs

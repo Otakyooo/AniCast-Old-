@@ -77,6 +77,17 @@ groups:
           severity: warning
         annotations:
           summary: "Сбои доставки уведомлений: {{ $value | humanize }} за час"
+      - alert: AccountEmailFailures
+        # Account mail is the only path back into an account for someone who lost
+        # their password, and its failure mode is silence: the person sees "check
+        # your inbox" and nothing arrives. One failure is worth knowing about,
+        # unlike Telegram pushes where a blocked bot is routine.
+        expr: sum(increase(anicast_account_emails_total{result="failed"}[1h])) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Не отправляются письма аккаунтов ({{ $value | humanize }} за час): сброс пароля недоступен"
       - alert: PosterRefreshErrors
         expr: sum(increase(anicast_poster_refresh_total{result="error"}[6h])) > 15
         for: 15m

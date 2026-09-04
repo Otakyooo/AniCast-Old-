@@ -25,6 +25,16 @@ const PUBLIC_MEDIA_PATH = "/api/v1/media/";
  */
 const LINK_ANALYSIS_CRAWLERS = ["MJ12bot", "SemrushBot", "AhrefsBot", "Amazonbot"];
 
+/**
+ * Recovery links carry a single-use token in the query string.
+ *
+ * `X-Robots-Tag: noindex` (next.config.ts) only takes effect after the URL is
+ * fetched, and fetching is the harm here: a crawler that follows a reset link
+ * from a referrer or a leaked paste spends it before the person opens their
+ * mail. Disallow stops the request instead of the indexing.
+ */
+const TOKEN_PATHS = ["/reset-password", "/verify-email"];
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -34,12 +44,13 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/api/",
           "/staff",
+          ...TOKEN_PATHS,
         ],
       },
       ...LINK_ANALYSIS_CRAWLERS.map((userAgent) => ({
         userAgent,
         allow: "/",
-        disallow: ["/api/", "/staff"],
+        disallow: ["/api/", "/staff", ...TOKEN_PATHS],
       })),
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

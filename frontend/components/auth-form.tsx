@@ -45,6 +45,7 @@ export function AuthForm({ mode, returnTo = "/account" }: { mode: "login" | "reg
       {isRegister && <p className={styles.hint} id={passwordHintId}>{t("auth.passwordHint")}</p>}
       {error && <p className={styles.error} role="alert">{error}</p>}
       <button className={styles.submit} type="submit" disabled={pending}>{pending ? t("auth.wait") : isRegister ? t("auth.create") : t("common.login")}</button>
+      {!isRegister && <p className={styles.switch}><Link href="/forgot-password">{t("auth.forgot")}</Link></p>}
       <p className={styles.switch}>{isRegister ? t("auth.haveAccount") : t("auth.new")} <Link href={isRegister ? "/login" : "/register"}>{isRegister ? t("common.login") : t("auth.create")}</Link></p>
     </form>
   );

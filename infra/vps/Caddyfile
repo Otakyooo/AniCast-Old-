@@ -66,12 +66,35 @@ anicast.online {
 		format json
 	}
 
+	# `default-src 'self'` is the point of this header: without it script-src,
+	# connect-src, object-src and base-uri were unrestricted, so the previous
+	# policy only narrowed images and frames while an injected <script src> from
+	# any origin still ran. Each directive below is a measured exception:
+	#
+	# - script-src 'unsafe-inline': Next.js App Router streams RSC payloads and
+	#   its bootstrap through inline <script> tags (32 of them on the home page)
+	#   plus the JSON-LD blocks. Nonces would require making every page dynamic
+	#   (headers() opts out of static rendering), which is a real cost for a
+	#   catalog whose value is cacheable HTML. So the directive bounds *origins*,
+	#   not inline execution, and the honest reading is that this stops remote
+	#   script injection, not a successful inline XSS.
+	# - style-src 'unsafe-inline': React inline style attributes (progress bars,
+	#   genre shares) are style-src-attr; CSS Modules themselves are files.
+	# - img-src data: and blob: are kept from the previous policy for canvas and
+	#   inlined placeholders; frame-src keeps the Kodik player working.
+	# - connect-src 'self' is sufficient because the frontend calls only its own
+	#   /api/* path, which Caddy proxies. Verified: no third-party fetch targets.
+	# - frame-ancestors 'none' is the directive that actually replaces
+	#   X-Frame-Options for modern browsers; X-Frame-Options stays for older ones
+	#   and now says DENY, matching Django's X_FRAME_OPTIONS. It previously said
+	#   SAMEORIGIN here while Django sent DENY on /api and /staff, so the two
+	#   layers disagreed about the same site.
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		Content-Security-Policy "img-src 'self' data: blob:; frame-src 'self' https://kodikplayer.com"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self' https://kodikplayer.com; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "SAMEORIGIN"
+		X-Frame-Options "DENY"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 	}
 

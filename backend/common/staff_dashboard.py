@@ -67,6 +67,17 @@ def _system_cards() -> list[dict[str, Any]]:
         channels_url = _changelist("admin:push_telegramnotificationchannel_changelist")
     except Exception:
         channels_url = ""
+    try:
+        mail_url = _changelist("admin:accounts_accountemail_changelist", "status__exact=failed")
+    except Exception:
+        mail_url = ""
+    # Counted from the ledger rather than the Redis counter: this is the one
+    # channel a locked-out person depends on, so it must survive a Redis flush.
+    from accounts.models import AccountEmail
+
+    stuck_mail = AccountEmail.objects.exclude(
+        status__in=[AccountEmail.Status.SENT, AccountEmail.Status.EXPIRED],
+    ).count()
     return [
         {
             "label": "Сбои фоновых задач",
@@ -81,6 +92,13 @@ def _system_cards() -> list[dict[str, Any]]:
             "hint": "канал отключается после трёх сбоев подряд",
             "tone": "warn" if failed_deliveries else "ok",
             "url": channels_url if failed_deliveries else "",
+        },
+        {
+            "label": "Недоставленные письма аккаунтов",
+            "value": stuck_mail,
+            "hint": "сброс пароля и подтверждение адреса; 3 попытки, затем FAILED",
+            "tone": "danger" if stuck_mail else "ok",
+            "url": mail_url if stuck_mail else "",
         },
     ]
 

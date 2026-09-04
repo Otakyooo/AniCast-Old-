@@ -557,6 +557,7 @@ def test_dashboard_rows_link_to_filtered_samples():
 
 @pytest.mark.django_db
 def test_system_cards_surface_background_failures():
+    from accounts.models import AccountEmail, User
     from common import staff_dashboard
 
     fake_tasks = ("task.a", "task.b")
@@ -572,12 +573,25 @@ def test_system_cards_surface_background_failures():
             return 3
         return 0
 
+    # Undelivered account mail is counted from the ledger, not a Redis counter:
+    # it is the one channel a locked-out person depends on, so the card must
+    # survive a cache flush.
+    user = User.objects.create_user(email="stuck@example.com", password="A-strong-passphrase-2042")
+    AccountEmail.objects.create(
+        user=user, kind=AccountEmail.Kind.PASSWORD_RESET, to_address=user.email,
+        status=AccountEmail.Status.FAILED, attempts=3,
+    )
+    AccountEmail.objects.create(
+        user=user, kind=AccountEmail.Kind.EMAIL_VERIFICATION, to_address=user.email,
+        status=AccountEmail.Status.SENT,
+    )
+
     with patch("common.metrics.TASKS", fake_tasks), patch(
         "common.metrics.value", side_effect=fake_value
     ):
         cards = staff_dashboard._system_cards()
 
-    tasks_card, delivery_card = cards
+    tasks_card, delivery_card, mail_card = cards
     assert tasks_card["value"] == 2
     assert tasks_card["tone"] == "danger"
     assert tasks_card["url"] == ""
@@ -585,7 +599,11 @@ def test_system_cards_surface_background_failures():
     assert delivery_card["value"] == 3
     assert delivery_card["tone"] == "warn"
     assert "telegramnotificationchannel" in delivery_card["url"]
+    assert mail_card["value"] == 1
+    assert mail_card["tone"] == "danger"
+    assert "accountemail" in mail_card["url"]
 
+    AccountEmail.objects.filter(status=AccountEmail.Status.FAILED).delete()
     with patch("common.metrics.TASKS", fake_tasks), patch("common.metrics.value", return_value=0):
         quiet = staff_dashboard._system_cards()
     assert all(card["tone"] == "ok" and card["url"] == "" for card in quiet)

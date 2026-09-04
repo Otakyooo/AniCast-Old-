@@ -1,2 +1,73 @@
-# Dependency constraints are kept separate so production and development installs
-# can share the same application requirements file.
+# Transitive dependency pins.
+#
+# Generated from the exact set installed by the production image, so an install
+# resolves to the versions that were actually tested. Direct dependencies stay in
+# requirements.txt; only what they pull in belongs here.
+#
+# The pins exist for reproducibility, not for the audit: pip-audit already walks
+# the resolved dependency graph rather than only the named pins (verified — one
+# `requests==2.34.2` line audits urllib3, idna, certifi and charset-normalizer
+# too). What was missing before was determinism: an empty constraints file let a
+# rebuild pick up any newer transitive release, so an image built today could
+# differ from the one the test suite passed on.
+#
+# Regenerate after changing requirements.txt, from a freshly built image:
+#
+#   docker exec mainserver-backend-1 pip freeze
+#
+# and keep only the entries that are not in requirements.txt. Pinning a package
+# that is also a direct dependency would make the two files disagree, and pip
+# resolves the conflict in favour of the constraint.
+
+amqp==5.3.1
+asgiref==3.12.1
+billiard==4.2.4
+boolean.py==5.0
+CacheControl==0.14.4
+certifi==2026.7.22
+charset-normalizer==3.5.1
+click==8.5.0
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+cyclonedx-python-lib==11.12.0
+defusedxml==0.7.1
+django-stubs-ext==6.1.0
+execnet==2.1.2
+filelock==3.32.5
+h11==0.16.0
+idna==3.19
+iniconfig==2.3.0
+kombu==5.5.4
+license-expression==30.4.4
+markdown-it-py==4.2.0
+mdurl==0.1.2
+msgpack==1.2.2
+mypy_extensions==1.1.0
+packageurl-python==0.17.6
+packaging==26.3
+pathspec==1.1.1
+pip-api==0.0.34
+pip-requirements-parser==32.0.1
+pip_audit==2.10.1
+platformdirs==4.11.7
+pluggy==1.6.0
+prompt_toolkit==3.0.53
+psycopg-binary==3.2.10
+py-serializable==2.1.0
+Pygments==2.21.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+requests==2.34.2
+rich==15.0.0
+six==1.17.0
+sortedcontainers==2.4.0
+sqlparse==0.6.0
+tomli==2.4.1
+tomli_w==1.2.0
+types-PyYAML==6.0.12.20260815
+typing_extensions==4.16.0
+tzdata==2026.3
+urllib3==2.7.0
+vine==5.1.0
+wcwidth==0.8.3

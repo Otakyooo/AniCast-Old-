@@ -10,10 +10,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.telegram_bot import create_challenge_token, hash_secret, valid_challenge_token
 from catalog.models import Title
 from catalog.serializers import schedule_title_payload_prefetch
-from common.security import constant_time_equals
+from common.security import constant_time_equals, create_link_token, hash_secret, valid_link_token
 from library.views import LibraryPagination
 
 from .models import (
@@ -34,7 +33,7 @@ class NotificationChallengeView(APIView):
         now = timezone.now()
         TelegramNotificationChallenge.objects.filter(user=request.user, consumed_at__isnull=True).delete()
         TelegramNotificationChallenge.objects.filter(expires_at__lt=now - timedelta(days=1)).delete()
-        token = create_challenge_token()
+        token = create_link_token()
         TelegramNotificationChallenge.objects.create(
             user=request.user,
             token_hash=hash_secret(token),
@@ -140,7 +139,7 @@ def notification_webhook(request):
             is_active=False, disabled_at=timezone.now(), updated_at=timezone.now()
         )
         return Response({"method": "sendMessage", "chat_id": chat_id, "text": "Уведомления AniCast отключены."})
-    if command != "/start" or len(parts) != 2 or not valid_challenge_token(parts[1]):
+    if command != "/start" or len(parts) != 2 or not valid_link_token(parts[1]):
         return Response({"method": "sendMessage", "chat_id": chat_id, "text": "Подключите уведомления в настройках аккаунта AniCast."})
     with transaction.atomic():
         challenge = TelegramNotificationChallenge.objects.select_for_update().filter(

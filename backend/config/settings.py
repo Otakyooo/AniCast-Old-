@@ -110,6 +110,12 @@ REST_FRAMEWORK = {
         "register": "20/hour",
         "playback": "30/min",
         "telegram_challenge": "20/min",
+        # Account mail is the only channel that can reach a stranger's inbox on
+        # request, so it is bounded twice: this per-address bucket, plus a
+        # per-target bucket inside the view (see accounts.views.MailRateThrottle).
+        # Hourly, because a person who lost their password tries a handful of
+        # times, while a script would use it to flood a victim's mailbox.
+        "account_mail": "10/hour",
         "visit": "600/hour",
     },
 }
@@ -127,6 +133,36 @@ TELEGRAM_NOTIFY_WEBHOOK_SECRET = os.environ.get("TELEGRAM_NOTIFY_WEBHOOK_SECRET"
 # the relay Caddy exposes inside the tunnel. The default is the direct upstream:
 # local development and any host with working egress need no configuration.
 TELEGRAM_API_BASE_URL = os.environ.get("TELEGRAM_API_BASE_URL", "https://api.telegram.org")
+# Outbound mail. Unlike api.telegram.org, SMTP egress from MainServer works:
+# verified on 2026-09-04 from both the host and the backend container, where
+# 587/465 connect and STARTTLS completes against Gmail, Yandex, Resend, Postmark
+# and SES. The network block that forced the Telegram relay is specific to
+# Telegram's address range, so account mail needs no relay — only credentials.
+#
+# EMAIL_HOST unset is a supported state, not a broken one: every endpoint that
+# would send mail answers 503 with a plain reason instead of failing mid-flow.
+# See accounts/mail.py:mail_is_configured and docs/OPERATIONS.md.
+EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "0") == "1"
+# Implicit TLS (465) and STARTTLS (587) are mutually exclusive, and Django raises
+# on both being set — at send time, inside the task, where it would look like a
+# transient delivery failure. Deriving one from the other makes the port choice
+# the only decision an operator has to get right.
+EMAIL_USE_TLS = not EMAIL_USE_SSL and os.environ.get("EMAIL_USE_TLS", "1") == "1"
+# Bounded well below the Celery soft time limit: a hung SMTP server must fail
+# the one delivery, not the whole batch.
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "20"))
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "AniCast <noreply@anicast.online>")
+SERVER_EMAIL = os.environ.get("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+# Lifetime of both signed account links (reset and verification). Django's own
+# default for its unused built-in flow is three days, which is a long window for
+# a link that grants a password change. A day still absorbs slow mail without
+# leaving the link alive for long.
+ACCOUNT_LINK_TTL_SECONDS = int(os.environ.get("ACCOUNT_LINK_TTL_SECONDS", str(60 * 60 * 24)))
 KODIK_API_TOKEN = os.environ.get("KODIK_API_TOKEN", "")
 INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "")
 PLAYBACK_URL_TTL_SECONDS = int(os.environ.get("PLAYBACK_URL_TTL_SECONDS", "60"))
@@ -136,6 +172,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 CELERY_TASK_ROUTES = {
+    "accounts.tasks.dispatch_account_emails": {"queue": "notifications"},
     "push.tasks.dispatch_episode_notifications": {"queue": "notifications"},
     "push.tasks.dispatch_event_notifications": {"queue": "notifications"},
     "push.tasks.send_schedule_digest": {"queue": "notifications"},
@@ -149,7 +186,28 @@ CELERY_TASK_ROUTES = {
 CELERY_TASK_SOFT_TIME_LIMIT = 540
 CELERY_TASK_TIME_LIMIT = 570
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+# Enqueueing is on the user's request path: `enqueue_account_email` and
+# `enqueue_event_notification` write the ledger row first and then dispatch
+# best-effort, so a broker outage is meant to cost nothing. Kombu's defaults
+# retry 20 times at one-second intervals, which turned "Redis is down" into a
+# 20-second wait on registration and password reset before the same fallback ran.
+# Two quick attempts still ride out a reconnect; anything longer belongs to beat.
+_CELERY_RETRY_POLICY = {"max_retries": 2, "interval_start": 0, "interval_step": 0.2, "interval_max": 0.5}
+CELERY_TASK_PUBLISH_RETRY_POLICY = _CELERY_RETRY_POLICY
+CELERY_BROKER_TRANSPORT_OPTIONS = {"retry_policy": _CELERY_RETRY_POLICY}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {"retry_policy": _CELERY_RETRY_POLICY}
+# The worker itself must keep retrying: it has no request waiting on it, and
+# giving up would leave the queue unconsumed after a Redis restart.
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULE = {
+    "dispatch-account-emails": {
+        "task": "accounts.tasks.dispatch_account_emails",
+        # The ledger row is written before the task is enqueued, so this run is
+        # what guarantees delivery when the broker was unavailable at request
+        # time. Five minutes is short enough that a reset link still arrives
+        # usefully within its lifetime.
+        "schedule": 300.0,
+    },
     "dispatch-episode-notifications": {
         "task": "push.tasks.dispatch_episode_notifications",
         "schedule": 900.0,
