@@ -16,7 +16,9 @@ import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer, type PlaybackProgressSnapshot } from "./provider-player";
 import { SourceReportControl } from "./source-report-control";
 import type { Source, WatchSourceGroup } from "../lib/api";
+import type { Locale } from "../i18n/config";
 import type { PlaybackPresentation } from "../lib/title-template";
+import { episodeCountLabel } from "../lib/episode-count";
 import { summarizeEpisodeCoverage } from "../lib/episode-coverage";
 import { titleWatchHref } from "../lib/seo";
 import { formatPlaybackTime } from "../lib/playback";
@@ -74,13 +76,15 @@ function compactCoverage(numbers: number[], t: Translator, known: boolean) {
   });
 }
 
-function coverageCopy(group: ResolvedWatchSourceGroup, totalEpisodes: number, t: Translator) {
+function coverageCopy(group: ResolvedWatchSourceGroup, t: Translator, locale: Locale) {
   if (!group.coverage_known) {
     return { summary: t("watch.coverageUnknown"), detail: "" };
   }
   const summary = summarizeEpisodeCoverage(group.episode_numbers);
   return {
-    summary: t("watch.coverageCount", { count: summary.count, total: totalEpisodes }),
+    // The per-voice count never competes with the title total: it is phrased
+    // as "available" and lives only inside the voice panel.
+    summary: t("watch.voiceCoverage", { coverage: episodeCountLabel(t, locale, summary.count) }),
     detail: compactCoverage(group.episode_numbers, t, group.coverage_known),
   };
 }
@@ -135,6 +139,7 @@ export function WatchSpace({
   playbackPresentation,
   navigationDegraded = false,
   invalidEpisodeRequest = false,
+  catalogEpisodeCount,
   episode,
 }: {
   slug: string;
@@ -146,9 +151,11 @@ export function WatchSpace({
   playbackPresentation: PlaybackPresentation;
   navigationDegraded?: boolean;
   invalidEpisodeRequest?: boolean;
+  /** Episode total of the title itself; 0 when the backend reports none. */
+  catalogEpisodeCount?: number;
   episode: WatchEpisode;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const singlePlayback = playbackPresentation === "single";
   const playableSources = useMemo(
@@ -233,10 +240,16 @@ export function WatchSpace({
   const selectedName = selectedGroup
     ? cleanSourceName(selectedGroup.name, selectedGroup.provider_name)
     : "";
-  const selectedCoverageSummary = selectedGroup
-    ? singlePlayback
-      ? t(`watch.voiceGroup.${voiceSection(selectedGroup.kind)}`)
-      : coverageCopy(selectedGroup, playableNumbers.length, t).summary
+  // One honest number in the triggers: the title's own episode total. The
+  // per-voice coverage is spelled out only inside the voice panel, so two
+  // totals never compete on screen ("1120 из 1176" next to "1180").
+  const catalogEpisodeTotal = (catalogEpisodeCount ?? 0) > 0
+    ? episodeCountLabel(t, locale, catalogEpisodeCount ?? 0)
+    : availableEpisodeNumbers.length > 0
+      ? episodeCountLabel(t, locale, availableEpisodeNumbers.length)
+      : "";
+  const selectedKindLabel = selectedGroup
+    ? t(`watch.voiceGroup.${voiceSection(selectedGroup.kind)}`)
     : "";
   const invalidVoiceRequest = Boolean(requestedSourceKey && !requestedGroup);
   const handleProgressChange = useCallback((progress: PlaybackProgressSnapshot) => {
@@ -393,17 +406,22 @@ export function WatchSpace({
   const episodeRangeControl = (id: string) => episodeRanges.length > 1 && !episodeQuery ? (
     <label className={styles.episodeRangeField} htmlFor={id}>
       <span>{t("watch.episodeRange")}</span>
-      <select
-        id={id}
-        value={selectedRangeIndex}
-        onChange={(event) => setSelectedRangeIndex(Number(event.target.value))}
-      >
-        {episodeRanges.map((range, index) => (
-          <option value={index} key={`${range.first}-${range.last}`}>
-            {t("watch.episodeRangeOption", { first: range.first, last: range.last })}
-          </option>
-        ))}
-      </select>
+      {/* Native select keeps keyboard and screen-reader behavior; the custom
+          caret aligns its closed state with the other controls. */}
+      <span className={styles.episodeRangeSelect}>
+        <select
+          id={id}
+          value={selectedRangeIndex}
+          onChange={(event) => setSelectedRangeIndex(Number(event.target.value))}
+        >
+          {episodeRanges.map((range, index) => (
+            <option value={index} key={`${range.first}-${range.last}`}>
+              {t("watch.episodeRangeOption", { first: range.first, last: range.last })}
+            </option>
+          ))}
+        </select>
+        <CaretDown aria-hidden="true" weight="bold" />
+      </span>
     </label>
   ) : null;
 
@@ -412,7 +430,7 @@ export function WatchSpace({
       <h4>{t("watch.voiceOptionsTitle")}</h4>
       <div className={styles.inlineVoiceOptions}>
         {groups.map((group) => {
-          const coverage = coverageCopy(group, playableNumbers.length, t);
+          const coverage = coverageCopy(group, t, locale);
           const kind = t(`watch.voiceGroup.${voiceSection(group.kind)}`);
           const selected = group.key === selectedGroupKey;
           return (
@@ -519,11 +537,8 @@ export function WatchSpace({
             <span>
               <small>{selectedGroup
                 ? singlePlayback
-                  ? selectedCoverageSummary
-                  : t("watch.voiceTriggerMeta", {
-                    label: t("watch.voiceShort"),
-                    coverage: selectedCoverageSummary,
-                  })
+                  ? selectedKindLabel
+                  : catalogEpisodeTotal
                 : t("watch.voiceShort")}</small>
               <strong>{selectedName || t("watch.noVoice")}</strong>
             </span>
@@ -563,7 +578,9 @@ export function WatchSpace({
               <SpeakerHigh aria-hidden="true" weight="bold" />
               <span>
                 <strong>{selectedName || t("watch.noVoice")}</strong>
-                <small>{selectedCoverageSummary || t("watch.coverageUnknown")}</small>
+                <small>{singlePlayback && selectedGroup
+                  ? selectedKindLabel
+                  : catalogEpisodeTotal || t("watch.coverageUnknown")}</small>
               </span>
               <CaretDown aria-hidden="true" weight="bold" />
             </button>

@@ -42,5 +42,14 @@ export function TitleCollectionControl({ titleSlug }: { titleSlug: string }) {
 
   if (guest) return null;
   if (!collections && !error) return <div className={styles.control} role="status">{t("collections.loading")}</div>;
+  // Without collections a full-width bordered panel reads as a placeholder
+  // bug: one muted line with the "create first" link carries the same offer.
+  if (collections !== undefined && !collections.length && !error) {
+    return (
+      <p className={styles.noCollectionsHint}>
+        {t("collections.addTitle")}: <Link href="/collections">{t("collections.createFirst")}</Link>
+      </p>
+    );
+  }
   return <section className={styles.control}><strong>{t("collections.addTitle")}</strong>{collections?.length ? <div className={styles.controlList}>{collections.map((collection) => <button className={included.has(collection.slug) ? styles.primary : styles.secondary} type="button" disabled={Boolean(pending)} aria-pressed={included.has(collection.slug)} onClick={() => toggle(collection.slug)} key={collection.slug}>{pending === collection.slug ? t("collections.saving") : collection.name}{included.has(collection.slug) ? ` · ${t("collections.added")}` : ""}</button>)}</div> : <Link href="/collections">{t("collections.createFirst")}</Link>}{error && <span className={styles.error} role="alert">{error}</span>}</section>;
 }

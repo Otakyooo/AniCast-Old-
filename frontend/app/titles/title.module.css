@@ -4,10 +4,11 @@
   display: grid;
   grid-template-areas:
     "poster copy"
-    "poster actions";
+    "poster actions"
+    "poster subscribe";
   grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
-  gap: 18px clamp(24px, 5vw, 56px);
+  grid-template-rows: auto auto 1fr;
+  gap: 14px clamp(24px, 5vw, 56px);
   align-items: start;
   padding: clamp(24px, 5vw, 48px) 0 32px;
 }
@@ -39,6 +40,18 @@
   min-width: 0;
   align-content: start;
 }
+
+/* The franchise eyebrow is a real link, so it needs link affordance beyond
+   the shared .eyebrow typography. */
+.heroFranchise {
+  display: inline-block;
+  margin: 0;
+  justify-self: start;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.heroFranchise:hover { color: var(--text) }
 
 .heroTitle {
   margin: 6px 0 0;
@@ -141,6 +154,14 @@
   gap: 12px;
   align-content: start;
   min-width: 0;
+}
+
+/* Episode notifications sit right under the library actions instead of
+   floating between unrelated content blocks. */
+.heroSubscribe {
+  display: grid;
+  grid-area: subscribe;
+  align-content: start;
 }
 
 .actionRow {
@@ -525,7 +546,7 @@
 .creditCard {
   position: relative;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   min-height: 76px;
@@ -557,9 +578,12 @@
 
 .creditBody { display: grid; gap: 3px; min-width: 0 }
 .creditCard strong { overflow-wrap: anywhere }
-.creditCard small { color: var(--muted) }
-.creditArrow { color: var(--muted-2); transition: color 140ms ease, transform 140ms ease }
-.creditCard:hover .creditArrow { color: var(--primary-hover); transform: translate(1px, -1px) }
+.creditCard small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .watchSection { display: grid; gap: 14px; min-width: 0; scroll-margin-top: 88px }
 .watchSection > h2 { margin: 0; font-size: 22px }
@@ -590,9 +614,10 @@
   .hero {
     grid-template-areas:
       "poster copy"
-      "actions actions";
+      "actions actions"
+      "subscribe subscribe";
     grid-template-columns: minmax(120px, 40vw) minmax(0, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto auto;
     gap: 16px;
     padding: 18px 0 24px;
   }
@@ -621,7 +646,7 @@
 
 @media (max-width: 420px) {
   .hero {
-    grid-template-areas: "poster" "copy" "actions";
+    grid-template-areas: "poster" "copy" "actions" "subscribe";
     grid-template-columns: 1fr;
   }
   .heroPoster { max-width: 200px }
@@ -685,8 +710,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 16px;
-  width: min(100%, 1200px);
-  margin: -8px auto 0;
+  width: 100%;
+  margin: -8px 0 0;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -858,8 +883,9 @@
 
 .watchStage {
   position: relative;
-  width: min(100%, 1200px);
-  margin-inline: auto;
+  /* Full content column: the player must align with the page grid instead of
+     floating narrower and off-center inside the panel. */
+  width: 100%;
   padding-right: 310px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -1161,6 +1187,27 @@
   color: var(--text);
   font: inherit;
   font-size: 12px;
+}
+
+/* The closed select carries a custom caret so it matches the other controls;
+   the open dropdown stays native on purpose (keyboard, screen readers). */
+.episodeRangeSelect { position: relative; display: grid }
+
+.episodeRangeSelect select {
+  appearance: none;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+.episodeRangeSelect select:hover { border-color: var(--primary) }
+
+.episodeRangeSelect svg {
+  position: absolute;
+  right: 9px;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .episodeRailList,

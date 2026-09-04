@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowRight, ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, User } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
 import { RailScroller } from "../../../components/rail-scroller";
@@ -31,6 +31,9 @@ import {
 } from "../../../lib/api";
 import { absoluteUrl, metaDescription } from "../../../lib/site";
 import { hasCharacterArt } from "../../../lib/character-image";
+import { episodeCountLabel } from "../../../lib/episode-count";
+import { dedupeByFranchise } from "../../../lib/similar-shelf";
+import { titleNameRows } from "../../../lib/title-names";
 import { titleRating } from "../../../lib/rating";
 import { NO_INDEX_ROBOTS, jsonLdScript, titleOpenGraphType, titleSchemaType, titleWatchHref } from "../../../lib/seo";
 import { resolveTitleEpisodeRequest, titleTemplateState } from "../../../lib/title-template";
@@ -194,15 +197,22 @@ function CastCard({ entry, t }: { entry: TitleCastEntry; t: Translator }) {
 }
 
 function CreditCard({ credit }: { credit: TitleCreditEntry }) {
+  // Imported feeds join every creative role into one label ("Режиссёр ·
+  // Режиссёр эпизодов · Раскадровка"), which outgrows the name. The card
+  // shows the primary role and keeps the full list in the tooltip.
+  const primaryRole = credit.role_label.split("·")[0]?.trim() || credit.role_label;
   return (
-    <Link className={styles.creditCard} href={`/creators/${credit.creator.slug}`}>
+    <Link
+      className={styles.creditCard}
+      href={`/creators/${credit.creator.slug}`}
+      title={primaryRole !== credit.role_label ? credit.role_label : undefined}
+    >
       <span className={styles.creditAvatar} aria-hidden="true">
         {hasCharacterArt(credit.creator.image_url) ? (
           <Image src={credit.creator.image_url} alt="" fill sizes="44px" quality={92} referrerPolicy="no-referrer" />
         ) : <User size={22} weight="bold" />}
       </span>
-      <span className={styles.creditBody}><strong>{credit.creator.name}</strong><small>{credit.role_label}</small></span>
-      <ArrowUpRight className={styles.creditArrow} aria-hidden="true" size={17} />
+      <span className={styles.creditBody}><strong>{credit.creator.name}</strong><small>{primaryRole}</small></span>
     </Link>
   );
 }
@@ -268,11 +278,12 @@ export default async function CatalogDetailPage({
   // available on the people tab.
   const mainCredits = credits.slice(0, 3);
   const relatedTitles = item.related_titles ?? [];
-  // Main characters for the overview: heroes and antagonists only.
+  // Main characters for the overview: heroes and antagonists only, capped at
+  // the desktop cast grid width (6 columns) so the row never strands orphans.
   const mainCast = cast
     .filter((entry) => entry.role === "protagonist" || entry.role === "antagonist")
-    .slice(0, 8);
-  const [similar, firstEpisode, loadedNavigation] = await Promise.all([
+    .slice(0, 6);
+  const [similarRaw, firstEpisode, loadedNavigation] = await Promise.all([
     tab === "overview" ? getSimilarTitles(slug) : Promise.resolve([]),
     // The hero action must point at the real first episode regardless of which
     // episode page the viewer is on, so it is resolved independently.
@@ -281,6 +292,8 @@ export default async function CatalogDetailPage({
       : getFirstEpisodeNumber(slug),
     episodesCount > 0 ? getWatchNavigation(slug).catch(() => null) : Promise.resolve(null),
   ]);
+  // Sibling seasons of one franchise must not crowd out other similar titles.
+  const similarUnique = dedupeByFranchise(similarRaw);
   let watchSpace: React.ReactNode = null;
   let watchLoadFailed = false;
   const navigationPlayableNumbers = loadedNavigation?.playable_episode_numbers
@@ -346,6 +359,7 @@ export default async function CatalogDetailPage({
           playbackPresentation={playbackPresentation}
           navigationDegraded={!loadedNavigation}
           invalidEpisodeRequest={invalidEpisodeRequest}
+          catalogEpisodeCount={episodesCount}
           episode={{
             synopsis: watchEpisode.synopsis,
             sources: watchEpisode.sources ?? [],
@@ -368,6 +382,8 @@ export default async function CatalogDetailPage({
     month: "long",
     year: "numeric",
   });
+  // Raw counts like "1180" read as noise in a tab; "1,2 тыс." keeps the scale.
+  const compactCount = new Intl.NumberFormat(intlLocale[locale], { notation: "compact" }).format;
 
   const tabHref = (value: Tab) => value === "overview" ? `/titles/${item.slug}` : `/titles/${item.slug}?tab=${value}`;
   const tabLabel: Record<Tab, string> = {
@@ -408,12 +424,20 @@ export default async function CatalogDetailPage({
           )}
         </div>
         <div className={styles.heroCopy}>
-          <p className="eyebrow">{t(`type.${item.title_type ?? "anime"}`)}</p>
+          {item.franchise && (
+            // The franchise link replaces the useless "Аниме" eyebrow: it is
+            // the one label here that actually navigates somewhere.
+            <Link className={`eyebrow ${styles.heroFranchise}`} href={`/franchises/${item.franchise.slug}`}>
+              {t("title.franchiseLabel")}: {item.franchise.name}
+            </Link>
+          )}
           <div className={styles.titleNames}>
-            {(Object.entries(item.localized_names ?? { ru: item.name, ja: item.original_name ?? "" }) as Array<[string, string]>).filter(([, name]) => name).map(([language, name], index) => (
-              <div className={index === 0 ? styles.titleNamePrimary : styles.titleNameSecondary} key={language}>
-                <span>{language.toUpperCase()}</span>
-                {index === 0 ? <h1 className={styles.heroTitle} lang={language}>{name}</h1> : <p className={styles.heroOriginal} lang={language}>{name}</p>}
+            {titleNameRows(item.localized_names, item.name, item.original_name).map((row, index) => (
+              <div className={index === 0 ? styles.titleNamePrimary : styles.titleNameSecondary} key={`${row.language}-${row.name}`}>
+                {row.showLanguageTag
+                  ? <span>{row.language.toUpperCase()}</span>
+                  : <span aria-hidden="true" />}
+                {index === 0 ? <h1 className={styles.heroTitle} lang={row.language}>{row.name}</h1> : <p className={styles.heroOriginal} lang={row.language}>{row.name}</p>}
               </div>
             ))}
           </div>
@@ -431,8 +455,12 @@ export default async function CatalogDetailPage({
             <span className={item.status === "ongoing" ? styles.metaOngoing : undefined}>
               {item.status ? t(`status.${item.status}`) : t("status.unknown")}
             </span>
-            <span>{item.year ?? t("title.yearUnknown")}</span>
-            {template.showEpisodeCount && <span>{t("title.episodesCount", { count: episodesCount })}</span>}
+            <span>
+              {item.status === "ongoing" && item.year
+                ? t("title.yearsOngoing", { year: item.year })
+                : item.year ?? t("title.yearUnknown")}
+            </span>
+            {template.showEpisodeCount && <span>{episodeCountLabel(t, locale, episodesCount)}</span>}
             {item.duration_minutes ? <span>{t("title.durationValue", { minutes: item.duration_minutes })}</span> : null}
           </div>
           {genres.length > 0 && (
@@ -447,6 +475,11 @@ export default async function CatalogDetailPage({
           slug={item.slug}
           watchHref={watchActionHref}
         />
+        {/* The subscription lives next to the library actions instead of
+            floating between characters and collections. */}
+        <div className={styles.heroSubscribe}>
+          <NotificationSubscription slug={item.slug} />
+        </div>
       </article>
 
       <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
@@ -458,8 +491,8 @@ export default async function CatalogDetailPage({
             key={value}
           >
             {tabLabel[value]}
-            {value === "episodes" && episodesCount > 0 && <span className={styles.tabCount}>{episodesCount}</span>}
-            {value === "characters" && castCount + credits.length > 0 && <span className={styles.tabCount}>{castCount + credits.length}</span>}
+            {value === "episodes" && episodesCount > 0 && <span className={styles.tabCount}>{compactCount(episodesCount)}</span>}
+            {value === "characters" && castCount + credits.length > 0 && <span className={styles.tabCount}>{compactCount(castCount + credits.length)}</span>}
           </Link>
         ))}
       </nav>
@@ -468,7 +501,7 @@ export default async function CatalogDetailPage({
         <div className={styles.panel}>
           {(watchSpace || watchLoadFailed || episodesCount === 0) && (
             <section className={styles.watchSection} id="watch">
-              <h2>{t("watch.title")}</h2>
+              <h2>{t("watch.sectionTitle")}</h2>
               {watchSpace ?? (
                 <div className={styles.watchAvailability} role={watchLoadFailed ? "alert" : "status"}>
                   <strong>{watchLoadFailed
@@ -486,12 +519,15 @@ export default async function CatalogDetailPage({
               )}
             </section>
           )}
-          {item.synopsis && (
-            <section className={`${styles.block} ${styles.descriptionCard}`}>
-              <h2>{t("title.description")}</h2>
-              <p>{item.synopsis}</p>
-            </section>
-          )}
+          {/* The description stays above the people blocks: a viewer must
+              understand what the title is about before who made it. A missing
+              synopsis is stated honestly instead of hiding the section. */}
+          <section className={`${styles.block} ${styles.descriptionCard}`}>
+            <h2>{t("title.description")}</h2>
+            {item.synopsis
+              ? <p>{item.synopsis}</p>
+              : <p className="muted">{t("title.descriptionMissing")}</p>}
+          </section>
           {mainCredits.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
@@ -529,17 +565,22 @@ export default async function CatalogDetailPage({
               </RailScroller>
             </section>
           )}
-          <NotificationSubscription slug={item.slug} />
-          <TitleCollectionControl titleSlug={item.slug} />
-          {similar.length > 0 && (
+          {similarUnique.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
                 <h2>{t("similar.title")}</h2>
-                <Link href="/catalog">{t("home.allCatalog")}</Link>
+                {/* Similar titles are not the whole catalog; the honest
+                    adjacent destination is the shared genre. */}
+                {genres[0] && (
+                  <Link href={`/catalog?genre=${encodeURIComponent(genres[0].slug)}`}>
+                    {t("similar.moreInGenre", { genre: genres[0].name })}
+                  </Link>
+                )}
               </div>
-              <RailScroller railClassName={styles.relatedRail}>{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</RailScroller>
+              <RailScroller railClassName={styles.relatedRail}>{similarUnique.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</RailScroller>
             </section>
           )}
+          <TitleCollectionControl titleSlug={item.slug} />
         </div>
       )}
 
@@ -603,7 +644,14 @@ export default async function CatalogDetailPage({
 
       {tab === "community" && <div className={styles.panel}><CommunityPanel slug={item.slug} /></div>}
 
-      {tab === "notes" && <div className={styles.panel}><TitleNoteControl slug={item.slug} /></div>}
+      {/* The tab name alone does not explain what "notes" are; one muted line
+          keeps the personal-context purpose clear. */}
+      {tab === "notes" && (
+        <div className={styles.panel}>
+          <p className="muted">{t("notes.subtitle")}</p>
+          <TitleNoteControl slug={item.slug} />
+        </div>
+      )}
     </PageShell>
   );
 }

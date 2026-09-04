@@ -13,3 +13,13 @@
 }
 .card:hover { border-color: var(--primary) }
 .card h2, .item strong { overflow-wrap: anywhere }
+
+/* Compact offer rendered on title pages when the viewer has no collections
+   yet: a muted line instead of a full-width placeholder panel. */
+.noCollectionsHint { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6 }
+.noCollectionsHint a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.noCollectionsHint a:hover { color: var(--primary-hover) }

@@ -11,6 +11,8 @@ import {
   type LibraryEntry,
   type LibraryStatus,
 } from "../lib/library";
+import { getContinueWatching, resumeEpisode } from "../lib/continue-watching";
+import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/titles/title.module.css";
 
@@ -26,6 +28,7 @@ export function TitleActions({ slug, watchHref }: TitleActionsProps) {
   const [guest, setGuest] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [resumeNumber, setResumeNumber] = useState<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -43,6 +46,25 @@ export function TitleActions({ slug, watchHref }: TitleActionsProps) {
 
     return () => controller.abort();
   }, [slug, t]);
+
+  useEffect(() => {
+    // The viewer's own resume point overrides the generic "watch" action: the
+    // button must offer the next unwatched episode, not episode one. Guests
+    // and API failures simply keep the server-provided fallback.
+    const controller = new AbortController();
+    setResumeNumber(null);
+    getContinueWatching(controller.signal)
+      .then((entries) => {
+        const own = entries?.find((item) => item.title.slug === slug);
+        const target = own ? resumeEpisode(own) : null;
+        setResumeNumber(target ? target.number : null);
+      })
+      .catch((reason) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setResumeNumber(null);
+      });
+    return () => controller.abort();
+  }, [slug]);
 
   async function update(status: LibraryStatus, favorite: boolean) {
     setPending(true);
@@ -76,9 +98,11 @@ export function TitleActions({ slug, watchHref }: TitleActionsProps) {
     <div className={styles.actions}>
       <div className={styles.actionRow}>
         {watchHref && (
-          <Link className={styles.watch} href={watchHref}>
+          <Link className={styles.watch} href={resumeNumber !== null ? titleWatchHref(slug, resumeNumber) : watchHref}>
             <Play aria-hidden="true" weight="fill" size={18} />
-            {t("watch.title")}
+            {resumeNumber !== null
+              ? t("title.continueEpisode", { number: resumeNumber })
+              : t("watch.title")}
           </Link>
         )}
         {guest ? (

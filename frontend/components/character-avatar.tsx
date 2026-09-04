@@ -20,6 +20,8 @@ export function CharacterAvatar({
     sizes={sizes}
     quality={92}
     referrerPolicy="no-referrer"
-    style={{ objectFit: "cover", objectPosition: "50% 18%" }}
+    // Square crops of 2:3 character portraits read best slightly below the
+    // top edge: that is where faces sit in both bust and full-body art.
+    style={{ objectFit: "cover", objectPosition: "50% 22%" }}
   />;
 }
