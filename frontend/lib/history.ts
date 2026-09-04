@@ -70,6 +70,17 @@ export function recordEpisodeOpen(slug: string, number: number) {
   return mutateProgress(slug, number, { method: "POST" });
 }
 
+/** Removes every history mark of one title; 404 means there was nothing left. */
+export async function deleteTitleHistory(slug: string) {
+  const csrf = await getProgressCsrfToken();
+  const response = await fetch(`/api/v1/history/${encodeURIComponent(slug)}/`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": csrf },
+  });
+  if (!response.ok && response.status !== 404) throw new HistoryApiError(response.status);
+}
+
 export function syncEpisodeProgress(
   slug: string,
   number: number,

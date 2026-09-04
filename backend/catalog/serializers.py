@@ -142,6 +142,7 @@ class TitleSerializer(serializers.ModelSerializer):
     synopsis = serializers.SerializerMethodField()
     rating_average = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
+    episodes_count = serializers.SerializerMethodField()
     localized_names = serializers.SerializerMethodField()
     poster_url = serializers.SerializerMethodField()
 
@@ -163,6 +164,12 @@ class TitleSerializer(serializers.ModelSerializer):
     def get_rating_count(self, obj):
         return getattr(obj, "rating_count", None)
 
+    def get_episodes_count(self, obj):
+        # Same annotation contract as the rating aggregates: present when the
+        # queryset annotated it, null for unannotated callers instead of a
+        # per-row COUNT that would reintroduce an N+1 into every list.
+        return getattr(obj, "episodes_count", None)
+
     def get_localized_names(self, obj):
         """Stable RU/EN/JA names independent from the request locale.
 
@@ -183,14 +190,13 @@ class TitleSerializer(serializers.ModelSerializer):
         model = Title
         fields = [
             "name", "slug", "original_name", "synopsis", "title_type", "status",
-            "year", "poster_url", "genres", "franchise",
+            "year", "poster_url", "genres", "franchise", "episodes_count",
             "rating_average", "rating_count", "localized_names",
         ]
 
 
 class TitleDetailSerializer(TitleSerializer):
     episodes = serializers.SerializerMethodField()
-    episodes_count = serializers.SerializerMethodField()
     characters = serializers.SerializerMethodField()
     credits = serializers.SerializerMethodField()
     related_titles = serializers.SerializerMethodField()
@@ -212,10 +218,6 @@ class TitleDetailSerializer(TitleSerializer):
         page = episodes if paginator is None else paginator.paginate_queryset(episodes, self.context["request"])
         serializer = EpisodeSerializer if include_sources else EpisodeSummarySerializer
         return serializer(page, many=True, context=self.context).data
-
-    def get_episodes_count(self, obj):
-        count = getattr(obj, "episodes_count", None)
-        return count if count is not None else obj.episodes.count()
 
     def get_characters(self, obj):
         links = TitleCharacter.objects.filter(title=obj).select_related("character").prefetch_related(

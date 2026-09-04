@@ -539,6 +539,23 @@ def test_title_list_exposes_rating_aggregates_without_per_row_queries(catalog_da
 
 
 @pytest.mark.django_db
+def test_title_list_exposes_the_annotated_episode_total(catalog_data):
+    """List cards render "N episodes" next to year and type, so the total arrives
+    with the list payload via the shared annotation instead of per-row COUNTs."""
+    Episode.objects.create(title=catalog_data, number=2)
+    client = APIClient()
+
+    listed = {item["slug"]: item for item in client.get("/api/v1/titles/").json()["results"]}
+    assert listed["sky-test"]["episodes_count"] == 2
+
+    # Search, similar-titles and detail share the same aggregate path.
+    searched = APIClient().get("/api/v1/search/?q=sky").json()["titles"][0]
+    assert searched["episodes_count"] == 2
+    detail = client.get("/api/v1/titles/sky-test/").json()
+    assert detail["episodes_count"] == 2
+
+
+@pytest.mark.django_db
 def test_search_and_similar_titles_expose_rating_aggregates(catalog_data):
     viewer = User.objects.create_user(email="rater@example.com", password="A-strong-passphrase-2042")
     TitleRating.objects.create(user=viewer, title=catalog_data, value=7)

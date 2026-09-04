@@ -14,7 +14,10 @@ import styles from "../app/home.module.css";
  * Compact "airing next" strip for the home page.
  *
  * Times stay hidden until the browser timezone is known, so the first paint
- * matches the server markup and the viewer never sees a shifted time.
+ * matches the server markup and the viewer never sees a shifted time. The
+ * component owns its whole section: when every scheduled episode for the
+ * window turns out released, the heading disappears with the empty strip
+ * instead of leaving a titled zero-height block on the page.
  */
 export function ScheduleStrip({
   items,
@@ -54,51 +57,60 @@ export function ScheduleStrip({
   if (!upcoming.length) return null;
 
   return (
-    <ul className={styles.scheduleStrip}>
-      {upcoming.map((item) => {
-        const status = scheduleStatus(item, clock.now, todayKey, clock.local);
-        const dayKey = itemDayKey(item, clock.local);
-        const moment = item.air_at ? new Date(item.air_at) : null;
-        const hasTime = moment !== null && !Number.isNaN(moment.getTime());
-        const when = dayKey === todayKey
-          ? t("schedule.today")
-          : dayFormatter.format(new Date(`${dayKey}T12:00:00Z`));
-        return (
-          <li key={item.id}>
-            <Link className={styles.scheduleCard} href={titleWatchHref(item.title.slug, item.number)}>
-              <span className={styles.schedulePoster}>
-                {item.title.poster_url ? (
-                  <Image
-                    className={styles.resumeImage}
-                    src={item.title.poster_url}
-                    alt=""
-                    fill
-                    sizes="64px"
-                    quality={92}
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className={styles.resumeFallback} aria-hidden="true">
-                    {item.title.name.slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </span>
-              <span className={styles.scheduleBody}>
-                <strong>{item.title.name}</strong>
-                <small>{t("episode.number", { number: item.number })}</small>
-                <span className={styles.scheduleWhen}>
-                  {when}
-                  {clock.local && hasTime ? ` · ${timeFormatter.format(moment)}` : ""}
+    <section className="section" aria-label={t("schedule.title")}>
+      <div className="section-heading">
+        <div className={styles.shelfHeading}>
+          <h2>{t("schedule.title")}</h2>
+          <p>{t("schedule.subtitle")}</p>
+        </div>
+        <Link href="/schedule">{t("home.showAll")}</Link>
+      </div>
+      <ul className={styles.scheduleStrip}>
+        {upcoming.map((item) => {
+          const status = scheduleStatus(item, clock.now, todayKey, clock.local);
+          const dayKey = itemDayKey(item, clock.local);
+          const moment = item.air_at ? new Date(item.air_at) : null;
+          const hasTime = moment !== null && !Number.isNaN(moment.getTime());
+          const when = dayKey === todayKey
+            ? t("schedule.today")
+            : dayFormatter.format(new Date(`${dayKey}T12:00:00Z`));
+          return (
+            <li key={item.id}>
+              <Link className={styles.scheduleCard} href={titleWatchHref(item.title.slug, item.number)}>
+                <span className={styles.schedulePoster}>
+                  {item.title.poster_url ? (
+                    <Image
+                      className={styles.resumeImage}
+                      src={item.title.poster_url}
+                      alt=""
+                      fill
+                      sizes="64px"
+                      quality={92}
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className={styles.resumeFallback} aria-hidden="true">
+                      {item.title.name.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
                 </span>
-                {status.kind === "airing" && <span className={styles.scheduleNow}>{t("schedule.airingNow")}</span>}
-                {status.kind === "minutes" && (
-                  <span className={styles.scheduleSoon}>{t("schedule.inMinutes", { count: status.minutes })}</span>
-                )}
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+                <span className={styles.scheduleBody}>
+                  <strong>{item.title.name}</strong>
+                  <small>{t("episode.number", { number: item.number })}</small>
+                  <span className={styles.scheduleWhen}>
+                    {when}
+                    {clock.local && hasTime ? ` · ${timeFormatter.format(moment)}` : ""}
+                  </span>
+                  {status.kind === "airing" && <span className={styles.scheduleNow}>{t("schedule.airingNow")}</span>}
+                  {status.kind === "minutes" && (
+                    <span className={styles.scheduleSoon}>{t("schedule.inMinutes", { count: status.minutes })}</span>
+                  )}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

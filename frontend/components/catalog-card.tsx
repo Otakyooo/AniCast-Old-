@@ -3,13 +3,22 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { CatalogItem } from "../lib/api";
+import { episodeCountLabel } from "../lib/episode-count";
 import { titleRating } from "../lib/rating";
 import { useI18n } from "./i18n-provider";
 
 export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; variant?: "default" | "media" }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const status = item.status ? t(`status.${item.status}`) : t("type.anime");
   const rating = titleRating(item);
+  // Shelf and grid cards carry one compact fact line: release year, title type
+  // and the real episode total from the list payload — hidden while the
+  // backend reports no total instead of guessing.
+  const facts = [
+    item.year ?? t("year.unknown"),
+    item.title_type ? t(`type.${item.title_type}`) : null,
+    typeof item.episodes_count === "number" ? episodeCountLabel(t, locale, item.episodes_count) : null,
+  ].filter(Boolean).join(" · ");
 
   return (
     <Link className={`catalog-card ${variant === "media" ? "catalog-card-media" : ""}`} href={`/titles/${item.slug}`}>
@@ -43,7 +52,7 @@ export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; 
       <div className="catalog-card-body">
         <span className="card-kicker">{status}</span>
         <h2>{item.name}</h2>
-        <p>{item.year ?? t("year.unknown")}{item.title_type ? ` · ${t(`type.${item.title_type}`)}` : ""}</p>
+        <p title={facts}>{facts}</p>
       </div>
     </Link>
   );

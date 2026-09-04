@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { Bell } from "@phosphor-icons/react";
 import { getSessionUser, signOut, type SessionUser } from "../lib/auth";
 import { LanguageSwitcher } from "./language-switcher";
 import { useI18n } from "./i18n-provider";
@@ -112,9 +113,14 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
             <Link className={styles.item} href="/account" onClick={() => setOpen(false)}>
               {t("nav.myAccount")}
             </Link>
-            {/* Spec §3.3: Профиль, Настройки, Выйти; library quick link allowed. */}
+            {/* Spec §3.3: Профиль, Настройки, Выйти; library and notification
+                quick links allowed alongside the required trio. */}
             <Link className={styles.item} href="/library" onClick={() => setOpen(false)}>
               {t("nav.libraryShort")}
+            </Link>
+            <Link className={styles.item} href="/settings#notifications" onClick={() => setOpen(false)}>
+              <Bell aria-hidden="true" size={15} className={styles.itemIcon} />
+              {t("nav.notifications")}
             </Link>
             <Link className={styles.item} href="/settings" onClick={() => setOpen(false)}>
               {t("settings.title")}

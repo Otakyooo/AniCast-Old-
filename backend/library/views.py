@@ -222,6 +222,25 @@ class HistoryListView(ListAPIView):
         )
 
 
+class HistoryEntryView(APIView):
+    """Removes every history mark of one title for the signed-in viewer.
+
+    The home resume shelf and the history page offer "remove from history" per
+    title, not per episode: partial deletion would immediately re-derive the
+    shelf from the remaining rows and look like a no-op.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, slug):
+        deleted, _ = EpisodeProgress.objects.filter(
+            user=request.user, episode__title__slug=slug
+        ).delete()
+        if not deleted:
+            raise Http404
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class EpisodeProgressView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -409,6 +428,16 @@ class ContinueWatchingView(APIView):
             }
         context = {"request": request}
         ordered = sorted(latest_by_title.values(), key=lambda entry: entry.last_opened_at, reverse=True)
+        # The resume shelf renders "episode N of M", so the titles need the same
+        # episodes_count aggregate the catalog list already annotates — one
+        # extra COUNT over at most title_limit titles, not one per row.
+        episodes_total = dict(
+            Episode.objects.filter(title_id__in=title_ids)
+            .values_list("title_id")
+            .annotate(total=Count("id"))
+        ) if title_ids else {}
+        for entry in ordered:
+            setattr(entry.episode.title, "episodes_count", episodes_total.get(entry.episode.title_id, 0))
         return Response([
             {
                 "title": TitleSerializer(entry.episode.title, context=context).data,

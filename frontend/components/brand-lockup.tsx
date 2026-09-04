@@ -8,8 +8,8 @@ export function BrandLockup({ className = "", priority = false }: { className?: 
         className="brand-logo"
         src="/brand-mark.png"
         alt=""
-        width={36}
-        height={36}
+        width={40}
+        height={40}
         priority={priority}
       />
       <span className="brand-wordmark"><span>Ani</span><strong>Cast</strong></span>

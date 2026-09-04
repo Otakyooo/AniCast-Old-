@@ -77,7 +77,7 @@ class EpisodePlaybackProgressWriteSerializer(serializers.Serializer):
     def validate(self, attrs):
         if attrs["watched_seconds"] > attrs["duration_seconds"]:
             raise serializers.ValidationError(
-                {"watched_seconds": "Время просмотра не может превышать длительность эпизода."}
+                {"watched_seconds": "Время просмотра не может превышать длительность серии."}
             )
         return attrs
 

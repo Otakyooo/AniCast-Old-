@@ -240,6 +240,29 @@ def test_history_is_private_and_ordered_by_last_open(users, titles):
 
 
 @pytest.mark.django_db
+def test_history_entry_delete_removes_only_the_caller_progress_of_one_title(users, titles):
+    first = Episode.objects.create(title=titles[0], number=1)
+    Episode.objects.create(title=titles[0], number=2)
+    other = Episode.objects.create(title=titles[1], number=1)
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+    client.post("/api/v1/episodes/first/2/progress/")
+    EpisodeProgress.objects.create(user=users[0], episode=other, last_opened_at=timezone.now())
+    EpisodeProgress.objects.create(user=users[1], episode=first, last_opened_at=timezone.now())
+
+    deleted = client.delete("/api/v1/history/first/")
+    assert deleted.status_code == 204
+    assert not EpisodeProgress.objects.filter(user=users[0], episode__title=titles[0]).exists()
+    # Marks of other titles and of other viewers stay untouched.
+    assert EpisodeProgress.objects.filter(user=users[0], episode=other).exists()
+    assert EpisodeProgress.objects.filter(user=users[1], episode=first).exists()
+
+    assert client.delete("/api/v1/history/first/").status_code == 404
+    assert APIClient().delete("/api/v1/history/first/").status_code in {401, 403}
+
+
+@pytest.mark.django_db
 def test_continue_watching_requires_auth_and_is_empty_without_progress(users, titles):
     Episode.objects.create(title=titles[0], number=1)
     assert APIClient().get("/api/v1/continue-watching/").status_code in {401, 403}
@@ -302,6 +325,25 @@ def test_continue_watching_exposes_resume_time_for_current_episode(users, titles
     assert entry["resume_at_seconds"] == 48
     assert entry["duration_seconds"] == 120
     assert entry["progress_percent"] == 40
+
+
+@pytest.mark.django_db
+def test_continue_watching_titles_carry_the_real_episode_total(users, titles):
+    """The shelf card shows "episode N of M"; the total must come from the
+    payload instead of a guess, and 0 must survive as 0 rather than null."""
+    for number in (1, 2, 3):
+        make_playable(Episode.objects.create(title=titles[0], number=number))
+    Episode.objects.create(title=titles[1], number=1)  # no playable source
+    make_playable(Episode.objects.create(title=titles[1], number=2))
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+    client.post("/api/v1/episodes/second/1/progress/")
+
+    entries = client.get("/api/v1/continue-watching/").json()
+
+    totals = {entry["title"]["slug"]: entry["title"]["episodes_count"] for entry in entries}
+    assert totals == {"second": 2, "first": 3}
 
 
 @pytest.mark.django_db
@@ -436,7 +478,9 @@ def test_continue_watching_cost_follows_the_shelf_cap_not_the_history_size(
     client = APIClient()
     client.force_login(users[0])
 
-    with django_assert_max_num_queries(38):
+    # One extra constant COUNT delivers episodes_count for the "N of M" shelf
+    # labels, so the budget grows by exactly one over the previous 38.
+    with django_assert_max_num_queries(39):
         response = client.get("/api/v1/continue-watching/", HTTP_ACCEPT_LANGUAGE="ru")
 
     assert response.status_code == 200
@@ -860,7 +904,7 @@ def test_public_collection_visibility_cache_and_payload_safety(users, titles):
     assert "email" not in str(payload)
     assert set(payload["items"][0]["title"]) == {
         "name", "slug", "original_name", "synopsis", "title_type", "status", "year", "poster_url", "genres", "franchise",
-            "rating_average", "rating_count", "localized_names"
+            "episodes_count", "rating_average", "rating_count", "localized_names"
     }
     assert not {"episodes", "sources", "playback", "user", "id"} & set(payload["items"][0]["title"])
 

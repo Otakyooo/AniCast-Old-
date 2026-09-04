@@ -6,6 +6,7 @@ import { ScheduleStrip } from "../components/schedule-strip";
 import { PageShell } from "../components/page-shell";
 import { emptyPage, getCatalog, getSchedule, type CatalogItem, type ScheduleResponse } from "../lib/api";
 import { addDays, localDayKey } from "../lib/schedule";
+import { dedupeShelf } from "../lib/home-shelves";
 import { getI18n } from "../i18n/server";
 import { jsonLdScript, websiteJsonLd } from "../lib/seo";
 import styles from "./home.module.css";
@@ -70,24 +71,20 @@ export default async function HomePage() {
   ]);
   const hasDenseAiringShelf = ongoing.results.length >= 4;
   const leadShelfItems = hasDenseAiringShelf ? ongoing.results : popular.results;
+  // The shelves are filled from independent queries, so the same title can be
+  // "ongoing" and "popular" at once. A repeated card on one screen reads as a
+  // data bug, so each follower shelf drops what an earlier shelf already took.
+  const popularShelfItems = dedupeShelf(leadShelfItems, popular.results);
+  const newestShelfItems = dedupeShelf([...leadShelfItems, ...popularShelfItems], newest.results);
 
   return <PageShell active="home">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
     <div className={styles.homeColumn}>
       <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
 
-      {schedule.results.length > 0 && (
-        <section className="section">
-          <div className="section-heading">
-            <div className={styles.shelfHeading}>
-              <h2>{t("schedule.title")}</h2>
-              <p>{t("schedule.subtitle")}</p>
-            </div>
-            <Link href="/schedule">{t("home.showAll")}</Link>
-          </div>
-          <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
-        </section>
-      )}
+      {/* The strip owns its section: it disappears whole when nothing upcoming
+          is left for the window, so the page never shows an empty heading. */}
+      <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
 
       <CatalogShelf
         title={hasDenseAiringShelf ? t("home.airingNow") : t("home.popular")}
@@ -101,18 +98,18 @@ export default async function HomePage() {
       {hasDenseAiringShelf && <CatalogShelf
         title={t("home.popular")}
         subtitle={t("home.popularText")}
-        items={popular.results}
+        items={popularShelfItems}
         href="/catalog"
-        linkLabel={t("home.allCatalog")}
+        linkLabel={t("home.showAll")}
         emptyLabel={t("home.empty")}
       />}
 
       <CatalogShelf
         title={t("home.newest")}
         subtitle={t("home.newestText")}
-        items={newest.results}
+        items={newestShelfItems}
         href="/catalog"
-        linkLabel={t("home.allCatalog")}
+        linkLabel={t("home.showAll")}
         emptyLabel={t("home.sectionEmpty")}
       />
     </div>

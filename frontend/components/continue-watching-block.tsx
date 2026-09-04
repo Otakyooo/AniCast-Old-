@@ -2,12 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Play, Plus } from "@phosphor-icons/react";
+import { Check, Play, Plus, X } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { CatalogItem } from "../lib/api";
 import { getContinueWatching, resumeEpisode, resumeProgressPercent, type ContinueWatchingEntry } from "../lib/continue-watching";
+import { deleteTitleHistory } from "../lib/history";
+import { episodeCountLabel } from "../lib/episode-count";
 import { getLibraryEntry, LibraryApiError, putLibraryEntry, type LibraryEntry, type LibraryStatus } from "../lib/library";
 import { formatPlaybackTime } from "../lib/playback";
+import { titleRating } from "../lib/rating";
 import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
@@ -111,7 +114,7 @@ function HeroLibraryAction({ slug, initialStatus }: { slug: string; initialStatu
  * catalog size grounds it with a fact instead of decoration.
  */
 export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount?: number; featured?: CatalogItem }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const state = useContinueWatching();
   const entries = state.kind === "ready" ? state.entries : [];
   const [heroEntry, ...rest] = entries;
@@ -128,8 +131,15 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
     : displayTitle?.episodes_count
       ? titleWatchHref(displayTitle.slug)
       : displayTitle ? `/titles/${displayTitle.slug}` : "/catalog";
+  const heroRating = displayTitle ? titleRating(displayTitle) : null;
   const metadata = displayTitle
-    ? [displayTitle.year, displayTitle.title_type ? t(`type.${displayTitle.title_type}`) : null, total ? t("home.episodeCount", { count: total }) : null].filter(Boolean)
+    ? [
+        displayTitle.year,
+        displayTitle.title_type ? t(`type.${displayTitle.title_type}`) : null,
+        typeof total === "number" ? episodeCountLabel(t, locale, total) : null,
+        displayTitle.status ? t(`status.${displayTitle.status}`) : null,
+        heroRating ? `★ ${heroRating.average}` : null,
+      ].filter(Boolean)
     : [];
 
   return (
@@ -179,11 +189,11 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
             </Link>
             {displayTitle && <HeroLibraryAction slug={displayTitle.slug} initialStatus={heroEntry ? "watching" : "planned"} />}
           </div>
-          {heroEntry && heroTarget && total ? (
+          {heroEntry && heroTarget && typeof total === "number" && total > 0 ? (
             <div className={styles.heroProgress}>
               <span aria-hidden="true"><i style={{ width: `${resumeProgressPercent(heroEntry)}%` }} /></span>
               <small>
-                {t("home.heroProgress", { watched: heroEntry.watched_count, total })}
+                {t("home.episodeOf", { number: heroTarget.number, total })}
                 {heroResumeCopy ? ` · ${heroResumeCopy}` : ""}
               </small>
             </div>
@@ -206,49 +216,94 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   );
 }
 
-export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
+/** One resume shelf card. The card is a list item wrapper, not a single link:
+ * the remove action is a real button sibling of the card link, so no interactive
+ * element nests inside another and both hit areas stay keyboard reachable. */
+export function ResumeCard({ entry, onRemoved }: { entry: ContinueWatchingEntry; onRemoved?: (slug: string) => void }) {
   const { t } = useI18n();
-  if (entries.length === 0) return null;  return (
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState(false);
+  const target = resumeEpisode(entry);
+  if (!target) return null;
+  const total = typeof entry.title.episodes_count === "number" ? entry.title.episodes_count : null;
+  const fact = [
+    total ? t("home.episodeOf", { number: target.number, total }) : t("episode.number", { number: target.number }),
+    entry.resume_at_seconds ? t("home.resumePosition", { watched: formatPlaybackTime(entry.resume_at_seconds) }) : "",
+  ].filter(Boolean).join(" · ");
+
+  async function removeFromHistory() {
+    setPending(true);
+    setError(false);
+    try {
+      await deleteTitleHistory(entry.title.slug);
+      onRemoved?.(entry.title.slug);
+    } catch {
+      setError(true);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <span className={styles.resumeItem}>
+      <Link
+        className={styles.resumeCard}
+        href={titleWatchHref(entry.title.slug, target.number)}
+        title={fact ? `${entry.title.name} · ${fact}` : entry.title.name}
+      >
+        <span className={styles.resumeFrame}>
+          {entry.title.poster_url ? (
+            <Image
+              className={styles.resumeFrameArt}
+              src={entry.title.poster_url}
+              alt=""
+              fill
+              sizes="(max-width: 767px) 45vw, 260px"
+              quality={92}
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className={styles.resumeFallback}>{entry.title.name.charAt(0)}</span>
+          )}
+          <span className={styles.resumePlay} aria-hidden="true"><Play weight="fill" size={30} /></span>
+        </span>
+        <span className={styles.resumeBody}>
+          <strong>{entry.title.name}</strong>
+          <small>{fact}</small>
+          <span className={styles.resumeProgressTrack} aria-hidden="true">
+            <span
+              className={styles.resumeProgressBar}
+              style={{ width: `${resumeProgressPercent(entry)}%` }}
+            />
+          </span>
+        </span>
+      </Link>
+      <button
+        className={styles.resumeRemove}
+        type="button"
+        disabled={pending}
+        aria-label={t("home.removeHistory")}
+        title={error ? t("home.removeHistoryFailed") : t("home.removeHistory")}
+        onClick={() => void removeFromHistory()}
+      >
+        <X aria-hidden="true" size={14} weight="bold" />
+      </button>
+      {error && <span className={styles.resumeRemoveError} role="alert">{t("home.removeHistoryFailed")}</span>}
+    </span>
+  );
+}
+
+export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
+  const [removed, setRemoved] = useState<string[]>([]);
+  const visible = entries.filter((entry) => !removed.includes(entry.title.slug));
+  if (visible.length === 0) return null;
+  return (
     <ul className={styles.resumeRow}>
-      {entries.map((entry) => {
-        const target = resumeEpisode(entry);
-        if (!target) return null;
-        return (
-          <li key={entry.title.slug}>
-            <Link className={styles.resumeCard} href={titleWatchHref(entry.title.slug, target.number)}>
-              <span className={styles.resumeFrame}>
-                {entry.title.poster_url ? (
-                  <Image
-                    className={styles.resumeFrameArt}
-                    src={entry.title.poster_url}
-                    alt=""
-                    fill
-                    sizes="(max-width: 767px) 45vw, 260px"
-                    quality={92}
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className={styles.resumeFallback}>{entry.title.name.charAt(0)}</span>
-                )}
-              </span>
-              <span className={styles.resumeBody}>
-                <strong>{entry.title.name}</strong>
-                <small>
-                  {t("episode.number", { number: target.number })}
-                  {entry.title.episodes_count ? ` · ${entry.watched_count} / ${entry.title.episodes_count}` : ""}
-                  {entry.resume_at_seconds ? ` · ${formatPlaybackTime(entry.resume_at_seconds)}` : ""}
-                </small>
-                <span className={styles.resumeProgressTrack} aria-hidden="true">
-                  <span
-                    className={styles.resumeProgressBar}
-                    style={{ width: `${resumeProgressPercent(entry)}%` }}
-                  />
-                </span>
-              </span>
-            </Link>
-          </li>
-        );
-      })}
+      {visible.map((entry) => (
+        <li key={entry.title.slug}>
+          <ResumeCard entry={entry} onRemoved={(slug) => setRemoved((current) => [...current, slug])} />
+        </li>
+      ))}
     </ul>
   );
 }

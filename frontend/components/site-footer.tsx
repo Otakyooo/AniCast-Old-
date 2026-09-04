@@ -11,11 +11,12 @@ export async function SiteFooter() {
       <div className="site-footer-inner">
         <div className="site-footer-brand">
           <BrandLockup className="footer-brand" />
-          <p>{t("footer.tagline")}</p>
+          <p>{t("footer.aboutText")}</p>
         </div>
         <nav className="site-footer-links" aria-label={t("footer.navigation")}>
           <Link href="/catalog">{t("nav.catalog")}</Link>
           <Link href="/schedule">{t("nav.schedule")}</Link>
+          <Link href="/franchises">{t("nav.franchises")}</Link>
           <Link href="/collections">{t("nav.collections")}</Link>
           <Link href="/community">{t("nav.community")}</Link>
         </nav>

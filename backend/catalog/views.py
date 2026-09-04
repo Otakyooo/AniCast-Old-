@@ -102,12 +102,14 @@ class PublicCacheMixin:
 
 
 def annotate_rating_aggregates(queryset):
-    """Attach community rating aggregates for TitleSerializer. The annotation is
-    part of the list SELECT, so serialized cards never query ratings per row;
-    unannotated querysets simply serialize nulls."""
+    """Attach community rating aggregates and the episode count for
+    TitleSerializer. The annotations are part of the list SELECT, so serialized
+    cards never query ratings or episodes per row; unannotated querysets simply
+    serialize nulls."""
     return queryset.annotate(
         rating_count=Count("ratings", distinct=True),
         rating_avg=Avg("ratings__value"),
+        episodes_count=Count("episodes", distinct=True),
     )
 
 

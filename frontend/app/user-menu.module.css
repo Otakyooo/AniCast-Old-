@@ -86,6 +86,9 @@
 
 .item,
 .logout {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 10px 11px;
   border: 0;
   border-radius: 8px;
@@ -96,6 +99,8 @@
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
+
+.itemIcon { flex: 0 0 auto; margin: -1px 0 }
 
 .item:hover, .logout:hover { background: var(--surface-1); color: var(--text) }
 .item:active, .logout:active { background: var(--background) }

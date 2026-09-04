@@ -61,7 +61,7 @@ def dispatch_episode_notifications():
                 )
             else:
                 message = (
-                    f"Новый эпизод AniCast\n\n{title_name} — эпизод {episode.number}"
+                    f"Новая серия AniCast\n\n{title_name} — серия {episode.number}"
                     f"{f' · {episode_name}' if episode_name else ''}\n"
                     f"{watch_url}"
                 )

@@ -42,8 +42,11 @@
 .resumeHeroBackdropArt {
   object-fit: cover;
   object-position: 72% 26%;
+  /* The blur bleeds past the object edges, so the art must overshoot the frame
+     by more than half the blur radius on every side — a 6px blur needs a 1.09
+     scale or the backdrop shows a soft border of the elevated surface. */
   filter: blur(6px) saturate(.82) contrast(.96);
-  transform: scale(1.06);
+  transform: scale(1.09);
 }
 
 .resumeHeroArtFrame {
@@ -216,7 +219,7 @@
   overflow-x: auto;
   padding: 0 2px 12px;
   scroll-snap-type: x proximity;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
 .posterRail > * { scroll-snap-align: start }
@@ -234,8 +237,81 @@
   padding: 0 2px 6px;
   overflow-x: auto;
   list-style: none;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
+
+/* Chrome shows a 1px track sliver even on a thin scrollbar; the rails are
+   swiped and dragged on every input, so the native bar adds nothing. */
+.resumeRow::-webkit-scrollbar,
+.scheduleStrip::-webkit-scrollbar,
+.posterRail::-webkit-scrollbar { display: none }
+
+.resumeItem { position: relative; display: grid; height: 100% }
+
+.resumeRemove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-emphasis);
+  border-radius: 999px;
+  background: var(--surface-card-opaque);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.resumeItem:hover .resumeRemove,
+.resumeRemove:focus-visible { opacity: 1 }
+
+.resumeRemove:hover { border-color: var(--danger-border); color: var(--danger) }
+
+.resumeRemove:disabled { cursor: wait; opacity: .6 }
+
+.resumeRemoveError {
+  position: absolute;
+  top: 38px;
+  right: 6px;
+  z-index: 2;
+  max-width: 200px;
+  padding: 6px 9px;
+  border: 1px solid var(--danger-border);
+  border-radius: 7px;
+  background: var(--surface-card-opaque);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.resumePlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.resumeCard:hover .resumePlay,
+.resumeCard:focus-visible .resumePlay { opacity: 1 }
+
+.resumePlay:before {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 11, 18, .38);
+  content: "";
+}
+
+.resumePlay svg { position: relative; filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .5)) }
 
 .scheduleStrip { grid-auto-columns: minmax(250px, 1fr) }
 
@@ -249,7 +325,10 @@
   transition: border-color 140ms ease, transform 140ms ease;
 }
 
-.resumeCard:hover { border-color: var(--border); background: var(--surface-card) }
+/* The remove button is a sibling of this link inside .resumeItem, so the card
+   itself must fill the wrapper and keep its own hover surface. */
+.resumeCard:hover,
+.resumeItem:focus-within .resumeCard { border-color: var(--border); background: var(--surface-card) }
 .resumeCard:active { transform: none }
 
 .resumeFrame {

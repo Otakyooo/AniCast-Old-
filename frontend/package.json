@@ -7,7 +7,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/title-template.test.ts lib/episode-coverage.test.ts lib/watch-controls.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts lib/continue-watching.test.ts"
+    "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/title-template.test.ts lib/episode-coverage.test.ts lib/watch-controls.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts lib/continue-watching.test.ts lib/home-shelves.test.ts lib/episode-count.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/noto-sans-jp": "^5.3.0",
