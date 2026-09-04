@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, ArrowUpRight, User } from "@phosphor-icons/react/dist/ssr";
 import { PageShell } from "../../../components/page-shell";
 import { CharacterAvatar } from "../../../components/character-avatar";
+import { RailScroller } from "../../../components/rail-scroller";
 import { TitleActions } from "../../../components/title-actions";
 import { TitleNoteControl } from "../../../components/title-note-control";
 import { NotificationSubscription } from "../../../components/notification-subscription";
@@ -523,9 +524,9 @@ export default async function CatalogDetailPage({
                   {item.franchise && <p className="muted">{item.franchise.name}</p>}
                 </div>
               </div>
-              <div className={styles.relatedRail}>
+              <RailScroller railClassName={styles.relatedRail}>
                 {relatedTitles.map((related) => <CatalogCard key={related.slug} item={related} variant="media" />)}
-              </div>
+              </RailScroller>
             </section>
           )}
           <NotificationSubscription slug={item.slug} />
@@ -536,7 +537,7 @@ export default async function CatalogDetailPage({
                 <h2>{t("similar.title")}</h2>
                 <Link href="/catalog">{t("home.allCatalog")}</Link>
               </div>
-              <div className={styles.relatedRail}>{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</div>
+              <RailScroller railClassName={styles.relatedRail}>{similar.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</RailScroller>
             </section>
           )}
         </div>

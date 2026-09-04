@@ -12,6 +12,7 @@ import { getLibraryEntry, LibraryApiError, putLibraryEntry, type LibraryEntry, t
 import { formatPlaybackTime } from "../lib/playback";
 import { titleRating } from "../lib/rating";
 import { titleWatchHref } from "../lib/seo";
+import { informativeTitleType, titleTemplateState } from "../lib/title-template";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
@@ -117,8 +118,10 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const { t, locale } = useI18n();
   const state = useContinueWatching();
   const entries = state.kind === "ready" ? state.entries : [];
-  const [heroEntry, ...rest] = entries;
-  const shelfEntries = rest.slice(0, 7);
+  const [heroEntry] = entries;
+  // The shelf is the full continue list: the hero title stays in it as a
+  // regular card, because "continue watching" is the list the viewer expects.
+  const shelfEntries = entries.slice(0, 8);
   const displayTitle = heroEntry?.title ?? featured;
   const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
   const heroResumeSeconds = heroEntry?.resume_at_seconds ?? 0;
@@ -126,6 +129,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
     ? t("home.resumePosition", { watched: formatPlaybackTime(heroResumeSeconds) })
     : "";
   const total = displayTitle?.episodes_count;
+  const heroTemplate = titleTemplateState(displayTitle?.title_type, total);
   const primaryHref = heroEntry && heroTarget
     ? titleWatchHref(heroEntry.title.slug, heroTarget.number)
     : displayTitle?.episodes_count
@@ -135,8 +139,8 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const metadata = displayTitle
     ? [
         displayTitle.year,
-        displayTitle.title_type ? t(`type.${displayTitle.title_type}`) : null,
-        typeof total === "number" ? episodeCountLabel(t, locale, total) : null,
+        informativeTitleType(displayTitle.title_type) ? t(`type.${displayTitle.title_type}`) : null,
+        heroTemplate.showEpisodeCount && typeof total === "number" ? episodeCountLabel(t, locale, total) : null,
         displayTitle.status ? t(`status.${displayTitle.status}`) : null,
         heroRating ? `★ ${heroRating.average}` : null,
       ].filter(Boolean)
@@ -189,7 +193,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
             </Link>
             {displayTitle && <HeroLibraryAction slug={displayTitle.slug} initialStatus={heroEntry ? "watching" : "planned"} />}
           </div>
-          {heroEntry && heroTarget && typeof total === "number" && total > 0 ? (
+          {heroEntry && heroTarget && heroTemplate.showEpisodeCount && typeof total === "number" && total > 0 ? (
             <div className={styles.heroProgress}>
               <span aria-hidden="true"><i style={{ width: `${resumeProgressPercent(heroEntry)}%` }} /></span>
               <small>
@@ -225,7 +229,12 @@ export function ResumeCard({ entry, onRemoved }: { entry: ContinueWatchingEntry;
   const [error, setError] = useState(false);
   const target = resumeEpisode(entry);
   if (!target) return null;
-  const total = typeof entry.title.episodes_count === "number" ? entry.title.episodes_count : null;
+  // Episode totals stay hidden for movies and single-part formats: a movie
+  // resume card must not claim "Серия 1 из 1".
+  const total = titleTemplateState(entry.title.title_type, entry.title.episodes_count).showEpisodeCount
+    && typeof entry.title.episodes_count === "number"
+    ? entry.title.episodes_count
+    : null;
   const fact = [
     total ? t("home.episodeOf", { number: target.number, total }) : t("episode.number", { number: target.number }),
     entry.resume_at_seconds ? t("home.resumePosition", { watched: formatPlaybackTime(entry.resume_at_seconds) }) : "",

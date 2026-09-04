@@ -40,6 +40,14 @@ export function titleTemplateState(
   };
 }
 
+/**
+ * Compact metadata lines drop the default "anime" type: on an anime service
+ * the label carries no information, while movie/OVA/special formats do.
+ */
+export function informativeTitleType(titleType: string | null | undefined): string | null {
+  return titleType && titleType !== "anime" ? titleType : null;
+}
+
 /** Resolve query state without inventing episodes or changing title layout. */
 export function resolveTitleEpisodeRequest(
   presentation: PlaybackPresentation,

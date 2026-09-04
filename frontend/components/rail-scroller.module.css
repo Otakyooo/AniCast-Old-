@@ -1,0 +1,74 @@
+/* Shared horizontal rail: the scroll container plus arrow affordance.
+   Callers pass their own class setting `--rail-cols` / `--rail-gap` (and any
+   mobile overrides) so all shelves share one scroll behavior. */
+
+.shell {
+  position: relative;
+}
+
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--rail-cols, clamp(148px, 12vw, 176px));
+  gap: var(--rail-gap, 18px);
+  overflow-x: auto;
+  padding: 2px 2px 12px;
+  scroll-snap-type: x proximity;
+  /* The native bar adds nothing: the rails are swiped and dragged, and the
+     arrows announce the overflow on pointer devices. */
+  scrollbar-width: none;
+}
+
+.rail::-webkit-scrollbar { display: none }
+
+.rail > * { scroll-snap-align: start }
+
+.arrowPrev,
+.arrowNext {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-emphasis);
+  border-radius: 999px;
+  background: var(--surface-card-opaque);
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-65%);
+  transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.arrowPrev { left: -10px }
+.arrowNext { right: -10px }
+
+.shell:hover .arrowPrev,
+.shell:hover .arrowNext,
+.arrowPrev:focus-visible,
+.arrowNext:focus-visible { opacity: 1 }
+
+.arrowPrev:hover:not(:disabled),
+.arrowNext:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--surface-control-hover);
+}
+
+.arrowPrev:disabled,
+.arrowNext:disabled {
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.arrowPrev svg,
+.arrowNext svg { width: 19px; height: 19px }
+
+/* Arrows are a pointer affordance: on narrow screens the rails are swiped. */
+@media (max-width: 767px) {
+  .arrowPrev,
+  .arrowNext { display: none }
+}

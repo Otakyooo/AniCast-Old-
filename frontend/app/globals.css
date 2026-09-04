@@ -59,7 +59,10 @@
   --avatar-control-gradient: linear-gradient(140deg, var(--primary-border), var(--surface-elevated));
   --surface-gradient: linear-gradient(135deg, var(--surface-card), var(--surface-elevated));
   --collection-initial-gradient: linear-gradient(145deg, var(--primary), var(--border));
-  --home-hero-overlay: linear-gradient(90deg, rgba(20, 30, 42, .99) 0%, rgba(20, 30, 42, .96) 34%, rgba(20, 30, 42, .7) 68%, rgba(20, 30, 42, .32) 100%);
+  /* The right side stays more opaque than the old .32 tail: a blurred poster
+     showing through a thin veil read as a gray smear, while a stronger tint
+     reads as an intentional backdrop. */
+  --home-hero-overlay: linear-gradient(90deg, rgba(20, 30, 42, .99) 0%, rgba(20, 30, 42, .96) 38%, rgba(20, 30, 42, .84) 72%, rgba(20, 30, 42, .6) 100%);
   --home-hero-overlay-mobile: linear-gradient(180deg, rgba(20, 30, 42, .2) 0%, rgba(20, 30, 42, .58) 38%, rgba(20, 30, 42, .96) 76%, rgba(20, 30, 42, 1) 100%);
   --profile-banner: radial-gradient(circle at 78% 18%, rgba(224, 79, 62, .5) 0, transparent 42%), radial-gradient(circle at 12% 85%, rgba(64, 46, 158, .55) 0, transparent 48%), linear-gradient(135deg, var(--surface-card) 0%, var(--background) 70%);
   --profile-banner-overlay: linear-gradient(0deg, rgba(7, 9, 14, .55) 0%, transparent 60%);
@@ -183,24 +186,6 @@ summary:focus-visible {
   gap: 12px;
   color: var(--muted-2);
 }
-
-.visit-counter {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 34px;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: rgba(11, 19, 28, .45);
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.visit-counter strong { color: var(--text); font-variant-numeric: tabular-nums }
-.visit-counter-divider { width: 1px; height: 14px; background: var(--border) }
-.visit-counter-placeholder { display: block; min-height: 34px }
 
 .global-nav {
   position: sticky;
@@ -468,7 +453,8 @@ summary:focus-visible {
 .catalog-card-media .poster-wrap { overflow: hidden; border-radius: 8px; background: var(--surface-card) }
 .catalog-card-media .catalog-card-body { padding: 10px 0 0 }
 .catalog-card-media .card-kicker { display: none }
-.catalog-card-media h2 { margin: 0 0 4px; font-size: 14px; line-height: 1.35 }
+/* Two reserved title lines keep card facts on one shared baseline. */
+.catalog-card-media h2 { min-height: 2.7em; margin: 0 0 4px; font-size: 14px; line-height: 1.35 }
 .catalog-card-media p { font-size: 12px }
 
 .card-kicker {
@@ -588,7 +574,6 @@ summary:focus-visible {
   .site-footer-inner { display: flex; min-height: 0; flex-direction: column; align-items: flex-start; gap: 24px; padding-top: 28px; padding-bottom: 32px }
   .site-footer-links { justify-content: flex-start }
   .site-footer-meta { width: 100%; align-items: flex-start }
-  .visit-counter { max-width: 100%; white-space: normal }
   .page-back { height: 48px }
   .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px }
   .catalog-card h2 { font-size: 15px }

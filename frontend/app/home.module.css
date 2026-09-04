@@ -164,6 +164,9 @@
   border: 1px solid var(--border-emphasis);
   background: transparent;
   color: var(--text) !important;
+  /* The global .secondary is a text-link style; on a button the underline
+     mixes two patterns, so it is reset here. */
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -173,11 +176,9 @@
 
 .heroLibraryState {
   display: grid;
-  flex: 1 1 180px;
+  justify-items: start;
   align-items: start;
 }
-
-.heroLibraryState .resumeHeroSecondary { width: 100% }
 
 .heroActionError {
   max-width: 260px;
@@ -187,10 +188,34 @@
   line-height: 1.4;
 }
 
-.heroProgress { display: grid; gap: 7px; max-width: 420px }
-.heroProgress > span { overflow: hidden; height: 3px; border-radius: 2px; background: var(--border-muted) }
+/* One reading unit: the bar and the "episode N of M" caption share a row, so
+   the numbers explain the bar instead of floating as separate gray text. */
+.heroProgress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.heroProgress > span {
+  flex: 1 1 120px;
+  overflow: hidden;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-muted);
+}
+
 .heroProgress i { display: block; height: 100%; border-radius: inherit; background: var(--primary) }
-.heroProgress small, .catalogFact { color: var(--muted); font-size: 12px }
+
+.heroProgress small {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.catalogFact { color: var(--muted); font-size: 12px }
 
 .shelfHeading {
   display: grid;
@@ -209,20 +234,13 @@
   font-size: 13px;
 }
 
+/* Poster shelves scroll inside RailScroller; only the column sizing lives
+   here. The clamp keeps the smallest mirrored originals at or above 2x pixel
+   density on desktop instead of enlarging them into visibly soft artwork. */
 .posterRail {
-  display: grid;
-  grid-auto-flow: column;
-  /* Keep the smallest mirrored originals at or above 2x pixel density on
-     desktop instead of enlarging them into visibly soft card artwork. */
-  grid-auto-columns: clamp(148px, 12vw, 176px);
-  gap: 18px;
-  overflow-x: auto;
-  padding: 0 2px 12px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
+  --rail-cols: clamp(148px, 12vw, 176px);
+  --rail-gap: 18px;
 }
-
-.posterRail > * { scroll-snap-align: start }
 
 /* Horizontal shelves: scrollable on narrow screens instead of wrapping into a
    tall grid that pushes the rest of the page down. 16:9 frames per spec §4.3:
@@ -243,8 +261,7 @@
 /* Chrome shows a 1px track sliver even on a thin scrollbar; the rails are
    swiped and dragged on every input, so the native bar adds nothing. */
 .resumeRow::-webkit-scrollbar,
-.scheduleStrip::-webkit-scrollbar,
-.posterRail::-webkit-scrollbar { display: none }
+.scheduleStrip::-webkit-scrollbar { display: none }
 
 .resumeItem { position: relative; display: grid; height: 100% }
 
@@ -313,7 +330,9 @@
 
 .resumePlay svg { position: relative; filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .5)) }
 
-.scheduleStrip { grid-auto-columns: minmax(250px, 1fr) }
+/* One scheduled entry is a fixed-size card: a lone item must not stretch to
+   the full container width like a banner. */
+.scheduleStrip { grid-auto-columns: 250px }
 
 .resumeCard {
   display: grid;
@@ -357,6 +376,9 @@
 .resumeBody strong {
   display: -webkit-box;
   overflow: hidden;
+  /* Two reserved lines keep the fact row aligned across one- and two-line
+     titles instead of letting the metadata jump between cards. */
+  min-height: 2.7em;
   font-size: 14px;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -477,7 +499,7 @@
   .heroSynopsis { display: none }
   .resumeHeroActions { width: 100% }
   .resumeHeroCta, .resumeHeroSecondary { justify-content: center; flex: 1 1 180px }
-  .posterRail { grid-auto-columns: minmax(142px, 42vw); gap: 12px }
+  .posterRail { --rail-cols: minmax(142px, 42vw); --rail-gap: 12px }
   .resumeRow { grid-auto-columns: minmax(150px, 44vw); gap: 10px }
   .scheduleStrip { grid-auto-columns: 240px; gap: 10px }
   .resumeFallback { font-size: 30px }

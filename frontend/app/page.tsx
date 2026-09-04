@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { CatalogCard } from "../components/catalog-card";
 import { ContinueWatchingBlock } from "../components/continue-watching-block";
+import { RailScroller } from "../components/rail-scroller";
 import { ScheduleStrip } from "../components/schedule-strip";
 import { PageShell } from "../components/page-shell";
 import { emptyPage, getCatalog, getSchedule, type CatalogItem, type ScheduleResponse } from "../lib/api";
@@ -14,6 +15,8 @@ import styles from "./home.module.css";
 export const dynamic = "force-dynamic";
 
 const SHELF_SIZE = 12;
+/** A shelf below this size reads as abandoned rather than curated. */
+const MIN_FULL_SHELF = 6;
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -49,7 +52,7 @@ function CatalogShelf({
         <Link href={href}>{linkLabel}</Link>
       </div>
       {items.length ? (
-        <div className={styles.posterRail}>{items.map((item) => <CatalogCard item={item} key={item.slug} variant="media" />)}</div>
+        <RailScroller railClassName={styles.posterRail}>{items.map((item) => <CatalogCard item={item} key={item.slug} variant="media" />)}</RailScroller>
       ) : (
         <div className="empty-state" role="status"><strong>{emptyLabel}</strong></div>
       )}
@@ -104,14 +107,16 @@ export default async function HomePage() {
         emptyLabel={t("home.empty")}
       />}
 
-      <CatalogShelf
+      {/* A nearly empty "newest" shelf reads as abandoned; below the minimum
+          it is dropped whole instead of showing a titled three-card strip. */}
+      {newestShelfItems.length >= MIN_FULL_SHELF && <CatalogShelf
         title={t("home.newest")}
         subtitle={t("home.newestText")}
         items={newestShelfItems}
         href="/catalog"
         linkLabel={t("home.showAll")}
         emptyLabel={t("home.sectionEmpty")}
-      />
+      />}
     </div>
   </PageShell>;
 }

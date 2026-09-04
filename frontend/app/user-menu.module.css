@@ -22,6 +22,18 @@
 
 .menuWrap { position: relative }
 
+/* Header name label for the avatar: truncated, and dropped on narrow
+   screens where the avatar alone is the established pattern. */
+.userName {
+  overflow: hidden;
+  max-width: 140px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .avatar,
 .avatarPlaceholder {
   display: grid;
@@ -111,6 +123,10 @@
   border-top: 1px solid var(--border);
   border-radius: 0 0 8px 8px;
   color: var(--danger);
+}
+
+@media (max-width: 980px) {
+  .userName { display: none }
 }
 
 @media (max-width: 767px) {

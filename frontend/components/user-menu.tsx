@@ -92,6 +92,9 @@ export function UserMenu({ initialSignedIn }: { initialSignedIn: boolean }) {
   return (
     <div className={styles.actions} ref={containerRef}>
       <LanguageSwitcher />
+      {/* The name keeps the avatar from being an anonymous circle and says
+          whose menu the button opens. */}
+      {user?.display_name ? <span className={styles.userName}>{user.display_name}</span> : null}
       <div className={styles.menuWrap}>
         <button
           ref={triggerRef}

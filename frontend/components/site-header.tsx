@@ -8,7 +8,7 @@ import { UserMenu } from "./user-menu";
 import { CalendarDots, House, SquaresFour, UserCircle } from "@phosphor-icons/react/dist/ssr";
 
 export type NavSection =
-  | "home" | "catalog" | "schedule" | "franchises" | "characters"
+  | "home" | "catalog" | "schedule" | "franchises" | "collections" | "characters"
   | "media" | "community" | "profile";
 
 // Personal routes highlight nothing in the desktop top nav by design: the
@@ -29,6 +29,7 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
           <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
+          <Link className={linkClass("collections")} href="/collections">{t("nav.collections")}</Link>
           <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
         </nav>
         <GlobalSearch />

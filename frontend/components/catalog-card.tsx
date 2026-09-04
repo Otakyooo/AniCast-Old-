@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CatalogItem } from "../lib/api";
 import { episodeCountLabel } from "../lib/episode-count";
 import { titleRating } from "../lib/rating";
+import { informativeTitleType, titleTemplateState } from "../lib/title-template";
 import { useI18n } from "./i18n-provider";
 
 export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; variant?: "default" | "media" }) {
@@ -12,12 +13,16 @@ export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; 
   const status = item.status ? t(`status.${item.status}`) : t("type.anime");
   const rating = titleRating(item);
   // Shelf and grid cards carry one compact fact line: release year, title type
-  // and the real episode total from the list payload — hidden while the
-  // backend reports no total instead of guessing.
+  // and the real episode total from the list payload. The default "anime"
+  // label says nothing on an anime service, and movies never have episodes,
+  // so both stay hidden instead of producing "Фильм · 1 серия".
   const facts = [
     item.year ?? t("year.unknown"),
-    item.title_type ? t(`type.${item.title_type}`) : null,
-    typeof item.episodes_count === "number" ? episodeCountLabel(t, locale, item.episodes_count) : null,
+    informativeTitleType(item.title_type) ? t(`type.${item.title_type}`) : null,
+    titleTemplateState(item.title_type, item.episodes_count).showEpisodeCount
+      && typeof item.episodes_count === "number"
+      ? episodeCountLabel(t, locale, item.episodes_count)
+      : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -51,7 +56,8 @@ export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; 
       </div>
       <div className="catalog-card-body">
         <span className="card-kicker">{status}</span>
-        <h2>{item.name}</h2>
+        {/* Clamped titles need an accessible way to read the full name. */}
+        <h2 title={item.name}>{item.name}</h2>
         <p title={facts}>{facts}</p>
       </div>
     </Link>

@@ -2,4 +2,7 @@
 
 .switcher button:hover{color:var(--text)}
 .switcher button:active{background:var(--surface-2)}
-.switcher .active:hover{background:var(--primary-hover);color:var(--on-primary)}
+/* The active chip stays neutral: an accent-filled chip read as one more
+   primary control next to the sign-in button instead of a language state. */
+.switcher .active{background:var(--surface-control-hover);color:var(--text);font-weight:700}
+.switcher .active:hover{background:var(--surface-2);color:var(--text)}

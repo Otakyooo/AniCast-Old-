@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getI18n } from "../i18n/server";
 import { BrandLockup } from "./brand-lockup";
-import { VisitCounter } from "./visit-counter";
 
 export async function SiteFooter() {
   const { t } = await getI18n();
@@ -21,7 +20,6 @@ export async function SiteFooter() {
           <Link href="/community">{t("nav.community")}</Link>
         </nav>
         <div className="site-footer-meta">
-          <VisitCounter />
           <small>© {new Date().getUTCFullYear()} AniCast</small>
         </div>
       </div>

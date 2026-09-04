@@ -41,7 +41,9 @@ export function ScheduleStrip({
     [locale],
   );
   const dayFormatter = useMemo(
-    () => new Intl.DateTimeFormat(intlLocale[locale], { weekday: "short", timeZone: "UTC" }),
+    // The weekday alone ("вс") does not say which Sunday it is, so the day
+    // number and short month travel with it.
+    () => new Intl.DateTimeFormat(intlLocale[locale], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }),
     [locale],
   );
 
