@@ -264,6 +264,67 @@
   --rail-gap: 14px;
 }
 
+/* Franchise cards carry a three-poster strip, so their column is wider than
+   a single-poster shelf card. */
+.franchiseRail {
+  --rail-cols: 264px;
+  --rail-gap: 18px;
+}
+
+.franchiseCard {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  transition: border-color 140ms ease;
+}
+
+.franchiseCard:hover { border-color: var(--primary) }
+.franchiseCard:active { transform: none }
+
+/* Three 2:3 posters side by side read as one 2:1 strip. */
+.franchiseStrip {
+  display: flex;
+  aspect-ratio: 2 / 1;
+  background: var(--poster-gradient);
+}
+
+.franchiseStripFrame {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.franchiseFallback {
+  display: grid;
+  width: 100%;
+  place-items: center;
+  color: var(--text);
+  font-size: 40px;
+  font-weight: 800;
+}
+
+.franchiseBody {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+}
+
+.franchiseBody strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.franchiseBody small {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The ul keeps list semantics while its li children participate in the rail
    grid of RailScroller. */
 .railList { display: contents; margin: 0; padding: 0; list-style: none }
@@ -503,6 +564,7 @@
   .posterRail { --rail-cols: minmax(142px, 42vw); --rail-gap: 12px }
   .resumeRow { --rail-cols: minmax(150px, 44vw); --rail-gap: 10px }
   .scheduleStrip { --rail-cols: 300px; --rail-gap: 10px }
+  .franchiseRail { --rail-cols: minmax(220px, 62vw); --rail-gap: 12px }
   .resumeFallback { font-size: 30px }
 }
 

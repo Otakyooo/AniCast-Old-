@@ -1,11 +1,20 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { CatalogCard } from "../components/catalog-card";
 import { ContinueWatchingBlock } from "../components/continue-watching-block";
 import { RailScroller } from "../components/rail-scroller";
 import { ScheduleStrip } from "../components/schedule-strip";
 import { PageShell } from "../components/page-shell";
-import { emptyPage, getCatalog, getSchedule, type CatalogItem, type ScheduleResponse } from "../lib/api";
+import {
+  emptyPage,
+  getCatalog,
+  getFranchises,
+  getSchedule,
+  type CatalogItem,
+  type FranchiseSummary,
+  type ScheduleResponse,
+} from "../lib/api";
 import { addDays, localDayKey } from "../lib/schedule";
 import { dedupeShelf } from "../lib/home-shelves";
 import { getI18n } from "../i18n/server";
@@ -15,6 +24,7 @@ import styles from "./home.module.css";
 export const dynamic = "force-dynamic";
 
 const SHELF_SIZE = 12;
+const FRANCHISE_SHELF_SIZE = 8;
 /** Below this size a shelf reads as abandoned rather than curated. */
 const MIN_FULL_SHELF = 6;
 /** A shelf with fewer cards is dropped: a titled one-card strip looks broken. */
@@ -62,15 +72,45 @@ function CatalogShelf({
   );
 }
 
+function FranchiseCard({
+  item,
+  countLabel,
+  yearsLabel,
+}: {
+  item: FranchiseSummary;
+  countLabel: string;
+  yearsLabel: string;
+}) {
+  const posters = item.poster_urls.slice(0, 3);
+  return (
+    <Link className={styles.franchiseCard} href={`/franchises/${item.slug}`} title={item.name}>
+      {/* Three-poster strip: a franchise is many works, and the collage says
+          so before any text does. */}
+      <span className={styles.franchiseStrip} aria-hidden="true">
+        {posters.length ? posters.map((url) => (
+          <span className={styles.franchiseStripFrame} key={url}>
+            <Image src={url} alt="" fill sizes="120px" quality={92} referrerPolicy="no-referrer" />
+          </span>
+        )) : <span className={styles.franchiseFallback}>{item.name.slice(0, 1).toUpperCase()}</span>}
+      </span>
+      <span className={styles.franchiseBody}>
+        <strong>{item.name}</strong>
+        <small>{[countLabel, yearsLabel].filter(Boolean).join(" · ")}</small>
+      </span>
+    </Link>
+  );
+}
+
 export default async function HomePage() {
   const todayKey = localDayKey(new Date());
   // Every block degrades to an empty shelf instead of a 500 when the API is
   // briefly unreachable, which also keeps the container healthcheck independent
   // from the Caddy -> API chain during cold starts.
-  const [ongoing, popular, newest, schedule, { locale, t }] = await Promise.all([
+  const [ongoing, popular, newest, franchises, schedule, { locale, t }] = await Promise.all([
     getCatalog({ status: "ongoing", ordering: "popular", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
     getCatalog({ ordering: "popular", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
     getCatalog({ ordering: "recent", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
+    getFranchises(1, "", FRANCHISE_SHELF_SIZE).catch(() => emptyPage<FranchiseSummary>()),
     getSchedule(todayKey, addDays(todayKey, 2)).catch((): ScheduleResponse => emptyPage()),
     getI18n(),
   ]);
@@ -116,6 +156,38 @@ export default async function HomePage() {
         linkLabel={t("home.showAll")}
         emptyLabel={t("home.empty")}
       />}
+
+      {/* Franchises are pure discovery: whole universes instead of single
+          titles, and by construction they never duplicate the shelves above. */}
+      {franchises.results.length >= MIN_VISIBLE_SHELF && (
+        <section className="section">
+          <div className="section-heading">
+            <div className={styles.shelfHeading}>
+              <h2>{t("nav.franchises")}</h2>
+              <p>{t("franchise.subtitle")}</p>
+            </div>
+            <Link href="/franchises">{t("home.showAll")}</Link>
+          </div>
+          <RailScroller railClassName={styles.franchiseRail}>
+            {franchises.results.map((franchise) => (
+              <FranchiseCard
+                item={franchise}
+                key={franchise.slug}
+                countLabel={t("franchise.titlesCount", { count: franchise.title_count })}
+                yearsLabel={
+                  franchise.year_from
+                    ? franchise.year_to && franchise.year_to !== franchise.year_from
+                      ? `${franchise.year_from}–${franchise.year_to}`
+                      : franchise.year_to === franchise.year_from
+                        ? String(franchise.year_from)
+                        : t("title.yearsOngoing", { year: franchise.year_from })
+                    : ""
+                }
+              />
+            ))}
+          </RailScroller>
+        </section>
+      )}
 
       {newestShelfItems.length >= MIN_VISIBLE_SHELF && <CatalogShelf
         title={t("home.newest")}
