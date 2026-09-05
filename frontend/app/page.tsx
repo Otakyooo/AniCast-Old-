@@ -15,8 +15,10 @@ import styles from "./home.module.css";
 export const dynamic = "force-dynamic";
 
 const SHELF_SIZE = 12;
-/** A shelf below this size reads as abandoned rather than curated. */
+/** Below this size a shelf reads as abandoned rather than curated. */
 const MIN_FULL_SHELF = 6;
+/** A shelf with fewer cards is dropped: a titled one-card strip looks broken. */
+const MIN_VISIBLE_SHELF = 4;
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -78,7 +80,15 @@ export default async function HomePage() {
   // "ongoing" and "popular" at once. A repeated card on one screen reads as a
   // data bug, so each follower shelf drops what an earlier shelf already took.
   const popularShelfItems = dedupeShelf(leadShelfItems, popular.results);
-  const newestShelfItems = dedupeShelf([...leadShelfItems, ...popularShelfItems], newest.results);
+  // The newest shelf prefers zero repeats, but deleting it whole left the
+  // home page with nothing that pushes toward new titles. When a full dedup
+  // leaves too few cards, it keeps only the lead shelf's exclusions and
+  // tolerates overlap with "Популярное" — a repeated card is the lesser evil
+  // next to an empty page.
+  const newestFullyDeduped = dedupeShelf([...leadShelfItems, ...popularShelfItems], newest.results);
+  const newestShelfItems = newestFullyDeduped.length >= MIN_FULL_SHELF
+    ? newestFullyDeduped
+    : dedupeShelf(leadShelfItems, newest.results);
 
   return <PageShell active="home">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
@@ -107,9 +117,7 @@ export default async function HomePage() {
         emptyLabel={t("home.empty")}
       />}
 
-      {/* A nearly empty "newest" shelf reads as abandoned; below the minimum
-          it is dropped whole instead of showing a titled three-card strip. */}
-      {newestShelfItems.length >= MIN_FULL_SHELF && <CatalogShelf
+      {newestShelfItems.length >= MIN_VISIBLE_SHELF && <CatalogShelf
         title={t("home.newest")}
         subtitle={t("home.newestText")}
         items={newestShelfItems}

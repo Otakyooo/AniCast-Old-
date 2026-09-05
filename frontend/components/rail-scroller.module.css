@@ -38,18 +38,15 @@
   background: var(--surface-card-opaque);
   color: var(--text);
   cursor: pointer;
-  opacity: 0;
+  /* Always visible while scrollable: a hover-only affordance is invisible to
+     viewers who never move the pointer over the shelf. */
+  opacity: .92;
   transform: translateY(-65%);
   transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
 .arrowPrev { left: -10px }
 .arrowNext { right: -10px }
-
-.shell:hover .arrowPrev,
-.shell:hover .arrowNext,
-.arrowPrev:focus-visible,
-.arrowNext:focus-visible { opacity: 1 }
 
 .arrowPrev:hover:not(:disabled),
 .arrowNext:hover:not(:disabled) {

@@ -112,14 +112,22 @@
   list-style: none;
 }
 
-.heroGenres li {
+.heroGenres li { display: inline-flex }
+
+/* Genre chips are links into the filtered catalog: the hover state says so. */
+.heroGenres a {
+  display: inline-block;
   padding: 5px 9px;
   border: 1px solid var(--border-muted);
   border-radius: 6px;
   background: var(--background-soft);
   color: var(--text);
   font-size: 12px;
+  transition: border-color 140ms ease, color 140ms ease;
 }
+
+.heroGenres a:hover { border-color: var(--primary); color: var(--primary-hover) }
+.heroGenres a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
 
 .heroSynopsis {
   display: -webkit-box;
@@ -242,26 +250,23 @@
   --rail-gap: 18px;
 }
 
-/* Horizontal shelves: scrollable on narrow screens instead of wrapping into a
-   tall grid that pushes the rest of the page down. 16:9 frames per spec §4.3:
-   the frame is the artwork, not the library poster. */
-.resumeRow,
-.scheduleStrip {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(170px, 188px);
-  gap: 14px;
-  margin: 0;
-  padding: 0 2px 6px;
-  overflow-x: auto;
-  list-style: none;
-  scrollbar-width: none;
+/* Resume shelf columns for RailScroller (16:9 frames per spec §4.3: the
+   frame is the artwork, not the library poster). */
+.resumeRow {
+  --rail-cols: minmax(170px, 188px);
+  --rail-gap: 14px;
 }
 
-/* Chrome shows a 1px track sliver even on a thin scrollbar; the rails are
-   swiped and dragged on every input, so the native bar adds nothing. */
-.resumeRow::-webkit-scrollbar,
-.scheduleStrip::-webkit-scrollbar { display: none }
+/* Schedule cards are wider reading rows: a lone upcoming entry must occupy a
+   substantial block, not a stub in the corner of an empty section. */
+.scheduleStrip {
+  --rail-cols: 420px;
+  --rail-gap: 14px;
+}
+
+/* The ul keeps list semantics while its li children participate in the rail
+   grid of RailScroller. */
+.railList { display: contents; margin: 0; padding: 0; list-style: none }
 
 .resumeItem { position: relative; display: grid; height: 100% }
 
@@ -329,10 +334,6 @@
 }
 
 .resumePlay svg { position: relative; filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .5)) }
-
-/* One scheduled entry is a fixed-size card: a lone item must not stretch to
-   the full container width like a banner. */
-.scheduleStrip { grid-auto-columns: 250px }
 
 .resumeCard {
   display: grid;
@@ -500,8 +501,8 @@
   .resumeHeroActions { width: 100% }
   .resumeHeroCta, .resumeHeroSecondary { justify-content: center; flex: 1 1 180px }
   .posterRail { --rail-cols: minmax(142px, 42vw); --rail-gap: 12px }
-  .resumeRow { grid-auto-columns: minmax(150px, 44vw); gap: 10px }
-  .scheduleStrip { grid-auto-columns: 240px; gap: 10px }
+  .resumeRow { --rail-cols: minmax(150px, 44vw); --rail-gap: 10px }
+  .scheduleStrip { --rail-cols: 300px; --rail-gap: 10px }
   .resumeFallback { font-size: 30px }
 }
 

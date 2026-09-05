@@ -23,8 +23,10 @@
   --accent-text: #ff6a4d;
   --on-primary: #0b131c;
   --text: #f3ede2;
-  --muted: #a8b1bd;
-  --muted-2: #8793a1;
+  /* Secondary text lifted one step (design QA 2026-09-05): the previous
+     values hovered at the WCAG AA boundary on elevated surfaces. */
+  --muted: #b2bbc8;
+  --muted-2: #98a4b2;
   --border: #2a3442;
   --success: #3ba97c;
   --success-text: #48b889;

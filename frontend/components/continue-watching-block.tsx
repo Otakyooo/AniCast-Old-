@@ -13,6 +13,7 @@ import { formatPlaybackTime } from "../lib/playback";
 import { titleRating } from "../lib/rating";
 import { titleWatchHref } from "../lib/seo";
 import { informativeTitleType, titleTemplateState } from "../lib/title-template";
+import { RailScroller } from "./rail-scroller";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
@@ -119,9 +120,10 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const state = useContinueWatching();
   const entries = state.kind === "ready" ? state.entries : [];
   const [heroEntry] = entries;
-  // The shelf is the full continue list: the hero title stays in it as a
-  // regular card, because "continue watching" is the list the viewer expects.
-  const shelfEntries = entries.slice(0, 8);
+  // The hero already shows the freshest unfinished title; repeating it as the
+  // first shelf card is a duplicate in two adjacent blocks, so the shelf
+  // starts from the second entry.
+  const shelfEntries = entries.slice(1, 9);
   const displayTitle = heroEntry?.title ?? featured;
   const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
   const heroResumeSeconds = heroEntry?.resume_at_seconds ?? 0;
@@ -182,7 +184,14 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
           {metadata.length > 0 && <p className={styles.resumeHeroMeta}>{metadata.join(" · ")}</p>}
           {displayTitle?.genres?.length ? (
             <ul className={styles.heroGenres} aria-label={t("catalog.genre")}>
-              {displayTitle.genres.slice(0, 3).map((genre) => <li key={genre.slug}>{genre.name}</li>)}
+              {displayTitle.genres.slice(0, 3).map((genre) => (
+                <li key={genre.slug}>
+                  {/* Genre chips navigate to the filtered catalog, same as on
+                      the title page — a chip that looks like a button must be
+                      one. */}
+                  <Link href={`/catalog?genre=${encodeURIComponent(genre.slug)}`}>{genre.name}</Link>
+                </li>
+              ))}
             </ul>
           ) : null}
           {displayTitle?.synopsis && <p className={styles.heroSynopsis}>{displayTitle.synopsis}</p>}
@@ -307,13 +316,15 @@ export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
   const visible = entries.filter((entry) => !removed.includes(entry.title.slug));
   if (visible.length === 0) return null;
   return (
-    <ul className={styles.resumeRow}>
-      {visible.map((entry) => (
-        <li key={entry.title.slug}>
-          <ResumeCard entry={entry} onRemoved={(slug) => setRemoved((current) => [...current, slug])} />
-        </li>
-      ))}
-    </ul>
+    <RailScroller railClassName={styles.resumeRow}>
+      <ul className={styles.railList}>
+        {visible.map((entry) => (
+          <li key={entry.title.slug}>
+            <ResumeCard entry={entry} onRemoved={(slug) => setRemoved((current) => [...current, slug])} />
+          </li>
+        ))}
+      </ul>
+    </RailScroller>
   );
 }
 

@@ -6,7 +6,9 @@ import {
   CaretLeft,
   CaretRight,
   CaretDown,
+  ClosedCaptioning,
   Check,
+  FilmStrip,
   MagnifyingGlass,
   SpeakerHigh,
   X,
@@ -54,6 +56,14 @@ interface EpisodeRailMeta {
   airDate: string | null;
 }
 
+/** Icon per voice kind: dubs, subtitles and raw audio are different animals
+ *  and the chip row must tell them apart at a glance. */
+const VOICE_KIND_ICON = {
+  dub: SpeakerHigh,
+  sub: ClosedCaptioning,
+  raw: FilmStrip,
+} as const;
+
 /** Noon-UTC anchor so a plain YYYY-MM-DD renders the same day in every zone. */
 function isoDay(value: string): Date {
   return new Date(`${value}T12:00:00Z`);
@@ -87,21 +97,43 @@ function compactCoverage(numbers: number[], t: Translator, known: boolean) {
   });
 }
 
-function coverageCopy(group: ResolvedWatchSourceGroup, t: Translator, locale: Locale) {
+function coverageCopy(
+  group: ResolvedWatchSourceGroup,
+  playableSet: Set<number>,
+  t: Translator,
+  locale: Locale,
+) {
   if (!group.coverage_known) {
     return { summary: t("watch.coverageUnknown"), detail: "" };
   }
-  const summary = summarizeEpisodeCoverage(group.episode_numbers);
+  // Only currently playable episodes count: a group can know about episodes
+  // whose sources expired, and reporting them would contradict the
+  // "episodes available" number shown next to the same list.
+  const numbers = group.episode_numbers.filter((number) => playableSet.has(number));
+  const summary = summarizeEpisodeCoverage(numbers);
   return {
-    // The per-voice count never competes with the title total: it is phrased
-    // as "available" and lives only inside the voice panel.
     summary: t("watch.voiceCoverage", { coverage: episodeCountLabel(t, locale, summary.count) }),
-    detail: compactCoverage(group.episode_numbers, t, group.coverage_known),
+    detail: compactCoverage(numbers, t, group.coverage_known),
   };
 }
 
 function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapshot }) {
   const { t } = useI18n();
+  // Idle confirmations ("saved automatically", "episode watched") are one-time
+  // notices, not interface furniture: they dismiss themselves after a pause.
+  // Busy, guest and error states stay until they resolve.
+  const idle = progress.phase === "ready" || progress.phase === "saved";
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDismissed(false);
+    if (!idle) return;
+    const timer = window.setTimeout(() => setDismissed(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [idle, progress.phase, progress.isWatched]);
+
+  if (idle && dismissed) return null;
+
   const title = progress.phase === "guest"
     ? t("watch.progressGuest")
     : progress.phase === "error"
@@ -114,10 +146,8 @@ function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapsh
             ? t("watch.progressLoading")
             : t("watch.progressAutomatic");
 
-  // This line reports only whether progress is being saved. The player's own
-  // timeline is the single position display: a second time readout here
-  // contradicted it whenever the provider resumed on its own, and a second
-  // bar restated the same fact as a third strip on screen.
+  // The player's own timeline is the single position display; this line only
+  // reports whether progress is being saved.
   return (
     <div className={styles.watchProgress} aria-busy={progress.phase === "loading" || progress.phase === "saving"}>
       <div className={styles.watchProgressCopy}>
@@ -138,7 +168,6 @@ export function WatchSpace({
   playbackPresentation,
   navigationDegraded = false,
   invalidEpisodeRequest = false,
-  catalogEpisodeCount,
   episode,
 }: {
   slug: string;
@@ -150,8 +179,6 @@ export function WatchSpace({
   playbackPresentation: PlaybackPresentation;
   navigationDegraded?: boolean;
   invalidEpisodeRequest?: boolean;
-  /** Episode total of the title itself; 0 when the backend reports none. */
-  catalogEpisodeCount?: number;
   episode: WatchEpisode;
 }) {
   const { t, locale } = useI18n();
@@ -184,16 +211,12 @@ export function WatchSpace({
   const [selectedGroupKey, setSelectedGroupKey] = useState(preferredKey);
   const [episodeQuery, setEpisodeQuery] = useState("");
   const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
-  const [voiceOptionsOpen, setVoiceOptionsOpen] = useState(false);
   const [episodeDialogMounted, setEpisodeDialogMounted] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState<PlaybackProgressSnapshot | null>(null);
   const [episodeMeta, setEpisodeMeta] = useState<Map<number, EpisodeRailMeta>>(new Map());
   const [watchedNumbers, setWatchedNumbers] = useState<Set<number> | null>(null);
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
-  const mobileVoiceTriggerRef = useRef<HTMLButtonElement>(null);
-  const railVoiceTriggerRef = useRef<HTMLButtonElement>(null);
-  const lastVoiceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const episodeRailSearchRef = useRef<HTMLInputElement>(null);
   const episodeDialogSearchRef = useRef<HTMLInputElement>(null);
   const episodeRailContentRef = useRef<HTMLDivElement>(null);
@@ -212,6 +235,7 @@ export function WatchSpace({
     () => normalizeEpisodeNumbers(playableEpisodeNumbers),
     [playableEpisodeNumbers],
   );
+  const playableSet = useMemo(() => new Set(playableNumbers), [playableNumbers]);
   const availableNumbers = useMemo(
     () => new Set(selectedGroup?.episode_numbers ?? playableNumbers),
     [playableNumbers, selectedGroup],
@@ -240,17 +264,6 @@ export function WatchSpace({
   const nextNumber = availableEpisodeNumbers.find((number) => number > currentNumber);
   const selectedName = selectedGroup
     ? cleanSourceName(selectedGroup.name, selectedGroup.provider_name)
-    : "";
-  // One honest number in the triggers: the title's own episode total. The
-  // per-voice coverage is spelled out only inside the voice panel, so two
-  // totals never compete on screen ("1120 из 1176" next to "1180").
-  const catalogEpisodeTotal = (catalogEpisodeCount ?? 0) > 0
-    ? episodeCountLabel(t, locale, catalogEpisodeCount ?? 0)
-    : availableEpisodeNumbers.length > 0
-      ? episodeCountLabel(t, locale, availableEpisodeNumbers.length)
-      : "";
-  const selectedKindLabel = selectedGroup
-    ? t(`watch.voiceGroup.${voiceSection(selectedGroup.kind)}`)
     : "";
   const invalidVoiceRequest = Boolean(requestedSourceKey && !requestedGroup);
   const handleProgressChange = useCallback((progress: PlaybackProgressSnapshot) => {
@@ -322,7 +335,9 @@ export function WatchSpace({
   }, [slug, activeRange]);
 
   const shortDayFormatter = useMemo(
-    () => new Intl.DateTimeFormat(intlLocale[locale], { day: "numeric", month: "short", timeZone: "UTC" }),
+    // The year is not optional: long series span decades of air dates, and a
+    // bare "20 окт." next to a 1999 title reads as this October.
+    () => new Intl.DateTimeFormat(intlLocale[locale], { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
     [locale],
   );
 
@@ -347,7 +362,6 @@ export function WatchSpace({
   useEffect(() => {
     if (
       episodeQuery
-      || voiceOptionsOpen
       || window.matchMedia("(max-width: 860px)").matches
       || !currentEpisodeRef.current
       || !episodeRailContentRef.current
@@ -355,19 +369,7 @@ export function WatchSpace({
     const list = episodeRailContentRef.current;
     const item = currentEpisodeRef.current;
     list.scrollTop = Math.max(0, item.offsetTop - (list.clientHeight - item.clientHeight) / 2);
-  }, [currentNumber, episodeQuery, selectedGroupKey, selectedRangeIndex, voiceOptionsOpen]);
-
-  useEffect(() => {
-    if (!voiceOptionsOpen) return;
-    function closeVoiceOptions(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setVoiceOptionsOpen(false);
-      requestAnimationFrame(() => lastVoiceTriggerRef.current?.focus());
-    }
-    window.addEventListener("keydown", closeVoiceOptions);
-    return () => window.removeEventListener("keydown", closeVoiceOptions);
-  }, [voiceOptionsOpen]);
+  }, [currentNumber, episodeQuery, selectedGroupKey, selectedRangeIndex]);
 
   useEffect(() => {
     if (!episodeDialogMounted || !episodeDialogRef.current) return;
@@ -377,18 +379,7 @@ export function WatchSpace({
 
   function chooseGroup(key: string) {
     setSelectedGroupKey(key);
-    setVoiceOptionsOpen(false);
     router.replace(titleWatchHref(slug, currentNumber, key), { scroll: false });
-    requestAnimationFrame(() => lastVoiceTriggerRef.current?.focus());
-  }
-
-  function toggleVoiceOptions(trigger: HTMLButtonElement) {
-    lastVoiceTriggerRef.current = trigger;
-    const opening = !voiceOptionsOpen;
-    setVoiceOptionsOpen(opening);
-    if (opening && !window.matchMedia("(max-width: 860px)").matches) {
-      requestAnimationFrame(() => { if (episodeRailContentRef.current) episodeRailContentRef.current.scrollTop = 0; });
-    }
   }
 
   function chooseEpisode(number: number) {
@@ -405,7 +396,6 @@ export function WatchSpace({
   function openEpisodeChooser() {
     if (!availableEpisodeNumbers.length) return;
     if (window.matchMedia("(max-width: 860px)").matches) {
-      setVoiceOptionsOpen(false);
       setEpisodeDialogMounted(true);
       return;
     }
@@ -508,39 +498,6 @@ export function WatchSpace({
     </label>
   ) : null;
 
-  const voiceOptions = (id: string) => (
-    <section id={id} className={styles.inlineVoicePanel} aria-label={t("watch.voiceOptionsTitle")}>
-      <h4>{t("watch.voiceOptionsTitle")}</h4>
-      <div className={styles.inlineVoiceOptions}>
-        {groups.map((group) => {
-          const coverage = coverageCopy(group, t, locale);
-          const kind = t(`watch.voiceGroup.${voiceSection(group.kind)}`);
-          const selected = group.key === selectedGroupKey;
-          return (
-            <button
-              type="button"
-              aria-pressed={selected}
-              className={selected ? styles.voiceOptionSelected : undefined}
-              onClick={() => chooseGroup(group.key)}
-              key={group.key}
-            >
-              <span className={styles.voiceOptionCopy}>
-                <strong>{cleanSourceName(group.name, group.provider_name)}</strong>
-                <small>{singlePlayback ? kind : t("watch.voiceOptionMeta", {
-                  kind,
-                  coverage: coverage.summary,
-                })}</small>
-                {!singlePlayback && coverage.detail && <small>{coverage.detail}</small>}
-              </span>
-              {selected && <Check className={styles.voiceSelectedIcon} aria-hidden="true" weight="bold" />}
-            </button>
-          );
-        })}
-        {!groups.length && <p className={styles.episodeSearchEmpty}>{t("watch.noVoice")}</p>}
-      </div>
-    </section>
-  );
-
   return (
     <div className={styles.watchLayout}>
       {(invalidEpisodeRequest || invalidVoiceRequest || navigationDegraded) && (
@@ -561,185 +518,132 @@ export function WatchSpace({
           )}
         </div>
       )}
-      <div className={styles.watchStage}>
+      {/* Single-playback titles (movies) have no episode rail: the stage spans
+          the full column and voice choice lives in the chips below. */}
+      <div className={`${styles.watchStage} ${singlePlayback ? styles.watchStageFull : ""}`}>
         <div className={styles.watchPlayer}>{player}</div>
 
-        <nav className={styles.watchControls} aria-label={t("watch.navigation")}>
-          {!singlePlayback && (previousNumber !== undefined ? (
-            <Link
-              className={styles.episodeStep}
-              href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
-              aria-label={t("watch.prev")}
-              title={t("watch.prev")}
-            >
-              <CaretLeft aria-hidden="true" weight="bold" />
-            </Link>
-          ) : (
-            <span className={styles.episodeStep} aria-disabled="true">
-              <CaretLeft aria-hidden="true" weight="bold" />
-            </span>
-          ))}
-
-          {!singlePlayback && <button
-            ref={episodeTriggerRef}
-            className={styles.currentEpisodeButton}
-            type="button"
-            aria-haspopup={availableEpisodeNumbers.length ? "dialog" : undefined}
-            disabled={!availableEpisodeNumbers.length}
-            onClick={openEpisodeChooser}
-          >
-            <strong>{t("episode.number", { number: currentNumber })}</strong>
-            <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
-          </button>}
-
-          {!singlePlayback && (nextNumber !== undefined ? (
-            <Link
-              className={styles.episodeStep}
-              href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
-              aria-label={t("watch.next")}
-              title={t("watch.next")}
-            >
-              <CaretRight aria-hidden="true" weight="bold" />
-            </Link>
-          ) : (
-            <span className={styles.episodeStep} aria-disabled="true">
-              <CaretRight aria-hidden="true" weight="bold" />
-            </span>
-          ))}
-
-          <button
-            ref={mobileVoiceTriggerRef}
-            className={styles.voiceTrigger}
-            type="button"
-            aria-expanded={voiceOptionsOpen}
-            aria-controls="watch-voice-options-mobile"
-            disabled={!groups.length}
-            onClick={(event) => toggleVoiceOptions(event.currentTarget)}
-          >
-            <SpeakerHigh aria-hidden="true" weight="bold" />
-            <span>
-              <small>{selectedGroup
-                ? singlePlayback
-                  ? selectedKindLabel
-                  : catalogEpisodeTotal
-                : t("watch.voiceShort")}</small>
-              <strong>{selectedName || t("watch.noVoice")}</strong>
-            </span>
-            <CaretDown aria-hidden="true" weight="bold" />
-          </button>
-
-          {voiceOptionsOpen && (
-            <div className={styles.mobileVoicePanel}>
-              {voiceOptions("watch-voice-options-mobile")}
-            </div>
-          )}
-
-          {!singlePlayback && !currentIsAvailable && selectedGroup && (
-            <p className={styles.watchWarning} role="status">
-              {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
-            </p>
-          )}
-        </nav>
-
-        <aside className={styles.episodeRail} aria-label={singlePlayback ? t("watch.voiceOptionsTitle") : t("watch.navigation")}>
-          {singlePlayback ? (
-            <div ref={episodeRailContentRef} className={styles.episodeRailContent}>
-              {voiceOptions("watch-voice-options-desktop")}
-            </div>
-          ) : (
-            <>
-          <div className={styles.episodeRailHeader}>
-            <button
-              ref={railVoiceTriggerRef}
-              className={styles.railVoiceTrigger}
-              type="button"
-              aria-expanded={voiceOptionsOpen}
-              aria-controls="watch-voice-options-desktop"
-              disabled={!groups.length}
-              onClick={(event) => toggleVoiceOptions(event.currentTarget)}
-            >
-              <SpeakerHigh aria-hidden="true" weight="bold" />
-              <span>
-                <strong>{selectedName || t("watch.noVoice")}</strong>
-                <small>{singlePlayback && selectedGroup
-                  ? selectedKindLabel
-                  : catalogEpisodeTotal || t("watch.coverageUnknown")}</small>
+        {/* Mobile-only episode controls. Voice switching is not duplicated
+            here: the chips under the player are the one selector. */}
+        {!singlePlayback && (
+          <nav className={styles.watchControls} aria-label={t("watch.navigation")}>
+            {previousNumber !== undefined ? (
+              <Link
+                className={styles.episodeStep}
+                href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
+                aria-label={t("watch.prev")}
+                title={t("watch.prev")}
+              >
+                <CaretLeft aria-hidden="true" weight="bold" />
+              </Link>
+            ) : (
+              <span className={styles.episodeStep} aria-disabled="true">
+                <CaretLeft aria-hidden="true" weight="bold" />
               </span>
-              <CaretDown aria-hidden="true" weight="bold" />
+            )}
+
+            <button
+              ref={episodeTriggerRef}
+              className={styles.currentEpisodeButton}
+              type="button"
+              aria-haspopup={availableEpisodeNumbers.length ? "dialog" : undefined}
+              disabled={!availableEpisodeNumbers.length}
+              onClick={openEpisodeChooser}
+            >
+              <strong>{t("episode.number", { number: currentNumber })}</strong>
+              <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
             </button>
-          </div>
 
-          {!voiceOptionsOpen && availableEpisodeNumbers.length > 0 && (
-            <div className={styles.episodeRailTools}>
-              {previousNumber !== undefined ? (
-                <Link
-                  className={styles.episodeStep}
-                  href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
-                  aria-label={t("watch.prev")}
-                  title={t("watch.prev")}
-                >
-                  <CaretLeft aria-hidden="true" weight="bold" />
-                </Link>
-              ) : (
-                <span className={styles.episodeStep} aria-disabled="true">
-                  <CaretLeft aria-hidden="true" weight="bold" />
-                </span>
+            {nextNumber !== undefined ? (
+              <Link
+                className={styles.episodeStep}
+                href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
+                aria-label={t("watch.next")}
+                title={t("watch.next")}
+              >
+                <CaretRight aria-hidden="true" weight="bold" />
+              </Link>
+            ) : (
+              <span className={styles.episodeStep} aria-disabled="true">
+                <CaretRight aria-hidden="true" weight="bold" />
+              </span>
+            )}
+
+            {!currentIsAvailable && selectedGroup && (
+              <p className={styles.watchWarning} role="status">
+                {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
+              </p>
+            )}
+          </nav>
+        )}
+
+        {!singlePlayback && (
+          <aside className={styles.episodeRail} aria-label={t("watch.navigation")}>
+            {availableEpisodeNumbers.length > 0 && (
+              <div className={styles.episodeRailTools}>
+                {previousNumber !== undefined ? (
+                  <Link
+                    className={styles.episodeStep}
+                    href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
+                    aria-label={t("watch.prev")}
+                    title={t("watch.prev")}
+                  >
+                    <CaretLeft aria-hidden="true" weight="bold" />
+                  </Link>
+                ) : (
+                  <span className={styles.episodeStep} aria-disabled="true">
+                    <CaretLeft aria-hidden="true" weight="bold" />
+                  </span>
+                )}
+
+                <form className={styles.episodeSearch} onSubmit={submitEpisodeSearch} role="search">
+                  <MagnifyingGlass aria-hidden="true" />
+                  <label htmlFor="watch-episode-search">{t("watch.episodeSearch")}</label>
+                  <input
+                    ref={episodeRailSearchRef}
+                    id="watch-episode-search"
+                    type="search"
+                    inputMode="numeric"
+                    value={episodeQuery}
+                    placeholder={t("watch.episodeSearchPlaceholder")}
+                    onChange={(event) => setEpisodeQuery(event.target.value)}
+                  />
+                </form>
+
+                {nextNumber !== undefined ? (
+                  <Link
+                    className={styles.episodeStep}
+                    href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
+                    aria-label={t("watch.next")}
+                    title={t("watch.next")}
+                  >
+                    <CaretRight aria-hidden="true" weight="bold" />
+                  </Link>
+                ) : (
+                  <span className={styles.episodeStep} aria-disabled="true">
+                    <CaretRight aria-hidden="true" weight="bold" />
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div ref={episodeRailContentRef} className={styles.episodeRailContent}>
+              {!currentIsAvailable && selectedGroup && (
+                <p className={styles.railWarning} role="status">
+                  {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
+                </p>
               )}
-
-              <form className={styles.episodeSearch} onSubmit={submitEpisodeSearch} role="search">
-                <MagnifyingGlass aria-hidden="true" />
-                <label htmlFor="watch-episode-search">{t("watch.episodeSearch")}</label>
-                <input
-                  ref={episodeRailSearchRef}
-                  id="watch-episode-search"
-                  type="search"
-                  inputMode="numeric"
-                  value={episodeQuery}
-                  placeholder={t("watch.episodeSearchPlaceholder")}
-                  onChange={(event) => setEpisodeQuery(event.target.value)}
-                />
-              </form>
-
-              {nextNumber !== undefined ? (
-                <Link
-                  className={styles.episodeStep}
-                  href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
-                  aria-label={t("watch.next")}
-                  title={t("watch.next")}
-                >
-                  <CaretRight aria-hidden="true" weight="bold" />
-                </Link>
-              ) : (
-                <span className={styles.episodeStep} aria-disabled="true">
-                  <CaretRight aria-hidden="true" weight="bold" />
-                </span>
+              <div className={styles.episodeRailHeading}>
+                <h3>{t("title.episodes")}</h3>
+              </div>
+              {episodeRangeControl("watch-episode-range")}
+              <ol className={styles.episodeRailList}>{episodeList()}</ol>
+              {!visibleEpisodeNumbers.length && (
+                <p className={styles.episodeSearchEmpty} role="status">{t("watch.episodeSearchEmpty")}</p>
               )}
             </div>
-          )}
-
-          <div ref={episodeRailContentRef} className={styles.episodeRailContent}>
-            {voiceOptionsOpen ? voiceOptions("watch-voice-options-desktop") : (
-              <>
-                {!currentIsAvailable && selectedGroup && (
-                  <p className={styles.railWarning} role="status">
-                    {t("watch.voiceUnavailable", { number: currentNumber, name: selectedName })}
-                  </p>
-                )}
-                <div className={styles.episodeRailHeading}>
-                  <h3>{t("title.episodes")}</h3>
-                  <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
-                </div>
-                {episodeRangeControl("watch-episode-range")}
-                <ol className={styles.episodeRailList}>{episodeList()}</ol>
-                {!visibleEpisodeNumbers.length && (
-                  <p className={styles.episodeSearchEmpty} role="status">{t("watch.episodeSearchEmpty")}</p>
-                )}
-              </>
-            )}
-          </div>
-            </>
-          )}
-        </aside>
+          </aside>
+        )}
 
         {!singlePlayback && availableEpisodeNumbers.length > 0 && episodeDialogMounted && <dialog
           ref={episodeDialogRef}
@@ -786,22 +690,27 @@ export function WatchSpace({
 
       </div>
 
-      {/* One-click voice switching: the chips sit directly under the player,
-          while the panel in the rail keeps the detailed coverage breakdown. */}
+      {/* The single voice selector: one click under the player on every
+          viewport. Kind icons separate dubs from subtitles; the coverage
+          breakdown lives in each chip's tooltip. */}
       {groups.length > 0 && (
         <div className={styles.voiceChips} role="group" aria-label={t("watch.voiceOptionsTitle")}>
           {groups.map((group) => {
             const selected = group.key === selectedGroupKey;
             const name = cleanSourceName(group.name, group.provider_name);
+            const kind = t(`watch.voiceGroup.${voiceSection(group.kind)}`);
+            const coverage = coverageCopy(group, playableSet, t, locale);
+            const KindIcon = VOICE_KIND_ICON[voiceSection(group.kind)];
             return (
               <button
                 key={group.key}
                 type="button"
                 className={selected ? styles.voiceChipSelected : styles.voiceChip}
                 aria-pressed={selected}
-                title={name}
+                title={[name, kind, coverage.summary, coverage.detail].filter(Boolean).join(" · ")}
                 onClick={() => chooseGroup(group.key)}
               >
+                <KindIcon aria-hidden="true" weight="bold" />
                 {name}
               </button>
             );

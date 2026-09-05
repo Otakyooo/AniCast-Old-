@@ -144,7 +144,7 @@ Object.assign(ru, {
   "notes.saving":"Сохраняем...","notes.deleting":"Удаляем...","notes.saved":"Заметка сохранена","notes.deleted":"Заметка удалена",
   // Единый сценарий просмотра: озвучка, доступные серии и плеер.
   "watch.navigation":"Выбор озвучки и серии","watch.voice":"Озвучка или субтитры","watch.noVoice":"Доступных озвучек пока нет",
-  "watch.voiceOption":"{name} · {coverage}","watch.voiceCoverage":"Доступно: {coverage}",
+  "watch.voiceCoverage":"Доступно: {coverage}",
   "watch.coverageUnknown":"покрытие уточняется","watch.coverageEmpty":"нет серий","watch.coverageSingle":"серия {number}","watch.coverageRanges":"серии {ranges}",
   "watch.coverageExcept":"серии {first}–{last}, кроме {missing}","watch.coverageWithGaps":"{count} эп. · {first}–{last}, с пропусками",
   "watch.chooseEpisode":"Выберите серию","watch.episodeUnavailableCurrent":"Серия {number} недоступна",
@@ -159,11 +159,10 @@ Object.assign(ru, {
   "watch.episodeRange":"Диапазон серий","watch.episodeRangeOption":"Серии {first}–{last}","watch.episodeActions":"Действия с серией","watch.titleActions":"Действия с просмотром",
   "watch.progressAutomatic":"Прогресс сохраняется автоматически","watch.progressLoading":"Загружаем прогресс...","watch.progressSaving":"Сохраняем прогресс...","watch.progressCompleted":"Серия просмотрена","watch.progressError":"Не удалось сохранить прогресс","watch.progressGuest":"Войдите, чтобы сохранять прогресс",
   "watch.kind.dub":"озвучка","watch.kind.sub":"субтитры","watch.kind.raw":"оригинал",
-  "watch.voiceShort":"Озвучка",
   "watch.currentEpisode":"Сейчас","watch.availableEpisodeCount":"Доступно серий: {count}",
   "watch.episodeSearch":"Поиск серии","watch.episodeSearchPlaceholder":"Номер серии","watch.episodeSearchEmpty":"Серии с таким номером здесь нет.","watch.sectionTitle":"Просмотр","watch.watchedMark":"Просмотрено",
   "watch.episodeDialogTitle":"Выбор серии","watch.closeChooser":"Закрыть выбор",
-  "watch.voiceOptionsTitle":"Озвучка и субтитры","watch.voiceOptionMeta":"{kind} · {coverage}",
+  "watch.voiceOptionsTitle":"Озвучка и субтитры",
   "watch.voiceGroup.dub":"Озвучка","watch.voiceGroup.sub":"Субтитры","watch.voiceGroup.raw":"Оригинал",
 });
 
@@ -182,7 +181,7 @@ Object.assign(en, {
   "library.viewSwitch":"Library view","library.filters":"Library filters","library.viewTitles":"Titles","library.viewCollections":"Collections",
   "notes.saving":"Saving...","notes.deleting":"Deleting...","notes.saved":"Note saved","notes.deleted":"Note deleted",
   "watch.navigation":"Voice-over and episode navigation","watch.voice":"Voice-over or subtitles","watch.noVoice":"No playable voice-overs yet",
-  "watch.voiceOption":"{name} · {coverage}","watch.voiceCoverage":"Available: {coverage}",
+  "watch.voiceCoverage":"Available: {coverage}",
   "watch.coverageUnknown":"coverage pending","watch.coverageEmpty":"no episodes","watch.coverageSingle":"episode {number}","watch.coverageRanges":"episodes {ranges}",
   "watch.coverageExcept":"episodes {first}–{last}, except {missing}","watch.coverageWithGaps":"{count} eps · {first}–{last}, with gaps",
   "watch.chooseEpisode":"Choose episode","watch.episodeUnavailableCurrent":"Episode {number} is unavailable",
@@ -197,11 +196,10 @@ Object.assign(en, {
   "watch.episodeRange":"Episode range","watch.episodeRangeOption":"Episodes {first}–{last}","watch.episodeActions":"Episode actions","watch.titleActions":"Viewing actions",
   "watch.progressAutomatic":"Progress is saved automatically","watch.progressLoading":"Loading progress...","watch.progressSaving":"Saving progress...","watch.progressCompleted":"Episode watched","watch.progressError":"Could not save progress","watch.progressGuest":"Sign in to save your progress",
   "watch.kind.dub":"dub","watch.kind.sub":"subtitles","watch.kind.raw":"original",
-  "watch.voiceShort":"Voice-over",
   "watch.currentEpisode":"Now","watch.availableEpisodeCount":"Episodes available: {count}",
   "watch.episodeSearch":"Search episodes","watch.episodeSearchPlaceholder":"Episode number","watch.episodeSearchEmpty":"There is no episode with that number here.","watch.sectionTitle":"Playback","watch.watchedMark":"Watched",
   "watch.episodeDialogTitle":"Choose an episode","watch.closeChooser":"Close chooser",
-  "watch.voiceOptionsTitle":"Voice-over and subtitles","watch.voiceOptionMeta":"{kind} · {coverage}",
+  "watch.voiceOptionsTitle":"Voice-over and subtitles",
   "watch.voiceGroup.dub":"Voice-over","watch.voiceGroup.sub":"Subtitles","watch.voiceGroup.raw":"Original",
 });
 

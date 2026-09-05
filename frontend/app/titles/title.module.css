@@ -143,8 +143,22 @@
   transition: border-color 140ms ease, background 140ms ease;
 }
 
-.heroGenres a:hover { border-color: var(--primary) }
+.heroGenres a:hover { border-color: var(--primary); color: var(--primary-hover) }
 .heroGenres a:active { background: var(--surface-1) }
+
+/* Synopsis teaser: three lines fill the hero's right column and answer
+   "what is this about" before the fold; the full text lives in Overview. */
+.heroSynopsis {
+  display: -webkit-box;
+  overflow: hidden;
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
 
 /* ---------- Actions ---------- */
 
@@ -156,13 +170,19 @@
   min-width: 0;
 }
 
-/* Episode notifications sit right under the library actions instead of
-   floating between unrelated content blocks. */
+/* Library-adjacent personal actions (collections, notifications) live right
+   under the hero buttons instead of scattering down the page. */
 .heroSubscribe {
   display: grid;
   grid-area: subscribe;
+  gap: 12px;
   align-content: start;
+  min-width: 0;
 }
+
+.heroSubscribe > section,
+.heroSubscribe > div,
+.heroSubscribe > p { margin-top: 0 }
 
 .actionRow {
   display: flex;
@@ -868,6 +888,9 @@
   background: var(--surface-media);
 }
 
+/* Single-playback titles (movies) have no episode rail. */
+.watchStageFull { padding-right: 0 }
+
 .watchPlayer { min-width: 0 }
 
 .watchPlayer .playerShell,
@@ -893,7 +916,6 @@
 
 .episodeStep,
 .currentEpisodeButton,
-.voiceTrigger,
 .dialogHeader button {
   min-height: 44px;
   border: 1px solid var(--border-control);
@@ -913,8 +935,7 @@
 .episodeStep svg { width: 19px; height: 19px }
 .episodeStep[aria-disabled="true"] { color: var(--muted-2); opacity: .45 }
 
-.currentEpisodeButton,
-.voiceTrigger {
+.currentEpisodeButton {
   min-width: 0;
   padding: 7px 12px;
   cursor: pointer;
@@ -932,38 +953,21 @@
   text-align: left;
 }
 
-.currentEpisodeButton strong,
-.voiceTrigger strong {
+.currentEpisodeButton strong {
   overflow: hidden;
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.currentEpisodeButton span,
-.voiceTrigger small {
+.currentEpisodeButton span {
   color: var(--muted-2);
   font-size: 10px;
   font-weight: 700;
 }
 
-.voiceTrigger {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 9px;
-  text-align: left;
-}
-
-.voiceTrigger > svg:first-child { width: 20px; height: 20px; color: var(--accent-text) }
-.voiceTrigger > svg:last-child { width: 16px; height: 16px; color: var(--muted) }
-.voiceTrigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg) }
-.voiceTrigger > span { display: grid; gap: 2px; min-width: 0 }
-.voiceTrigger:disabled { color: var(--muted-2); cursor: not-allowed; opacity: .62 }
-
 .episodeStep[href]:hover,
 .currentEpisodeButton:hover:not(:disabled),
-.voiceTrigger:hover:not(:disabled),
 .dialogHeader button:hover {
   border-color: var(--primary);
   background: var(--surface-control-hover);
@@ -971,11 +975,8 @@
 
 .episodeStep:focus-visible,
 .currentEpisodeButton:focus-visible,
-.voiceTrigger:focus-visible,
-.railVoiceTrigger:focus-visible,
 .episodeRailList a:focus-visible,
 .dialogEpisodeList a:focus-visible,
-.inlineVoiceOptions button:focus-visible,
 .dialogHeader button:focus-visible,
 .episodeSearch input:focus-visible,
 .episodeRangeField select:focus-visible,
@@ -1003,13 +1004,6 @@
   background: var(--surface-card);
 }
 
-.episodeRailHeader {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-}
-
 .episodeRailTools {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -1028,42 +1022,6 @@
 }
 
 .dialogHeader span { color: var(--muted-2); font-size: 11px }
-
-.railVoiceTrigger {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 16px;
-  align-items: center;
-  gap: 9px;
-  min-height: 48px;
-  padding: 7px 10px;
-  border: 1px solid var(--border-control);
-  border-radius: 9px;
-  background: var(--surface-control);
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease;
-}
-
-.railVoiceTrigger:hover:not(:disabled) {
-  border-color: var(--primary);
-  background: var(--surface-control-hover);
-}
-
-.railVoiceTrigger:disabled { color: var(--muted-2); cursor: not-allowed; opacity: .62 }
-.railVoiceTrigger > svg:first-child { width: 19px; height: 19px; color: var(--accent-text) }
-.railVoiceTrigger > svg:last-child { width: 15px; height: 15px; color: var(--muted) }
-.railVoiceTrigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg) }
-.railVoiceTrigger > span { display: grid; gap: 2px; min-width: 0 }
-
-.railVoiceTrigger strong {
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.railVoiceTrigger small { color: var(--muted-2); font-size: 10px; font-weight: 700 }
 
 .episodeRailContent {
   position: relative;
@@ -1251,7 +1209,10 @@
 
 .episodeRowNumber { white-space: nowrap }
 
-.episodeRowName {
+/* List-wide `small` rules paint accent red; names must stay muted, so this
+   selector intentionally outranks them. */
+.episodeRailList small.episodeRowName,
+.dialogEpisodeList small.episodeRowName {
   overflow: hidden;
   color: var(--muted-2);
   font-size: 11px;
@@ -1300,8 +1261,11 @@
 
 .voiceChip,
 .voiceChipSelected {
+  display: inline-flex;
   max-width: 220px;
   overflow: hidden;
+  align-items: center;
+  gap: 7px;
   padding: 8px 13px;
   border: 1px solid var(--border-control);
   border-radius: 999px;
@@ -1313,6 +1277,15 @@
   white-space: nowrap;
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+/* The kind icon tells dubs, subtitles and raw audio apart in the chip row. */
+.voiceChip svg,
+.voiceChipSelected svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--accent-text);
 }
 
 .voiceChip:hover,
@@ -1393,63 +1366,9 @@
 .dialogPanel > .episodeRangeField { margin-inline: 14px }
 .dialogEpisodeList { gap: 2px; flex: 1; padding: 8px 14px 14px }
 
-.inlineVoicePanel {
-  display: grid;
-  gap: 7px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.inlineVoicePanel h4 {
-  margin: 0;
-  padding: 0 2px;
-  color: var(--muted-2);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-.inlineVoiceOptions { display: grid; gap: 4px }
-
-.inlineVoiceOptions button {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 8px;
-  min-height: 50px;
-  padding: 7px 9px;
-  border: 1px solid var(--border-control);
-  border-radius: 8px;
-  background: var(--surface-control);
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease;
-}
-
-.inlineVoiceOptions button:hover { border-color: var(--primary); background: var(--surface-control-hover) }
-.inlineVoiceOptions .voiceOptionSelected { border-color: var(--primary-border); background: var(--primary-soft) }
-
-.voiceOptionCopy { display: grid; gap: 3px; min-width: 0 }
-.voiceOptionCopy strong {
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.voiceOptionCopy small { color: var(--muted-2); font-size: 10px; overflow-wrap: anywhere }
-
-.voiceSelectedIcon {
-  width: 17px;
-  height: 17px;
-  color: var(--accent-text);
-}
-
-.mobileVoicePanel { display: none }
-
 @media (max-width: 860px) {
-  .watchStage { padding-right: 0 }
+  .watchStage,
+  .watchStageFull { padding-right: 0 }
 
   .episodeRail { display: none }
 
@@ -1461,32 +1380,6 @@
 
   .currentEpisodeButton { text-align: center }
   .currentEpisodeButton span { display: none }
-
-  .voiceTrigger {
-    grid-column: 1 / -1;
-    padding-inline: 13px;
-  }
-
-  .mobileVoicePanel {
-    display: block;
-    min-width: 0;
-    grid-column: 1 / -1;
-  }
-
-  .mobileVoicePanel .inlineVoicePanel {
-    padding: 2px 0 0;
-    border-top: 1px solid var(--border);
-    border-bottom: 0;
-  }
-
-  .mobileVoicePanel .inlineVoicePanel h4 { padding: 10px 2px 2px }
-
-  .mobileVoicePanel .inlineVoiceOptions {
-    max-height: min(52dvh, 420px);
-    overflow-y: auto;
-    scrollbar-color: var(--border) transparent;
-    scrollbar-width: thin;
-  }
 
   .watchDialog {
     inset: auto 0 0;
@@ -1510,9 +1403,6 @@
 @media (prefers-reduced-motion: reduce) {
   .episodeStep,
   .currentEpisodeButton,
-  .voiceTrigger,
-  .railVoiceTrigger,
   .episodeRailList a,
-  .dialogEpisodeList a,
-  .inlineVoiceOptions button { transition: none }
+  .dialogEpisodeList a { transition: none }
 }

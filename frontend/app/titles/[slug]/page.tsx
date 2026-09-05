@@ -359,7 +359,6 @@ export default async function CatalogDetailPage({
           playbackPresentation={playbackPresentation}
           navigationDegraded={!loadedNavigation}
           invalidEpisodeRequest={invalidEpisodeRequest}
-          catalogEpisodeCount={episodesCount}
           episode={{
             synopsis: watchEpisode.synopsis,
             sources: watchEpisode.sources ?? [],
@@ -432,14 +431,24 @@ export default async function CatalogDetailPage({
             </Link>
           )}
           <div className={styles.titleNames}>
-            {titleNameRows(item.localized_names, item.name, item.original_name).map((row, index) => (
-              <div className={index === 0 ? styles.titleNamePrimary : styles.titleNameSecondary} key={`${row.language}-${row.name}`}>
-                {row.showLanguageTag
-                  ? <span>{row.language.toUpperCase()}</span>
-                  : <span aria-hidden="true" />}
-                {index === 0 ? <h1 className={styles.heroTitle} lang={row.language}>{row.name}</h1> : <p className={styles.heroOriginal} lang={row.language}>{row.name}</p>}
-              </div>
-            ))}
+            {titleNameRows(item.localized_names, item.name, item.original_name).map((row, index) => index === 0
+              ? (
+                <div className={styles.titleNamePrimary} key={`${row.language}-${row.name}`}>
+                  <span>{row.language.toUpperCase()}</span>
+                  <h1 className={styles.heroTitle} lang={row.language}>{row.name}</h1>
+                </div>
+              )
+              // A secondary name without a trustworthy language tag (a Latin
+              // "ja" original) renders as a plain original-title line instead
+              // of a tagged row with an empty label.
+              : row.showLanguageTag
+                ? (
+                  <div className={styles.titleNameSecondary} key={`${row.language}-${row.name}`}>
+                    <span>{row.language.toUpperCase()}</span>
+                    <p className={styles.heroOriginal} lang={row.language}>{row.name}</p>
+                  </div>
+                )
+                : <p className={styles.heroOriginal} lang={row.language} key={`${row.language}-${row.name}`}>{row.name}</p>)}
           </div>
           <div className={styles.heroMeta}>
             {rating && (
@@ -470,14 +479,18 @@ export default async function CatalogDetailPage({
               ))}
             </div>
           )}
+          {/* A clamped synopsis teaser fills the hero and answers "what is
+              this about" before the fold; the full text stays in Overview. */}
+          {item.synopsis && <p className={styles.heroSynopsis}>{item.synopsis}</p>}
         </div>
         <TitleActions
           slug={item.slug}
           watchHref={watchActionHref}
         />
-        {/* The subscription lives next to the library actions instead of
-            floating between characters and collections. */}
+        {/* Library-adjacent personal actions live together under the hero
+            buttons instead of scattering down the page. */}
         <div className={styles.heroSubscribe}>
+          <TitleCollectionControl titleSlug={item.slug} />
           <NotificationSubscription slug={item.slug} />
         </div>
       </article>
@@ -519,20 +532,19 @@ export default async function CatalogDetailPage({
               )}
             </section>
           )}
-          {/* The description stays above the people blocks: a viewer must
-              understand what the title is about before who made it. A missing
-              synopsis is stated honestly instead of hiding the section. */}
-          <section className={`${styles.block} ${styles.descriptionCard}`}>
-            <h2>{t("title.description")}</h2>
-            {item.synopsis
-              ? <p>{item.synopsis}</p>
-              : <p className="muted">{t("title.descriptionMissing")}</p>}
-          </section>
+          {/* The description is the page's core content, so it sits above the
+              people blocks. Without a synopsis there is nothing honest to
+              render — the missing text is a data gap, not a UI state. */}
+          {item.synopsis && (
+            <section className={`${styles.block} ${styles.descriptionCard}`}>
+              <h2>{t("title.description")}</h2>
+              <p>{item.synopsis}</p>
+            </section>
+          )}
           {mainCredits.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
                 <h2>{t("title.authorsMain")}</h2>
-                {credits.length > mainCredits.length && <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.peopleAll")}</Link>}
               </div>
               <div className={styles.creditGrid}>
                 {mainCredits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} />)}
@@ -580,7 +592,6 @@ export default async function CatalogDetailPage({
               <RailScroller railClassName={styles.relatedRail}>{similarUnique.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</RailScroller>
             </section>
           )}
-          <TitleCollectionControl titleSlug={item.slug} />
         </div>
       )}
 
