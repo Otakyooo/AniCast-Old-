@@ -1265,6 +1265,102 @@
   font-weight: 800;
 }
 
+/* ---------- Enriched rail rows: number + name, date + watched mark ---------- */
+
+.episodeRowMain {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 1px;
+  min-width: 0;
+}
+
+.episodeRowNumber { white-space: nowrap }
+
+.episodeRowName {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.episodeRowAside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.episodeAirDate {
+  color: var(--muted-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.episodeWatched {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.episodeWatched svg { width: 11px; height: 11px }
+
+/* Watched marks and dates would crowd the narrow mobile dialog rows. */
+@media (max-width: 480px) {
+  .episodeAirDate { display: none }
+}
+
+/* ---------- Voice chips: one-click switching under the player ---------- */
+
+.voiceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.voiceChip,
+.voiceChipSelected {
+  max-width: 220px;
+  overflow: hidden;
+  padding: 8px 13px;
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  background: var(--surface-control);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.voiceChip:hover,
+.voiceChipSelected {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.voiceChipSelected {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+.voiceChip:active,
+.voiceChipSelected:active { background: var(--surface-control-hover) }
+
+.voiceChip:focus-visible,
+.voiceChipSelected:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .episodeSearchEmpty {
   margin: 0;
   padding: 20px;

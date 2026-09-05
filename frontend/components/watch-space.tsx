@@ -15,8 +15,9 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { PlaybackLink } from "./playback-link";
 import { ProviderPlayer, type PlaybackProgressSnapshot } from "./provider-player";
 import { SourceReportControl } from "./source-report-control";
-import type { Source, WatchSourceGroup } from "../lib/api";
-import type { Locale } from "../i18n/config";
+import { getEpisodeRange, type Source, type WatchSourceGroup } from "../lib/api";
+import { getTitleWatchedMarks } from "../lib/history";
+import { intlLocale, type Locale } from "../i18n/config";
 import type { PlaybackPresentation } from "../lib/title-template";
 import { episodeCountLabel } from "../lib/episode-count";
 import { summarizeEpisodeCoverage } from "../lib/episode-coverage";
@@ -46,6 +47,17 @@ type Translator = (key: string, values?: Record<string, string | number>) => str
 function cleanSourceName(name: string, providerName = "") {
   const prefix = providerName ? `${providerName} · ` : "";
   return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
+}
+
+/** Display metadata of one rail row; absent until the range slice loads. */
+interface EpisodeRailMeta {
+  name: string | null;
+  airDate: string | null;
+}
+
+/** Noon-UTC anchor so a plain YYYY-MM-DD renders the same day in every zone. */
+function isoDay(value: string): Date {
+  return new Date(`${value}T12:00:00Z`);
 }
 
 function compactCoverage(numbers: number[], t: Translator, known: boolean) {
@@ -188,6 +200,8 @@ export function WatchSpace({
   const [voiceOptionsOpen, setVoiceOptionsOpen] = useState(false);
   const [episodeDialogMounted, setEpisodeDialogMounted] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState<PlaybackProgressSnapshot | null>(null);
+  const [episodeMeta, setEpisodeMeta] = useState<Map<number, EpisodeRailMeta>>(new Map());
+  const [watchedNumbers, setWatchedNumbers] = useState<Set<number> | null>(null);
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileVoiceTriggerRef = useRef<HTMLButtonElement>(null);
@@ -263,6 +277,67 @@ export function WatchSpace({
   useEffect(() => {
     setSelectedRangeIndex(currentRangeIndex);
   }, [currentRangeIndex, selectedGroupKey]);
+
+  // Watched marks come from the viewer's own history; guests and API failures
+  // keep `null`, which renders the rail without marks instead of guessing.
+  useEffect(() => {
+    const controller = new AbortController();
+    setWatchedNumbers(null);
+    getTitleWatchedMarks(slug, controller.signal)
+      .then((marks) => {
+        if (marks) setWatchedNumbers(new Set(marks.watched_episode_numbers));
+      })
+      .catch((reason) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [slug]);
+
+  // The player itself confirms the current episode, so its mark appears the
+  // moment playback reports completion instead of waiting for a refetch.
+  useEffect(() => {
+    if (!playbackProgress?.isWatched) return;
+    setWatchedNumbers((current) => {
+      if (!current || current.has(currentNumber)) return current;
+      const next = new Set(current);
+      next.add(currentNumber);
+      return next;
+    });
+  }, [playbackProgress?.isWatched, currentNumber]);
+
+  // Lazily enrich the visible range with names and air dates. Search results
+  // stay number-only: a numeric query matches scattered numbers whose span
+  // can exceed the backend window, and the number is the searched fact.
+  // Fetches are deliberately not aborted: the merge is idempotent and keyed
+  // by episode number, so a completed late fetch still enriches the rail,
+  // while the shared 10s request timeout bounds any stall.
+  const loadedRangesRef = useRef(new Set<string>());
+  const activeRange = !episodeQuery ? episodeRanges[selectedRangeIndex] : null;
+  useEffect(() => {
+    if (!activeRange) return;
+    const rangeKey = `${slug}:${activeRange.first}-${activeRange.last}`;
+    if (loadedRangesRef.current.has(rangeKey)) return;
+    loadedRangesRef.current.add(rangeKey);
+    getEpisodeRange(slug, activeRange.first, activeRange.last)
+      .then((rows) => {
+        setEpisodeMeta((current) => {
+          const next = new Map(current);
+          for (const row of rows) {
+            next.set(row.number, { name: row.name || null, airDate: row.air_date ?? null });
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        // A failed slice stays retryable the next time the range is shown.
+        loadedRangesRef.current.delete(rangeKey);
+      });
+  }, [slug, activeRange]);
+
+  const shortDayFormatter = useMemo(
+    () => new Intl.DateTimeFormat(intlLocale[locale], { day: "numeric", month: "short", timeZone: "UTC" }),
+    [locale],
+  );
 
   useEffect(() => {
     if (!invalidEpisodeRequest && !invalidVoiceRequest && !requestedGroup?.legacy) return;
@@ -388,16 +463,37 @@ export function WatchSpace({
 
   const episodeList = (closeDialog = false) => visibleEpisodeNumbers.map((number) => {
     const current = number === currentNumber;
+    const meta = episodeMeta.get(number);
+    const watched = watchedNumbers?.has(number) ?? false;
+    const airDay = meta?.airDate && !Number.isNaN(Date.parse(`${meta.airDate}T12:00:00Z`))
+      ? shortDayFormatter.format(isoDay(meta.airDate))
+      : null;
     return (
       <li key={number}>
         <Link
           ref={closeDialog ? undefined : current ? currentEpisodeRef : undefined}
           href={titleWatchHref(slug, number, selectedGroupKey)}
           aria-current={current ? "page" : undefined}
+          aria-label={[
+            t("episode.number", { number }),
+            meta?.name ?? "",
+            watched ? t("watch.watchedMark") : "",
+          ].filter(Boolean).join(" · ")}
           onClick={() => { if (closeDialog) episodeDialogRef.current?.close(); }}
         >
-          <span>{t("episode.number", { number })}</span>
-          {current && <small>{t("watch.currentEpisode")}</small>}
+          <span className={styles.episodeRowMain}>
+            <span className={styles.episodeRowNumber}>{t("episode.number", { number })}</span>
+            {meta?.name && <small className={styles.episodeRowName}>{meta.name}</small>}
+          </span>
+          <span className={styles.episodeRowAside}>
+            {current && <small>{t("watch.currentEpisode")}</small>}
+            {airDay && <time className={styles.episodeAirDate} dateTime={meta?.airDate ?? undefined}>{airDay}</time>}
+            {watched && (
+              <span className={styles.episodeWatched} title={t("watch.watchedMark")}>
+                <Check aria-hidden="true" weight="bold" />
+              </span>
+            )}
+          </span>
         </Link>
       </li>
     );
@@ -702,6 +798,29 @@ export function WatchSpace({
         </dialog>}
 
       </div>
+
+      {/* One-click voice switching: the chips sit directly under the player,
+          while the panel in the rail keeps the detailed coverage breakdown. */}
+      {groups.length > 0 && (
+        <div className={styles.voiceChips} role="group" aria-label={t("watch.voiceOptionsTitle")}>
+          {groups.map((group) => {
+            const selected = group.key === selectedGroupKey;
+            const name = cleanSourceName(group.name, group.provider_name);
+            return (
+              <button
+                key={group.key}
+                type="button"
+                className={selected ? styles.voiceChipSelected : styles.voiceChip}
+                aria-pressed={selected}
+                title={name}
+                onClick={() => chooseGroup(group.key)}
+              >
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className={styles.watchUtilityBar} aria-label={t(singlePlayback ? "watch.titleActions" : "watch.episodeActions")}>
         {chosen?.playback_mode === "iframe_embed" && playbackProgress && (

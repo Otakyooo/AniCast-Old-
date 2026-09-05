@@ -263,6 +263,43 @@ def test_history_entry_delete_removes_only_the_caller_progress_of_one_title(user
 
 
 @pytest.mark.django_db
+def test_history_entry_get_returns_watched_marks_of_one_title(users, titles):
+    """The player rail reads compact watched marks per title.
+
+    Marks of other titles and other viewers must not leak into the response,
+    and an unknown slug answers 404 like the other per-title endpoints.
+    """
+    first_title_episodes = [
+        Episode.objects.create(title=titles[0], number=number) for number in (1, 2, 3)
+    ]
+    other_title_episode = Episode.objects.create(title=titles[1], number=1)
+    EpisodeProgress.objects.create(
+        user=users[0], episode=first_title_episodes[0], is_watched=True,
+        watched_at=timezone.now(), last_opened_at=timezone.now(),
+    )
+    EpisodeProgress.objects.create(
+        user=users[0], episode=first_title_episodes[2], is_watched=True,
+        watched_at=timezone.now(), last_opened_at=timezone.now(),
+    )
+    # Same viewer, other title: opened but not watched — must not appear.
+    EpisodeProgress.objects.create(user=users[0], episode=other_title_episode, last_opened_at=timezone.now())
+    # Other viewer, same title: must not leak.
+    EpisodeProgress.objects.create(
+        user=users[1], episode=first_title_episodes[1], is_watched=True,
+        watched_at=timezone.now(), last_opened_at=timezone.now(),
+    )
+
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/history/first/")
+    assert response.status_code == 200
+    assert response.json() == {"watched_episode_numbers": [1, 3]}
+
+    assert client.get("/api/v1/history/missing/").status_code == 404
+    assert APIClient().get("/api/v1/history/first/").status_code in {401, 403}
+
+
+@pytest.mark.django_db
 def test_continue_watching_requires_auth_and_is_empty_without_progress(users, titles):
     Episode.objects.create(title=titles[0], number=1)
     assert APIClient().get("/api/v1/continue-watching/").status_code in {401, 403}

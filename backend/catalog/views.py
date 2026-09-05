@@ -174,18 +174,50 @@ class TitleDetailView(PublicCacheMixin, RetrieveAPIView):
     queryset = annotate_rating_aggregates(
         Title.objects.annotate(episodes_count=Count("episodes", distinct=True)).select_related(
             "franchise"
+        ).prefetch_related(
+            "translations", "franchise__translations", "genres", "genres__translations",
+            Prefetch("credits", queryset=TitleCredit.objects.select_related("creator")),
+            Prefetch(
+                "franchise__titles",
+                queryset=Title.objects.prefetch_related("translations"),
+                to_attr="related_titles_prefetched",
+            ),
         )
-    ).prefetch_related(
-        "translations", "franchise__translations", "genres", "genres__translations",
-        Prefetch("credits", queryset=TitleCredit.objects.select_related("creator")),
-        Prefetch(
-            "franchise__titles",
-            queryset=Title.objects.prefetch_related("translations"),
-            to_attr="related_titles_prefetched",
-        ),
     )
     serializer_class = TitleDetailSerializer
     lookup_field = "slug"
+    # Hard ceiling for the `episodes_from`/`episodes_to` window: one screen of
+    # the player episode rail never needs more, and a shared-cache edge must
+    # not store arbitrary full-series slices under unique query keys.
+    EPISODE_RANGE_WINDOW_LIMIT = 500
+
+    def parse_episode_number_range(self, request):
+        """Optional inclusive episode-number window for the episodes list.
+
+        Returns None when neither parameter is supplied. Explicitly wrong
+        input (non-integer, reversed, non-positive, oversized window) raises
+        ValidationError instead of being silently ignored: a caller slicing by
+        number must learn its request is malformed, not receive page one.
+        """
+        raw_from = request.query_params.get("episodes_from")
+        raw_to = request.query_params.get("episodes_to")
+        if raw_from is None and raw_to is None:
+            return None
+        try:
+            number_from = int(raw_from) if raw_from is not None else 1
+            # An omitted upper bound still cannot widen the window beyond the
+            # ceiling, otherwise "episodes_from=1" alone would request the
+            # whole series.
+            number_to = int(raw_to) if raw_to is not None else number_from + self.EPISODE_RANGE_WINDOW_LIMIT - 1
+        except (TypeError, ValueError):
+            raise ValidationError("episodes_from/episodes_to must be integers.")
+        if number_from < 1 or number_to < number_from:
+            raise ValidationError("episodes_from/episodes_to must satisfy 1 <= from <= to.")
+        if number_to - number_from + 1 > self.EPISODE_RANGE_WINDOW_LIMIT:
+            raise ValidationError(
+                f"The episode number window may span at most {self.EPISODE_RANGE_WINDOW_LIMIT} episodes."
+            )
+        return number_from, number_to
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -197,6 +229,7 @@ class TitleDetailView(PublicCacheMixin, RetrieveAPIView):
         context["episodes_paginator"] = EpisodePagination()
         context["characters_paginator"] = CharacterPagination()
         context["include_episode_sources"] = self.request.query_params.get("episode_sources") != "0"
+        context["episode_number_range"] = self.parse_episode_number_range(self.request)
         return context
 
 

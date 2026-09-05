@@ -223,14 +223,33 @@ class HistoryListView(ListAPIView):
 
 
 class HistoryEntryView(APIView):
-    """Removes every history mark of one title for the signed-in viewer.
+    """Per-title history resource of the signed-in viewer.
 
-    The home resume shelf and the history page offer "remove from history" per
-    title, not per episode: partial deletion would immediately re-derive the
-    shelf from the remaining rows and look like a no-op.
+    DELETE removes every history mark of one title: the home resume shelf and
+    the history page offer "remove from history" per title, not per episode,
+    because partial deletion would immediately re-derive the shelf from the
+    remaining rows and look like a no-op.
+
+    GET returns the compact per-episode marks the player episode rail needs:
+    which episode numbers the viewer has already watched. The response stays
+    small (a list of integers) even for a thousand-episode series, unlike the
+    paginated history list whose rows carry full title payloads.
     """
 
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, slug):
+        get_object_or_404(Title, slug=slug)
+        watched_numbers = list(
+            EpisodeProgress.objects.filter(
+                user=request.user,
+                episode__title__slug=slug,
+                is_watched=True,
+            )
+            .order_by("episode__number")
+            .values_list("episode__number", flat=True)
+        )
+        return Response({"watched_episode_numbers": watched_numbers})
 
     def delete(self, request, slug):
         deleted, _ = EpisodeProgress.objects.filter(

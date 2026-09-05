@@ -57,6 +57,27 @@ export async function getHistory(pageSize = 20, signal?: AbortSignal) {
   }));
 }
 
+export interface TitleWatchedMarks {
+  watched_episode_numbers: number[];
+}
+
+/** Compact watched marks of one title for the player episode rail.
+ *
+ * Returns null for guests (401/403) so the rail simply hides its marks
+ * instead of showing an error; other failures throw like the rest of the
+ * history client.
+ */
+export async function getTitleWatchedMarks(slug: string, signal?: AbortSignal): Promise<TitleWatchedMarks | null> {
+  const response = await fetch(`/api/v1/history/${encodeURIComponent(slug)}/`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    signal,
+  });
+  if (response.status === 401 || response.status === 403) return null;
+  if (!response.ok) throw new HistoryApiError(response.status);
+  return response.json() as Promise<TitleWatchedMarks>;
+}
+
 async function mutateProgress(slug: string, number: number, init: RequestInit) {
   const csrf = await getProgressCsrfToken();
   return parse<EpisodeProgress>(await fetch(`/api/v1/episodes/${encodeURIComponent(slug)}/${number}/progress/`, {

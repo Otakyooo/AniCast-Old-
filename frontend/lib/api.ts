@@ -335,6 +335,42 @@ export async function getEpisode(slug: string, number: number): Promise<EpisodeD
   return request<EpisodeDetail>(`/titles/${encodeURIComponent(slug)}/episodes/${number}/`, { cache: "no-store" });
 }
 
+/** Server- and client-callable episode metadata for a number window.
+ *
+ * The player rail lazily enriches its number-only rows (names, air dates)
+ * with this slice; the window is bounded by the backend, so a long series
+ * never serializes whole. Returns an empty array when the slice is empty.
+ */
+export async function getEpisodeRange(
+  slug: string,
+  from: number,
+  to: number,
+  signal?: AbortSignal,
+): Promise<Episode[]> {
+  const query = new URLSearchParams({
+    episodes_from: String(from),
+    episodes_to: String(to),
+    episodes_page_size: "50",
+    episode_sources: "0",
+    characters_page: "1",
+    characters_page_size: "1",
+  });
+  const path = `/titles/${encodeURIComponent(slug)}/?${query}`;
+  const collected: Episode[] = [];
+  for (let page = 1; page <= 20; page += 1) {
+    const suffix = page === 1 ? "" : `&episodes_page=${page}`;
+    const item = await request<CatalogItem>(`${path}${suffix}`, { cache: "no-store", signal });
+    const rows = item.episodes ?? [];
+    collected.push(...rows);
+    // Numbering gaps mean the window can hold fewer rows than its span, so
+    // the stop condition is the page content itself: a short page is the
+    // queryset end (paging further would 404), and the last row reaching
+    // `to` means the window is covered.
+    if (rows.length < 50 || rows[rows.length - 1].number >= to) break;
+  }
+  return collected;
+}
+
 export async function getWatchNavigation(slug: string): Promise<WatchNavigation> {
   return request<WatchNavigation>(`/titles/${encodeURIComponent(slug)}/watch-navigation/`, revalidated(60));
 }

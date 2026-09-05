@@ -143,6 +143,42 @@ def test_title_detail_compact_episode_rows_omit_playback_sources(catalog_data):
 
 
 @pytest.mark.django_db
+def test_title_detail_filters_episodes_by_number_range(catalog_data):
+    """The player episode rail slices metadata by episode number, not row.
+
+    The window is applied before row pagination and must not distort
+    episodes_count, which still reports the full title total.
+    """
+    Episode.objects.bulk_create(
+        [Episode(title=catalog_data, number=number, name=f"Episode {number}") for number in range(2, 11)]
+    )
+    client = APIClient()
+    body = client.get(
+        "/api/v1/titles/sky-test/?episodes_from=3&episodes_to=6&episode_sources=0"
+    ).json()
+    assert [episode["number"] for episode in body["episodes"]] == [3, 4, 5, 6]
+    assert [episode["name"] for episode in body["episodes"]] == ["Episode 3", "Episode 4", "Episode 5", "Episode 6"]
+    assert body["episodes_count"] == 10
+
+    # Row pagination still pages inside the window.
+    paged = client.get(
+        "/api/v1/titles/sky-test/?episodes_from=3&episodes_to=6&episodes_page_size=2&episodes_page=2&episode_sources=0"
+    ).json()
+    assert [episode["number"] for episode in paged["episodes"]] == [5, 6]
+
+    # An omitted upper bound defaults to the ceiling-sized window, and the
+    # ceiling itself is enforced for explicit requests.
+    assert client.get(
+        "/api/v1/titles/sky-test/?episodes_from=8&episode_sources=0"
+    ).json()["episodes"][0]["number"] == 8
+    assert client.get("/api/v1/titles/sky-test/?episodes_from=1&episodes_to=501").status_code == 400
+    # Malformed windows are rejected instead of silently returning page one.
+    assert client.get("/api/v1/titles/sky-test/?episodes_from=5&episodes_to=4").status_code == 400
+    assert client.get("/api/v1/titles/sky-test/?episodes_from=zero").status_code == 400
+    assert client.get("/api/v1/titles/sky-test/?episodes_from=0&episodes_to=3").status_code == 400
+
+
+@pytest.mark.django_db
 def test_title_episode_detail_returns_single_episode(catalog_data):
     client = APIClient()
     response = client.get("/api/v1/titles/sky-test/episodes/1/")
