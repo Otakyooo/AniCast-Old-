@@ -22,7 +22,6 @@ import type { PlaybackPresentation } from "../lib/title-template";
 import { episodeCountLabel } from "../lib/episode-count";
 import { summarizeEpisodeCoverage } from "../lib/episode-coverage";
 import { titleWatchHref } from "../lib/seo";
-import { formatPlaybackTime } from "../lib/playback";
 import {
   filterEpisodeNumbers,
   episodeNumberRanges,
@@ -103,9 +102,6 @@ function coverageCopy(group: ResolvedWatchSourceGroup, t: Translator, locale: Lo
 
 function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapshot }) {
   const { t } = useI18n();
-  const hasDuration = progress.durationSeconds !== null && progress.durationSeconds > 0;
-  const position = formatPlaybackTime(progress.watchedSeconds);
-  const duration = hasDuration ? formatPlaybackTime(progress.durationSeconds ?? 0) : "";
   const title = progress.phase === "guest"
     ? t("watch.progressGuest")
     : progress.phase === "error"
@@ -118,25 +114,16 @@ function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapsh
             ? t("watch.progressLoading")
             : t("watch.progressAutomatic");
 
+  // This line reports only whether progress is being saved. The player's own
+  // timeline is the single position display: a second time readout here
+  // contradicted it whenever the provider resumed on its own, and a second
+  // bar restated the same fact as a third strip on screen.
   return (
     <div className={styles.watchProgress} aria-busy={progress.phase === "loading" || progress.phase === "saving"}>
       <div className={styles.watchProgressCopy}>
         <strong>{title}</strong>
-        {progress.phase === "guest" ? (
-          <Link href="/login">{t("common.login")}</Link>
-        ) : hasDuration ? (
-          <span>{t("watch.progressTime", { watched: position, duration })}</span>
-        ) : progress.watchedSeconds > 0 ? (
-          <span>{t("watch.progressPosition", { watched: position })}</span>
-        ) : null}
+        {progress.phase === "guest" && <Link href="/login">{t("common.login")}</Link>}
       </div>
-      {hasDuration && progress.phase !== "guest" && (
-        <progress
-          value={Math.min(progress.watchedSeconds, progress.durationSeconds ?? 0)}
-          max={progress.durationSeconds ?? 1}
-          aria-label={t("watch.progressLabel", { percent: progress.progressPercent })}
-        />
-      )}
     </div>
   );
 }
