@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { I18nProvider } from "../components/i18n-provider";
 import { SITE_URL } from "../lib/site";
 import { getI18n } from "../i18n/server";
@@ -28,7 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       siteName: "Anicast",
       url: SITE_URL,
-      images: [{ url: "/og.png", width: 1200, height: 630, alt: "Anicast" }],
+      images: [{ url: "/og-v02.png", width: 1200, height: 630, alt: "Anicast" }],
     },
     twitter: { card: "summary_large_image" },
   };
@@ -36,5 +37,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { locale, dictionary } = await getI18n();
-  return <html lang={locale} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head><body><I18nProvider locale={locale} dictionary={dictionary}>{children}</I18nProvider></body></html>;
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  return <html lang={locale} suppressHydrationWarning><head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head><body><I18nProvider locale={locale} dictionary={dictionary}>{children}</I18nProvider></body></html>;
 }

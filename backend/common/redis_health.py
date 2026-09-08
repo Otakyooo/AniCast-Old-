@@ -11,6 +11,7 @@ def redis_samples():
     urls = {
         "control": settings.CACHES["default"]["LOCATION"],
         "ephemeral": settings.CACHES["ephemeral"]["LOCATION"],
+        "broker": settings.CELERY_BROKER_URL,
     }
     up, used, limit, evictions = [], [], [], []
     for role, url in urls.items():

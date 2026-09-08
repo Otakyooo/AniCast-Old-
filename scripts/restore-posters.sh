@@ -13,7 +13,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 backup_dir=${BACKUP_DIR:-$root/backups/posters}
 volume=${POSTER_VOLUME:-mainserver_poster_media}
-helper_image=${HELPER_IMAGE:-alpine:3.20}
+helper_image=${HELPER_IMAGE:-alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc}
 compose_dir=$root/infra/mainserver
 backend_container=${BACKEND_CONTAINER:-mainserver-backend-1}
 

@@ -19,7 +19,7 @@ def query(expression):
 backend = query('up{job="anicast-backend"}')
 assert backend and all(float(x["value"][1]) == 1 for x in backend), "backend scrape unavailable"
 roles = query('anicast_redis_up{job="anicast-backend"}')
-assert {x["metric"]["role"] for x in roles} == {"control", "ephemeral"}, "Redis signals missing"
+assert {x["metric"]["role"] for x in roles} == {"control", "ephemeral", "broker"}, "Redis signals missing"
 assert all(float(x["value"][1]) == 1 for x in roles), "Redis role unavailable"
-print("Monitoring verified: secret files readable, backend scraped, both Redis roles up")
+print("Monitoring verified: secret files readable, backend scraped, all three Redis roles up")
 PY

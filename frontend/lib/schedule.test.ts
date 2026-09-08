@@ -98,8 +98,8 @@ test("grouping orders confirmed moments ahead of day-only entries", () => {
   const grouped = groupByDay(
     [
       scheduleItem({ id: 11, number: 3, air_date: TODAY, title: { name: "B", slug: "b" } }),
-      scheduleItem({ id: 12, number: 1, air_date: TODAY, air_at: "2026-08-23T21:00:00Z" }),
-      scheduleItem({ id: 13, number: 2, air_date: TODAY, air_at: "2026-08-23T09:00:00Z" }),
+      scheduleItem({ id: 12, number: 1, air_date: TODAY, air_at: new Date(`${TODAY}T21:00:00`).toISOString() }),
+      scheduleItem({ id: 13, number: 2, air_date: TODAY, air_at: new Date(`${TODAY}T09:00:00`).toISOString() }),
     ],
     true,
   );

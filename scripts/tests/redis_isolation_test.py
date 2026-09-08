@@ -14,6 +14,7 @@ def test_url(host, database):
 
 
 control_url = test_url(os.environ["TEST_CONTROL_HOST"], 0)
+broker_url = test_url(os.environ["TEST_BROKER_HOST"], 0)
 cache_url = test_url(os.environ["TEST_CACHE_HOST"], 0)
 options = {"socket_connect_timeout": 0.3, "socket_timeout": 0.3, "retry": Retry(NoBackoff(), 0)}
 control = Redis.from_url(control_url, **options)
@@ -26,7 +27,7 @@ if sys.argv[1] == "fill":
     state.set("throttle", "budget-spent", ex=120)
     state.set("lock", "held", ex=120, nx=True)
     # Publish first, then force eviction in the other server.
-    with Connection(control_url) as connection:
+    with Connection(broker_url) as connection:
         queue = connection.SimpleQueue("isolation-probe")
         queue.put({"probe": "before-fill"})
         for index in range(512):
@@ -46,7 +47,7 @@ elif sys.argv[1] == "outage":
         pass
     else:
         raise AssertionError("cache must be stopped for outage test")
-    with Connection(control_url) as connection:
+    with Connection(broker_url) as connection:
         queue = connection.SimpleQueue("isolation-probe")
         queue.put({"probe": "cache-down"})
         message = queue.get(block=True, timeout=3)
@@ -56,5 +57,31 @@ elif sys.argv[1] == "outage":
     assert state.get("throttle") == b"budget-spent"
     assert state.get("lock") == b"held"
     print("PASS: cache outage preserves publish/consume and coordination state")
+elif sys.argv[1] in ("control-full", "control-down"):
+    if sys.argv[1] == "control-full":
+        from redis.exceptions import OutOfMemoryError
+
+        for index in range(512):
+            try:
+                control.set(f"coordination:{index}", b"x" * 32768)
+            except OutOfMemoryError:
+                break
+        else:
+            raise AssertionError("coordination must reach its noeviction memory limit")
+    else:
+        try:
+            control.ping()
+        except Exception:
+            pass
+        else:
+            raise AssertionError("coordination must be stopped")
+    with Connection(broker_url) as connection:
+        queue = connection.SimpleQueue("isolation-probe")
+        queue.put({"probe": sys.argv[1]})
+        message = queue.get(block=True, timeout=3)
+        assert message.payload == {"probe": sys.argv[1]}
+        message.ack()
+        queue.close()
+    print("PASS: broker publish/consume survives " + sys.argv[1])
 else:
     raise AssertionError("unknown test phase")

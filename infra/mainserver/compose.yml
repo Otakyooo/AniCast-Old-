@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     mem_limit: 768m
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
@@ -17,7 +17,7 @@ services:
       options: {max-size: "10m", max-file: "5"}
     networks: [internal]
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
     restart: unless-stopped
     mem_limit: 256m
     # Redis holds the Celery broker, so anything that can reach it can execute
@@ -37,16 +37,32 @@ services:
       start_period: 10s
     logging: *container-logging
     networks: [internal]
-  # Disposable cache only. Throttles/locks stay on the persistent noeviction
-  # Redis above, so cache pressure cannot evict security or coordination state.
+  # Disposable cache only. Throttles/locks use redis-control below.
   redis-cache:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
     restart: unless-stopped
     mem_limit: 96m
     command: ["sh", "-c", "exec redis-server --save '' --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass \"$${CACHE_REDIS_PASSWORD:?cache password missing}\""]
     env_file: ${ANICAST_ENV_FILE:-.env}
     healthcheck:
       test: ["CMD-SHELL", "REDISCLI_AUTH=$$CACHE_REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *container-logging
+    networks: [internal]
+  # Persistent coordination state is independent from both broker and cache.
+  redis-control:
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    restart: unless-stopped
+    mem_limit: 96m
+    command: ["sh", "-c", "exec redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy noeviction --requirepass \"$${CONTROL_REDIS_PASSWORD:?control password missing}\""]
+    env_file: ${ANICAST_ENV_FILE:-.env}
+    volumes:
+      - control_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$CONTROL_REDIS_PASSWORD redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,6 +78,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      redis-control: {condition: service_healthy}
     ports:
       - "10.78.0.2:8000:8000"
     volumes:
@@ -127,4 +144,5 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  control_data:
   poster_media:

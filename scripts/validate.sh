@@ -23,11 +23,11 @@ docker run --rm \
     -v "$root/infra/monitoring/prometheus.yml":/etc/prometheus/prometheus.yml:ro \
     -v "$root/infra/monitoring/rules":/etc/prometheus/rules:ro \
     -v "$secrets_tmp/metrics-token":/etc/prometheus/secrets/metrics-token:ro \
-    --entrypoint promtool prom/prometheus:v3.14.0 check config /etc/prometheus/prometheus.yml
+    --entrypoint promtool prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0 check config /etc/prometheus/prometheus.yml
 docker run --rm \
     -v "$root/infra/monitoring/alertmanager.yml":/etc/alertmanager/alertmanager.yml:ro \
     -v "$secrets_tmp/telegram-token":/etc/alertmanager/secrets/telegram-token:ro \
     -v "$secrets_tmp/telegram-chat-id":/etc/alertmanager/secrets/telegram-chat-id:ro \
-    --entrypoint amtool prom/alertmanager:v0.34.0 check-config /etc/alertmanager/alertmanager.yml
+    --entrypoint amtool prom/alertmanager:v0.34.0@sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d check-config /etc/alertmanager/alertmanager.yml
 
 "$root/scripts/tests/deploy_rollback_test.sh"

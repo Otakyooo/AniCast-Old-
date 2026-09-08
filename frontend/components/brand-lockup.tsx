@@ -6,7 +6,7 @@ export function BrandLockup({ className = "", priority = false }: { className?: 
     <Link className={`brand-lockup ${className}`.trim()} href="/" aria-label="Anicast">
       <Image
         className="brand-logo"
-        src="/brand-mark-v01.png"
+        src="/brand-mark-v02.svg"
         alt=""
         width={40}
         height={40}

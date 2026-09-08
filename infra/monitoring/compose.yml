@@ -1,6 +1,6 @@
 services:
   prometheus:
-    image: prom/prometheus:v3.14.0
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     restart: unless-stopped
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -26,7 +26,7 @@ services:
       options: {max-size: "10m", max-file: "5"}
     networks: [monitoring]
   alertmanager:
-    image: prom/alertmanager:v0.34.0
+    image: prom/alertmanager:v0.34.0@sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d
     restart: unless-stopped
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
@@ -44,7 +44,7 @@ services:
     logging: *container-logging
     networks: [monitoring]
   metrics-proxy:
-    image: nginx:1.29-alpine
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     restart: unless-stopped
     volumes:
       - ./nginx/metrics-proxy.conf:/etc/nginx/conf.d/default.conf:ro
@@ -56,7 +56,7 @@ services:
     # tier for the sake of one HTTP endpoint.
     networks: [monitoring, backend]
   blackbox-exporter:
-    image: prom/blackbox-exporter:v0.28.0
+    image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
     restart: unless-stopped
     volumes:
       - ./blackbox.yml:/etc/blackbox_exporter/config.yml:ro
@@ -66,7 +66,7 @@ services:
     logging: *container-logging
     networks: [monitoring]
   node-exporter:
-    image: prom/node-exporter:v1.12.1
+    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
     restart: unless-stopped
     command:
       - --path.rootfs=/host/root

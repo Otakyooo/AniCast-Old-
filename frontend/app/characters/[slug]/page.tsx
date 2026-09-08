@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ApiUnavailableState } from "../../../components/api-unavailable";
@@ -61,7 +62,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ slug
         { name: character.name, href: `/characters/${character.slug}` },
       ]}
     />
-    <script
+    <script nonce={(await headers()).get("x-nonce") ?? undefined}
       type="application/ld+json"
       dangerouslySetInnerHTML={{
         __html: jsonLdScript({

@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
@@ -97,7 +98,7 @@ export async function generateMetadata({
 }
 
 /** schema.org TVSeries payload for rich search results. */
-function TitleJsonLd({ item }: { item: CatalogItem }) {
+async function TitleJsonLd({ item }: { item: CatalogItem }) {
   const template = titleTemplateState(item.title_type, item.episodes_count);
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -126,7 +127,7 @@ function TitleJsonLd({ item }: { item: CatalogItem }) {
       worstRating: 1,
     };
   }
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(data) }} />;
+  return <script nonce={(await headers()).get("x-nonce") ?? undefined} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(data) }} />;
 }
 
 function isTab(value: string | undefined): value is Tab {

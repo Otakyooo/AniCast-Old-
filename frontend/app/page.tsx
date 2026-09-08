@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
@@ -131,7 +132,7 @@ export default async function HomePage() {
     : dedupeShelf(leadShelfItems, newest.results);
 
   return <PageShell active="home">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
+    <script nonce={(await headers()).get("x-nonce") ?? undefined} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
     <div className={styles.homeColumn}>
       <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
 

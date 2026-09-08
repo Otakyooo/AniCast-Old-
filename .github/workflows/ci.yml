@@ -17,8 +17,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -63,8 +63,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
           cache: npm
@@ -78,10 +78,11 @@ jobs:
   infrastructure:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: cp infra/mainserver/env.example infra/mainserver/.env
       - run: cp infra/vps/env.example infra/vps/.env
       - run: sh scripts/validate.sh
+      - run: sh scripts/tests/backup_failure_test.sh
       - run: docker compose -f infra/mainserver/compose.yml config -q
       - run: docker compose -f infra/vps/compose.yml config -q
       - run: docker build -t anicast-backend:ci backend
@@ -91,5 +92,5 @@ jobs:
       - run: python3 -m unittest discover -s scripts/tests -p "test_release*.py"
       - run: python3 -m py_compile scripts/create-release-manifests.py scripts/restore-isolated.py scripts/recovery-smoke.py scripts/recovery-media.py
       - run: docker build frontend
-      - run: docker run --rm -v "$PWD/infra/vps/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - run: docker run --rm -v "$PWD/infra/vps/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 caddy validate --config /etc/caddy/Caddyfile
       - run: git diff --check

@@ -69,5 +69,6 @@ def test_redis_monitor_reports_cache_failure_independently(settings):
     assert families[0][3] == [
         'anicast_redis_up{role="control"} 0',
         'anicast_redis_up{role="ephemeral"} 0',
+        'anicast_redis_up{role="broker"} 0',
     ]
     assert "private-url" not in str(families)

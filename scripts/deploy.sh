@@ -66,7 +66,7 @@ if [ "${ANICAST_LOCAL_IMAGES:-0}" != 1 ]; then
     case "$stack" in mainserver) compose pull backend ;; vps) compose pull frontend ;; esac
 fi
 if [ "$stack" = mainserver ]; then
-    compose up -d postgres redis redis-cache
+    compose up -d postgres redis redis-cache redis-control
     compose run --rm backend python manage.py check --deploy --fail-level WARNING
     compose run --rm backend python manage.py migrate --noinput
 fi
