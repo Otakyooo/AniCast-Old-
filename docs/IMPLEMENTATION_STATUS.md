@@ -1,6 +1,6 @@
 # Anicast: текущее состояние
 
-Обновлено 08.09.2026. История прежних изменений сохранена в
+Обновлено 09.09.2026. История прежних изменений сохранена в
 [архиве](archive/IMPLEMENTATION_STATUS-2026-09-07.md); она не является актуальным runbook.
 
 ## Система
@@ -23,8 +23,14 @@ Next.js 15 / React 19 на VPS; Django 5.2 / DRF, PostgreSQL 17, Redis 7 и Cele
 Результаты проверок и факт выкладки фиксируются в [RELEASE-2026-09-08.md](RELEASE-2026-09-08.md).
 Оставшиеся проблемы перечислены в [аудите](SYSTEM_AUDIT-2026-09-08.md).
 
-## Следующий этап: Redis
+## Этап 2: Redis
 
 Необязательный cache выделен в отдельный ограниченный Redis на MainServer.
 Throttles, locks и cursors сохраняются в прежнем noeviction-инстансе с очередями.
 [Решение](architecture/002-redis-isolation.md), [проверки и статус выкладки](RELEASE-2026-09-08-redis.md).
+
+## Этап 3: firewall VPS
+
+Включён Anicast nftables firewall с boot unit; сохранены SSH, AWG, сайт,
+relay, monitoring и egress MainServer. Docker DNAT контролируется отдельно
+от INPUT. [Результаты и ограничения](RELEASE-2026-09-09-firewall.md).

@@ -197,7 +197,7 @@ print(json.load(urllib.request.urlopen(f\"{settings.TELEGRAM_API_BASE_URL}/bot{s
 
 `getMe` is the right probe: it proves the path end to end without delivering anything to a user.
 
-The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s), and a node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the VPS firewall is disabled) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
+The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s), and a node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the Anicast firewall permits only MainServer on awg0) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 
@@ -465,11 +465,20 @@ The metrics endpoint aggregates 24-hour availability in bounded SQL and groups p
 
 ## VPS firewall
 
-Verified 2026-09-08: `ufw status` returns **inactive**. An earlier version of this
-runbook incorrectly described it as enabled. Service-level private binding is
-currently essential. Before enabling a firewall, inventory public SSH, TCP 80/443,
-AWG UDP 443, tunnel routing/NAT, metrics and the Telegram relay, and retain a
-separate public-SSH recovery connection. Do not change AWG UDP/443 casually.
+Enabled 2026-09-09: `anicast-firewall.service` owns `inet anicast_edge`.
+UFW remains masked/inactive; its status is not the state of this firewall.
+Public eth0 accepts TCP 22/80/443 and UDP 443. awg0 accepts MainServer
+10.78.0.2 only for SSH, relay and exporter. The FORWARD hook runs before Docker
+filtering: only the explicit exporter DNAT is allowed from the peer, while the
+existing peer-to-eth0 egress path is preserved. Docker/AWG NAT rules are unchanged.
+
+Source: `infra/vps/firewall.nft`; installed `/etc/anicast/firewall.nft`.
+`systemctl reload anicast-firewall` applies an atomic replacement of the owned
+table; never use a global nft flush ruleset. `scripts/verify-vps-firewall.sh`
+checks local service/table state. Also verify fresh public/tunnel SSH, public
+home/API, MainServer exporter/relay, and Prometheus node-vps samples after changes.
+Retain a timed rollback until these checks pass. Full policy, installation and
+rollback: [ADR 003](architecture/003-vps-firewall.md), [release](RELEASE-2026-09-09-firewall.md).
 
 ## Release manifests
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=Anicast VPS ingress firewall (owned nftables table)
+DefaultDependencies=no
+After=local-fs.target
+Before=network-pre.target docker.service shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/anicast-firewall-apply
+ExecReload=/usr/local/sbin/anicast-firewall-apply
+ExecStop=/usr/sbin/nft delete table inet anicast_edge
+
+[Install]
+WantedBy=multi-user.target

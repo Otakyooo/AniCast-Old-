@@ -6,8 +6,8 @@
 | --- | --- |
 | Что и как эксплуатируется | [OPERATIONS](OPERATIONS.md) |
 | Что нашли в системе | [Аудит 08.09.2026](SYSTEM_AUDIT-2026-09-08.md) |
-| Почему и как меняется архитектура | [ADR 001](architecture/001-stability-first.md), [Redis: ADR 002](architecture/002-redis-isolation.md) |
-| Последний релиз и проверки | [Изоляция Redis](RELEASE-2026-09-08-redis.md), [бренд и первый этап](RELEASE-2026-09-08.md) |
+| Почему и как меняется архитектура | [ADR 001](architecture/001-stability-first.md), [Redis: ADR 002](architecture/002-redis-isolation.md), [Firewall: ADR 003](architecture/003-vps-firewall.md) |
+| Последний релиз и проверки | [Firewall VPS](RELEASE-2026-09-09-firewall.md), [Redis](RELEASE-2026-09-08-redis.md), [бренд](RELEASE-2026-09-08.md) |
 | Цвета, темы, маскот | [Бренд](BRAND_UI_TECH_SPEC.md), [исходный PDF](Anicast-Brand-Guide-v01.pdf) |
 | Поведение и доступность UI | [Правила интерфейса](FRONTEND_DESIGN_RULES.md) |
 | Каталог и плеер | [TITLE_DATA_AND_PLAYER](TITLE_DATA_AND_PLAYER.md) |

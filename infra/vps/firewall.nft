@@ -1,0 +1,31 @@
+# Owned table only: never flush the global ruleset or Docker's NAT/filter tables.
+# Actual VPS interfaces: eth0 public, awg0 10.78.0.1/24; MainServer 10.78.0.2.
+table inet anicast_edge {
+    chain input {
+        type filter hook input priority -10; policy drop;
+        iifname "lo" accept
+        ct state invalid drop
+        ct state established,related accept
+        # Includes IPv6 neighbour discovery and path-MTU signalling.
+        meta l4proto { icmp, ipv6-icmp } accept
+        iifname "eth0" tcp dport { 22, 80, 443 } accept
+        iifname "eth0" udp dport 443 accept
+        iifname "awg0" ip saddr 10.78.0.2 tcp dport { 22, 8443, 9100 } accept
+        counter drop
+    }
+    chain forward {
+        # Docker still decides bridge/NAT policy after this chain. An accept
+        # here does not override its later drops; a drop here is final.
+        type filter hook forward priority -10; policy accept;
+        ct state invalid drop
+        ct state established,related accept
+        # node-exporter is a Docker-published port and bypasses host INPUT.
+        iifname "awg0" ip saddr 10.78.0.2 ct status dnat \
+            ct original ip daddr 10.78.0.1 meta l4proto tcp \
+            ct original proto-dst 9100 tcp dport 9100 accept
+        # Preserve the existing anicast_awg_nat egress path for MainServer.
+        iifname "awg0" oifname "eth0" ip saddr 10.78.0.2 accept
+        # Protect against accidental future Docker port publication, too.
+        iifname { "eth0", "awg0" } counter drop
+    }
+}
