@@ -133,7 +133,15 @@ scripts/restore-db.sh --force [dump]
 
 ### Migrating rclone to a project-owned Google Drive client
 
-The project-owned Desktop client **Anicast rclone recovery** exists in `anicast-backups-506301`, with Drive API enabled and the app in Production status. The owner must complete the Google authorization screen before the running rclone configuration switches from the shared client. Production status avoids the seven-day Testing token limit; it does not mean public Google verification. Migration procedure:
+The project-owned Desktop client **Anicast rclone recovery** is active on MainServer
+since 09.09.2026 (Moscow time), in project `anicast-backups-506301`. The owner
+completed consent. Forced refresh succeeded on Windows and MainServer; encrypted
+write/read/delete and independent retrieval of a fresh DB dump passed. Drive API
+is enabled and the app has Production status; this avoids the seven-day Testing
+token limit but does not mean public Google verification. The previous configuration
+is retained privately as `rclone.conf.pre-oauth-20260908T234538Z` for rollback.
+Both recovery kits were refreshed and downloaded/verified from Drive on Windows.
+See [verification record](RELEASE-2026-09-09-oauth.md). Procedure for future migrations:
 
 1. Create (or pick) an owned Google Cloud project, enable the Drive API and create an OAuth client ID of type *Desktop app*. Note the client id and secret.
 2. On MainServer back up the current config: `cp ~/.config/rclone/rclone.conf ~/.config/rclone/rclone.conf.bak-$(date -u +%Y%m%d)` (keep until the new client is proven).

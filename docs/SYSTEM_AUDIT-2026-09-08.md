@@ -51,7 +51,9 @@ VPS RAM 961 MiB, available 416 MiB, swap 62/2047 MiB. Swap сам по себе 
    отдельный favicon 16 px и новое OG. Оригинальная иллюстрация сохранена.
 7. **Recovery credentials:** с Windows расшифрован age-kit и напрямую из Drive
    скачаны DB/media с проверкой SHA-256; SSH на VPS работает без MainServer.
-   Собственный OAuth-клиент создан, завершение Google consent пока ожидается.
+   Собственный OAuth-клиент активирован после Google consent; forced refresh,
+   новая внешняя копия БД и оба обновлённых age-kit проверены с Windows.
+   [Проверки OAuth](RELEASE-2026-09-09-oauth.md).
    DNS-account не архивирован; текущая схема переноса сохраняет тот же VPS и DNS.
 
 Сводка проверок и актуальные ограничения: [hardening release](RELEASE-2026-09-09-hardening.md).
