@@ -21,17 +21,39 @@ Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.
 
 ## Redis
 
-Redis requires a password (`REDIS_PASSWORD`, passed to `--requirepass`), and the same value must appear in `CACHE_URL`, `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` as `redis://:PASSWORD@redis:6379/N`. This is not defence in depth: Redis holds the Celery broker, task names are public, and anything that can write to the broker executes code in the worker. An unauthenticated Redis on a shared Docker network is a remote code execution path, not a cache.
+There are two Redis services on MainServer; the VPS has none.
 
-Rotating the password means editing four values in the env file and recreating everything that connects, in one step:
+- `redis` remains persistent (AOF), `noeviction`, 200 MiB maxmemory / 256 MiB
+  container limit. `CELERY_BROKER_URL` uses DB 0, `CELERY_RESULT_BACKEND` DB 1,
+  `CONTROL_CACHE_URL` DB 2. All three use `REDIS_PASSWORD`.
+- `redis-cache` is disposable: `allkeys-lru`, 64 MiB maxmemory / 96 MiB container
+  limit, no AOF/RDB. `CACHE_URL` points to DB 0 here with the separate
+  `CACHE_REDIS_PASSWORD`. It has no host port and is not on the metrics network.
+- Django alias `default` is CONTROL_CACHE_URL: throttles, locks, provider cursors.
+  Alias `ephemeral` is CACHE_URL: optional counters, and future disposable data.
+  Never use `ephemeral` for locks, rate limits or sessions. Sessions remain in DB.
+- Older env files without CONTROL_CACHE_URL fall back to CACHE_URL for both
+  aliases. This preserves compatibility but does not provide isolation.
 
-```bash
-docker compose -f infra/mainserver/compose.yml up -d
-```
+Keep credentials out of logs. Healthchecks use REDISCLI_AUTH. Rotate a password
+in the server setting and every URL referring to that server, then recreate its
+clients with the same Compose project name. A cache password is not a broker
+password. Neither Redis is exposed through a host port.
 
-The healthcheck reads `REDISCLI_AUTH` from the environment, so `redis-cli ping` from outside the container returns `NOAUTH Authentication required` — that is the expected, healthy answer.
+Cache failures skip telemetry with a five-second per-process retry pause and
+bounded socket timeouts. Readiness tests the mandatory coordination cache;
+disposable cache downtime does not make the API unready. Deploy still requires
+both Redis services to be healthy. Counters reset after cache loss/eviction;
+Prometheus keeps previously scraped history. DB-derived gauges remain available.
+Fresh metrics `anicast_redis_up`, `anicast_redis_used_memory_bytes`,
+`anicast_redis_maxmemory_bytes`, and `anicast_redis_evicted_keys_total` distinguish
+control and ephemeral roles. Alerts cover unreachable Redis roles and control
+memory above 80%; these probes never depend on the counter cache.
 
-Counters use the shared Redis cache and reset after Redis data loss. Gauges for providers and sources are read from PostgreSQL at scrape time. Labels are fixed to endpoint groups, method/status families, known Celery tasks and bounded result enums.
+See [ADR 002](architecture/002-redis-isolation.md) for rollout/rollback. Keep runtime
+env snapshots immutable: image rollback to the old code also needs its old
+CACHE_URL. The Redis release records compatible private env snapshots in its
+current/previous manifests. Do not overwrite these files during a later deploy.
 
 Key signals:
 
@@ -179,7 +201,15 @@ The stack also watches the public site itself: blackbox-exporter probes `https:/
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 
-Every file holding a secret is `600`: the three `infra/*/.env` files and all of `infra/monitoring/secrets/`. `infra/vps/.env` (which carries `INTERNAL_API_TOKEN`) and the monitoring secrets were world-readable until 2026-09-04; only the `750` on `/home/lama_admin` stood between them and any other account on the host. Docker reads them as root, so the tighter mode costs nothing.
+Application `.env` files remain `600`. Bind-mounted monitoring token files need
+`640` with group **65534**, the GID of `nobody` inside the current Prometheus and
+Alertmanager images. Docker mounting a file as root does not grant its non-root
+reader permission: `600 lama_admin:lama_admin` caused live scrapes to fail with
+permission denied. Preserve the deployment owner, grant read only to the container
+group, and verify the actual UID/GID again when changing images. Do not make token
+files world-readable. After changes run `sh scripts/verify-monitoring.sh` once a
+scrape interval has elapsed; this checks file access and real samples, not only
+container health. It sends no test notifications.
 
 ## Account mail
 
@@ -386,7 +416,7 @@ Each exception is measured against the live HTML, not assumed:
 - `script-src 'self' 'unsafe-inline'` — the App Router streams its bootstrap and RSC payloads through inline `<script>` tags (32 on the home page) plus the JSON-LD blocks. Nonces would require `headers()` per request, which opts every page out of static rendering — a real cost for a catalog whose value is cacheable HTML. Read this honestly: the directive stops remote script injection, not a successful inline XSS.
 - `style-src 'self' 'unsafe-inline'` — React inline `style` attributes (progress bars, genre shares; 29 on the home page) are `style-src-attr`. CSS Modules themselves are files.
 - `connect-src 'self'` — the frontend calls only its own `/api/*`, which Caddy proxies. Verified: no third-party fetch target anywhere in `frontend/`.
-- `font-src 'self'` — fonts are system stacks (`ui-sans-serif, system-ui, …`), no webfont is loaded.
+- `font-src 'self'` — Manrope and Noto Sans JP are self-hosted; no third-party font origin is needed.
 - `frame-src 'self' https://kodikplayer.com` — the only embed, matching the provider's `allowed_hosts`. The iframe also carries `sandbox` and `referrerPolicy="no-referrer"`.
 - `object-src 'none'`, `base-uri 'none'`, `form-action 'self'` — nothing on the site uses `<object>`/`<embed>` or a `<base>` tag, and every form posts to its own origin.
 
@@ -470,7 +500,7 @@ sudo scripts/deploy.sh mainserver /tmp/mainserver-release.env
 sudo scripts/deploy.sh vps /tmp/vps-release.env
 ```
 
-MainServer verification requires PostgreSQL, Redis, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
+MainServer verification requires PostgreSQL, both Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
 
 ```bash
 curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null

@@ -37,6 +37,22 @@ services:
       start_period: 10s
     logging: *container-logging
     networks: [internal]
+  # Disposable cache only. Throttles/locks stay on the persistent noeviction
+  # Redis above, so cache pressure cannot evict security or coordination state.
+  redis-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 96m
+    command: ["sh", "-c", "exec redis-server --save '' --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass \"$${CACHE_REDIS_PASSWORD:?cache password missing}\""]
+    env_file: ${ANICAST_ENV_FILE:-.env}
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$CACHE_REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *container-logging
+    networks: [internal]
   backend:
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend

@@ -1,7 +1,8 @@
 from collections.abc import Iterable
+from time import monotonic
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import caches
 from django.db.models import Count, Sum
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_safe
@@ -9,6 +10,7 @@ from django.views.decorators.http import require_safe
 from .security import constant_time_equals
 
 PREFIX = "anicast:metrics:v1"
+_cache_retry_at = 0.0
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER")
 HTTP_ENDPOINTS = ("api", "health", "metrics", "staff", "other")
 STATUS_FAMILIES = ("2xx", "3xx", "4xx", "5xx")
@@ -24,20 +26,30 @@ POSTER_RESULTS = ("maximum", "large", "kitsu", "original", "mirrored", "current"
 
 
 def increment(metric: str, *labels: str, value: int = 1) -> None:
+    global _cache_retry_at
+    if monotonic() < _cache_retry_at:
+        return
     key = ":".join((PREFIX, metric, *labels))
     try:
+        cache = caches["ephemeral"]
         if cache.add(key, value, timeout=None):
             return
         cache.incr(key, value)
     except Exception:
         # Telemetry must never affect the application path it observes.
+        _cache_retry_at = monotonic() + 5
         return
 
 
 def value(metric: str, *labels: str) -> int:
+    global _cache_retry_at
+    if monotonic() < _cache_retry_at:
+        return 0
     try:
+        cache = caches["ephemeral"]
         return int(cache.get(":".join((PREFIX, metric, *labels)), 0))
     except Exception:
+        _cache_retry_at = monotonic() + 5
         return 0
 
 
@@ -73,6 +85,11 @@ def _family(name: str, help_text: str, metric_type: str, samples: Iterable[str])
 
 def render_metrics() -> str:
     lines: list[str] = []
+    # Fresh, bounded probes remain visible even when the counter cache is down.
+    from .redis_health import redis_samples
+
+    for name, help_text, metric_type, samples in redis_samples():
+        lines += _family(name, help_text, metric_type, samples)
     http_samples = []
     for method in HTTP_METHODS:
         for endpoint in HTTP_ENDPOINTS:

@@ -119,10 +119,34 @@ REST_FRAMEWORK = {
         "visit": "600/hour",
     },
 }
+CACHES: dict[str, Any]
 if USE_SQLITE:
-    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+    CACHES = {
+        alias: {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": alias}
+        for alias in ("default", "ephemeral")
+    }
 else:
-    CACHES = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": os.environ.get("CACHE_URL", "redis://redis:6379/2")}}
+    from redis.backoff import NoBackoff
+    from redis.retry import Retry
+
+    # The default cache is coordination state: throttles, locks and cursors
+    # must not be evicted by optional telemetry or future response caching.
+    # Fallback keeps older deployments compatible until their env is migrated.
+    _cache_url = os.environ.get("CACHE_URL", "redis://redis:6379/2")
+    CACHES = {
+        alias: {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": url,
+            "OPTIONS": {
+                "socket_connect_timeout": 0.3, "socket_timeout": 0.3,
+                "retry": Retry(NoBackoff(), 0),
+            },
+        }
+        for alias, url in {
+            "default": os.environ.get("CONTROL_CACHE_URL", _cache_url),
+            "ephemeral": _cache_url,
+        }.items()
+    }
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")

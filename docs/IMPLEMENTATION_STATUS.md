@@ -22,3 +22,9 @@ Next.js 15 / React 19 на VPS; Django 5.2 / DRF, PostgreSQL 17, Redis 7 и Cele
 
 Результаты проверок и факт выкладки фиксируются в [RELEASE-2026-09-08.md](RELEASE-2026-09-08.md).
 Оставшиеся проблемы перечислены в [аудите](SYSTEM_AUDIT-2026-09-08.md).
+
+## Следующий этап: Redis
+
+Необязательный cache выделен в отдельный ограниченный Redis на MainServer.
+Throttles, locks и cursors сохраняются в прежнем noeviction-инстансе с очередями.
+[Решение](architecture/002-redis-isolation.md), [проверки и статус выкладки](RELEASE-2026-09-08-redis.md).

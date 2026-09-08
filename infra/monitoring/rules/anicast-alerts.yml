@@ -1,6 +1,20 @@
 groups:
   - name: anicast-backend
     rules:
+      - alert: RedisRoleDown
+        expr: anicast_redis_up == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis {{ $labels.role }} недоступен более 3 минут"
+      - alert: RedisControlMemoryPressure
+        expr: anicast_redis_used_memory_bytes{role="control"} / anicast_redis_maxmemory_bytes{role="control"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis очередей и ограничителей использует более 80% maxmemory"
       - alert: BackendDown
         expr: up{job="anicast-backend"} == 0 or absent(up{job="anicast-backend"})
         for: 3m
