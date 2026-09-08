@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Bound build-time page workers on the small maintenance builder.
+  experimental: { cpus: 1 },
   poweredByHeader: false,
   async headers() {
     const noIndex = [{ key: "X-Robots-Tag", value: "noindex, follow" }];

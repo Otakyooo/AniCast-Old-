@@ -1,3 +1,4 @@
+import { ThemeSwitcher } from "./theme-switcher";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { getI18n } from "../i18n/server";
@@ -34,6 +35,7 @@ export async function SiteHeader({ active }: { active: NavSection }) {
         </nav>
         <GlobalSearch />
         <div className="global-actions">
+          <ThemeSwitcher />
           <UserMenu initialSignedIn={hasSessionCookie} />
         </div>
       </div>

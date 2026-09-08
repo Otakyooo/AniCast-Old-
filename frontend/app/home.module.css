@@ -8,6 +8,17 @@
 /* ---------- Resume hero (design spec §4.2) ---------- */
 
 .resumeHero {
+  --text: #FFF0DA;
+  --muted: #CBB49A;
+  --muted-2: #CBB49A;
+  --accent-text: #F3A51B;
+  --border: #54443A;
+  --border-muted: rgba(203, 180, 154, .35);
+  --border-emphasis: rgba(255, 240, 218, .5);
+  --surface-elevated: #28201D;
+  --surface-elevated-soft: rgba(40, 32, 29, .85);
+  --background-soft: rgba(23, 19, 17, .45);
+  --focus-ring: #F3A51B;
   position: relative;
   display: grid;
   grid-template-columns: 164px minmax(0, 1fr);
@@ -42,10 +53,8 @@
 .resumeHeroBackdropArt {
   object-fit: cover;
   object-position: 72% 26%;
-  /* The blur bleeds past the object edges, so the art must overshoot the frame
-     by more than half the blur radius on every side — a 6px blur needs a 1.09
-     scale or the backdrop shows a soft border of the elevated surface. */
-  filter: blur(6px) saturate(.82) contrast(.96);
+  /* Keep artwork clear; the warm dark overlay supplies text contrast. */
+  filter: none;
   transform: scale(1.09);
 }
 
@@ -126,7 +135,7 @@
   transition: border-color 140ms ease, color 140ms ease;
 }
 
-.heroGenres a:hover { border-color: var(--primary); color: var(--primary-hover) }
+.heroGenres a:hover { border-color: var(--primary); color: var(--accent-text) }
 .heroGenres a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
 
 .heroSynopsis {
@@ -466,6 +475,7 @@
   height: 100%;
   border-radius: 2px;
   background: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--progress-edge);
 }
 
 .scheduleCard {
@@ -549,6 +559,17 @@
   .shelfHeading h2 { font-size: 19px }
   .shelfHeading p { display: none }
   .resumeHero {
+  --text: #FFF0DA;
+  --muted: #CBB49A;
+  --muted-2: #CBB49A;
+  --accent-text: #F3A51B;
+  --border: #54443A;
+  --border-muted: rgba(203, 180, 154, .35);
+  --border-emphasis: rgba(255, 240, 218, .5);
+  --surface-elevated: #28201D;
+  --surface-elevated-soft: rgba(40, 32, 29, .85);
+  --background-soft: rgba(23, 19, 17, .45);
+  --focus-ring: #F3A51B;
     grid-template-columns: 118px minmax(0, 1fr);
     gap: 18px;
     min-height: 0;
@@ -569,9 +590,20 @@
 }
 
 @media (max-width: 520px) {
-  .resumeHero { grid-template-columns: 1fr; gap: 14px; min-height: 318px; padding: 24px 18px 18px }
+  .resumeHero {
+  --text: #FFF0DA;
+  --muted: #CBB49A;
+  --muted-2: #CBB49A;
+  --accent-text: #F3A51B;
+  --border: #54443A;
+  --border-muted: rgba(203, 180, 154, .35);
+  --border-emphasis: rgba(255, 240, 218, .5);
+  --surface-elevated: #28201D;
+  --surface-elevated-soft: rgba(40, 32, 29, .85);
+  --background-soft: rgba(23, 19, 17, .45);
+  --focus-ring: #F3A51B; grid-template-columns: 1fr; gap: 14px; min-height: 318px; padding: 24px 18px 18px }
   .resumeHeroBackdrop:after { background: var(--home-hero-overlay-mobile) }
-  .resumeHeroBackdropArt { object-position: 68% 18%; filter: blur(3px) saturate(.76) contrast(.94); transform: scale(1.045) }
+  .resumeHeroBackdropArt { object-position: 68% 18%; filter: none; transform: scale(1.045) }
   .resumeHeroArtFrame { display: none }
   .resumeHeroBody { align-content: end; min-height: 274px }
   .resumeHeroEyebrow { font-size: 10px }

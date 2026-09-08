@@ -248,60 +248,20 @@ Public review payloads carry `author_name` verbatim, including empty, and the cl
 
 ## Image publication
 
-GitHub Actions publishes both images to GHCR on every push to `main` and on `v*` tags (`.github/workflows/publish.yml`) using the built-in `GITHUB_TOKEN`; the job summary prints ready-to-use digest lines. Resolve a tag into a deploy release manifest with:
+Prefer CI (`.github/workflows/publish.yml`) and immutable registry digests.
+Production release scripts now default to the live project names `mainserver`
+and `vps`; there is no project-name migration to perform.
 
-```bash
-scripts/release-manifest.sh <git-sha>      # or --tag main
-```
+For a local build, pass both public Telegram bot build arguments (read the current
+configuration, never assume names), keep CPU/memory constrained, save/load the image
+to the VPS and address it by its exact `sha256:<64 hex>` image ID. Use
+`ANICAST_LOCAL_IMAGES=1` with deploy/rollback; this explicitly skips registry pulls.
+Mutable tags are no longer accepted by deploy.sh. GHCR push permissions and CI
+publication should be verified before claiming a registry release.
 
-The repository is private, so packages are private: hosts that pull need `docker login ghcr.io` with a token that has `read:packages` (both hosts are logged in as of 2026-08-22).
-
-Both production stacks run digest-pinned GHCR images (`BACKEND_IMAGE`/`FRONTEND_IMAGE` in the stack `.env`). Release switch:
-
-```bash
-scripts/release-manifest.sh <git-sha>          # prints digests for the commit
-# mainserver: put BACKEND_IMAGE=ghcr.io/...@sha256:... into infra/mainserver/.env
-cd infra/mainserver && docker compose pull backend && docker compose up -d
-# vps: put FRONTEND_IMAGE=...@sha256:... into /opt/anicast/infra/vps/.env
-cd /opt/anicast/infra/vps && docker compose pull frontend && docker compose up -d
-```
-
-Rollback: point the image variable back to the previous digest (or to the local fallback tags `anicast-backend:local` / `vps-frontend:latest`) and `up -d` again. The formal `deploy.sh` pipeline (project names `anicast-*`, state dirs, automatic rollback) remains available for a future stack migration.
-
-Local-image releases: the GHCR credentials stored on MainServer only carry `read:packages` (a push probe returns 403), so a release cut without CI is built on MainServer and shipped to the VPS by hand:
-
-```bash
-stamp=$(date -u +%Y%m%dT%H%M%SZ)
-sh scripts/backup-db.sh
-docker build -t anicast-backend:local-$stamp backend
-sed -i "s|^BACKEND_IMAGE=.*|BACKEND_IMAGE=anicast-backend:local-$stamp|" infra/mainserver/.env
-docker compose -f infra/mainserver/compose.yml run --rm --no-deps --entrypoint python backend manage.py migrate --plan
-# Applying is a separate, mandatory step. --plan only prints.
-docker compose -f infra/mainserver/compose.yml run --rm --no-deps --entrypoint python backend manage.py migrate --noinput
-docker compose -f infra/mainserver/compose.yml up -d backend celery-worker celery-beat
-
-docker build --build-arg NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=anicast_auth_bot \
-  --build-arg NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME=anicast_push_bot \
-  -t anicast-frontend:local-$stamp frontend
-docker save anicast-frontend:local-$stamp | gzip -1 > /tmp/frontend-$stamp.tar.gz
-scp /tmp/frontend-$stamp.tar.gz root@10.78.0.1:/tmp/
-ssh root@10.78.0.1 "gunzip -c /tmp/frontend-$stamp.tar.gz | docker load"
-ssh root@10.78.0.1 "sed -i 's|^FRONTEND_IMAGE=.*|FRONTEND_IMAGE=anicast-frontend:local-$stamp|' /opt/anicast/infra/vps/.env"
-ssh root@10.78.0.1 "cd /opt/anicast/infra/vps && docker compose up -d frontend"
-
-# After the rollout, prove no migration is left behind. This must print [].
-docker exec mainserver-backend-1 python -c "import django, os; \
-os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); django.setup(); \
-from django.db import connection; from django.db.migrations.executor import MigrationExecutor; \
-e = MigrationExecutor(connection); \
-print([f'{m.app_label}.{m.name}' for m, _ in e.migration_plan(e.loader.graph.leaf_nodes())])"
-```
-
-`migrate --noinput` is not optional in this manual path. The `deploy.sh` pipeline runs migrations itself, but the live stacks are deployed by hand, and a release that only ran `migrate --plan` shipped a model referencing columns that did not exist: every request touching playback progress answered HTTP 500 for over an hour before anyone noticed (2026-09-02, `library.0006`). Nothing alerted, because a 500 rate on one endpoint group does not trip the current rules. The pending-migration check above is the cheap guard against repeating it.
-
-The frontend build args must be passed explicitly: `NEXT_PUBLIC_*` values are inlined at build time, and omitting them silently disables the Telegram login and notification prompts. Take a verified `pg_dump` first, keep the previous digests written down (image-only rollback is the only automatic path), and delete the transferred tarball from both hosts afterwards. Restore GHCR digest pins as soon as a token with `write:packages` is available, since local tags carry no provenance.
-
-Do not run an unconstrained Next.js production build on MainServer while it serves traffic. The host has one CPU and a build can push PostgreSQL/backend into swap, causing multi-second TTFB. Prefer CI or a separate build host; an emergency local build must use low CPU/I/O priority and be run once after all source changes.
+Do not run an unconstrained production build on MainServer while it serves traffic.
+The host has limited RAM/CPU; prefer CI or a separate builder. A local maintenance
+build must use low CPU/I/O priority and preserve the running application.
 
 ## Catalog metadata import
 
@@ -406,7 +366,7 @@ Public catalog GETs carry `Cache-Control: public, max-age=0, s-maxage=60, stale-
 
 Authenticated responses are deliberately never marked cacheable, and playback endpoints keep `no-store, private`. Both are covered by tests, because the failure mode of getting this wrong is serving one session's data to another.
 
-Images go through the Next optimizer, which caches variants in `.next/cache/images` keyed by source URL and parameters. Two settings matter:
+Images go through the Next optimizer, which caches variants in `.next/cache/images` keyed by source URL and parameters. The `vps_frontend_images` Docker volume now preserves this directory across releases. It contains optimized public images only, not HTML or user API responses. Monitor disk consumption. Two settings matter:
 
 - `formats: ["image/webp"]`. Without it Next negotiates nothing and a browser advertising WebP still received the original PNG/JPEG. AVIF is **not** listed on purpose: measured on the production VPS (1 vCPU) with a real 6.2 MB poster at quality 92, WebP is 88.6 KB in 1.9 s while AVIF is 122.1 KB in 6.8 s. At this quality AVIF is both larger and 3.5x slower, and Next would negotiate it first. Revisit only with a fresh measurement at a lower AVIF-specific quality.
 - `minimumCacheTTL` of 30 days. Poster filenames are content-addressed (a SHA-256 prefix), so a URL never changes meaning and a long TTL cannot serve stale art. The 60-second default re-encoded the same posters all day; a cold miss costs up to 4 s through the tunnel, a hit about 0.5 s.
@@ -475,7 +435,11 @@ The metrics endpoint aggregates 24-hour availability in bounded SQL and groups p
 
 ## VPS firewall
 
-ufw is enabled with `deny (incoming)`, `deny (routed)` by default. Allowed: TCP 22/80/443, **UDP 443 (AmneziaWG listen port — never remove, the tunnel and the site depend on it)**, everything on `awg0` (incoming and forwarded — MainServer reaches the internet through this tunnel NAT). Before changing rules, keep a public-SSH session open as a recovery path.
+Verified 2026-09-08: `ufw status` returns **inactive**. An earlier version of this
+runbook incorrectly described it as enabled. Service-level private binding is
+currently essential. Before enabling a firewall, inventory public SSH, TCP 80/443,
+AWG UDP 443, tunnel routing/NAT, metrics and the Telegram relay, and retain a
+separate public-SSH recovery connection. Do not change AWG UDP/443 casually.
 
 ## Release manifests
 
@@ -506,7 +470,7 @@ sudo scripts/deploy.sh mainserver /tmp/mainserver-release.env
 sudo scripts/deploy.sh vps /tmp/vps-release.env
 ```
 
-MainServer verification requires PostgreSQL, Redis, Django readiness, Celery worker ping and Celery Beat health. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
+MainServer verification requires PostgreSQL, Redis, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
 
 ```bash
 curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null
@@ -530,21 +494,32 @@ Rollback changes application images only. It never restores PostgreSQL automatic
 
 If both hosts were changed and VPS verification fails, roll back VPS first and then MainServer when release compatibility requires it. Inspect `/var/lib/anicast/releases/<stack>/{current,previous,failed}.env` and JSON logs for the incident record.
 
-## Deploy pipeline rehearsal
+## Release state and bootstrap
 
-The formal pipeline has not executed against production yet: the live stacks run under compose project names `mainserver` and `vps` (directory defaults), while `deploy.sh`/`rollback.sh`/`verify-deploy.sh` default to `anicast-mainserver`/`anicast-vps`. Running the pipeline cold under its default names would spawn parallel stacks with fresh, empty volumes. All three scripts therefore honor `ANICAST_PROJECT_MAINSERVER` and `ANICAST_PROJECT_VPS`; until a deliberate migration to the canonical names, every pipeline command uses the live-name overrides.
+Before the first deploy, create `<state-dir>/current.env` from the **actually running**
+image ID/digest and the absolute production env-file path. `deploy.sh` refuses to
+proceed without that rollback baseline. State directories are private; manifests
+contain image IDs, release identifiers and paths, never secrets.
 
-Rehearsal checklist (quiet hours):
+Example for a local-image release, after loading the tested image:
 
-1. Preconditions: no firing alerts, current image digests written down, fresh verified backup (`scripts/backup-db.sh` plus `scripts/restore-posters.sh --verify` on the latest poster archive).
-2. Prepare manifests for the pending release: `scripts/release-manifest.sh <git-sha>` and preview migrations once (`docker compose --project-name mainserver --env-file infra/mainserver/.env -f infra/mainserver/compose.yml run --rm backend python manage.py migrate --plan` — must be expand-only).
-3. MainServer: `sudo ANICAST_PROJECT_MAINSERVER=mainserver scripts/deploy.sh mainserver /tmp/mainserver-release.env`. Success: check/migrate pass, postgres/redis/backend/celery-worker/celery-beat healthy, `deployment verified`.
-4. Public smoke: the three curl probes from the Deploy section.
-5. VPS: `sudo ANICAST_PROJECT_VPS=vps scripts/deploy.sh vps /tmp/vps-release.env`, then public smoke again.
-6. Rollback drill, proving both directions on the real stack: `sudo ANICAST_PROJECT_VPS=vps scripts/rollback.sh vps` (previous digest serves traffic), then re-run the step-5 deploy forward. The MainServer rollback drill is optional in the same window — it is image-only as well.
-7. Record the outcome in `docs/IMPLEMENTATION_STATUS.md`. State files accumulate under `/var/lib/anicast/releases/<stack>/`.
+```bash
+ANICAST_LOCAL_IMAGES=1 scripts/deploy.sh mainserver /tmp/mainserver-release.env /var/lib/anicast/releases/mainserver
+# On the VPS, from /opt/anicast:
+ANICAST_LOCAL_IMAGES=1 scripts/deploy.sh vps /tmp/vps-release.env /var/lib/anicast/releases/vps
+```
 
-Adoption caveats: the first pipeline run moves image selection from `infra/<stack>/.env` into the release manifest chain (`current.env`). Keep `BACKEND_IMAGE`/`FRONTEND_IMAGE` out of further hand edits afterwards, or the next manual `compose up -d` silently diverges from the recorded releases. The hermetic test (`scripts/tests/deploy_rollback_test.sh`, part of `scripts/validate.sh`) covers both the automatic-rollback failure path and the happy-path promotion to `current.env`.
+`ANICAST_PROJECT_MAINSERVER` and `ANICAST_PROJECT_VPS` remain available for deliberate
+alternative environments; the defaults match production. Keep the release state
+and the operator-facing env image selection synchronized after a successful release
+to avoid a later manual compose invocation reviving an older tag.
+
+Before changing Compose topology, copy the currently running Compose file as well
+as image identifiers. The image-only rollback script uses the checked-out Compose
+configuration; restore the captured configuration separately when undoing topology.
+Never restore a database automatically to roll back application code.
+
+The 2026-09-08 rollout and actual checks are recorded in `RELEASE-2026-09-08.md`.
 
 ## Validation
 

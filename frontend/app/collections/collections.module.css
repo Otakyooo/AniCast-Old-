@@ -18,8 +18,8 @@
    yet: a muted line instead of a full-width placeholder panel. */
 .noCollectionsHint { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6 }
 .noCollectionsHint a {
-  color: var(--primary);
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.noCollectionsHint a:hover { color: var(--primary-hover) }
+.noCollectionsHint a:hover { color: var(--accent-text) }

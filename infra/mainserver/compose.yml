@@ -62,13 +62,14 @@ services:
     # DNS answers are per-network, so a container attached only to `metrics`
     # cannot even resolve `postgres` or `redis`.
     networks: [internal, metrics]
-  celery-worker:
+  celery-worker: &celery-worker
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend
-    mem_limit: 512m
+    mem_limit: 256m
+    stop_grace_period: 600s
     restart: unless-stopped
     env_file: ${ANICAST_ENV_FILE:-.env}
-    command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications,providers,posters,maintenance,analytics"]
+    command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "default,notifications", "--concurrency", "1"]
     volumes:
       - poster_media:/app/media
     depends_on: {backend: {condition: service_healthy}}
@@ -80,6 +81,11 @@ services:
       start_period: 30s
     logging: *container-logging
     networks: [internal]
+  # Slow provider probes/imports cannot occupy the notification worker slot.
+  celery-bulk:
+    <<: *celery-worker
+    mem_limit: 512m
+    command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "providers,posters,maintenance,analytics", "--concurrency", "1"]
   celery-beat:
     image: ${BACKEND_IMAGE:-anicast-backend:local}
     build: ../../backend

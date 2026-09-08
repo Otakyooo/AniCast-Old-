@@ -6,8 +6,8 @@ env_file=${2:-}
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 
 case "$stack" in
-    mainserver) project=${ANICAST_PROJECT_MAINSERVER:-anicast-mainserver} ;;
-    vps) project=${ANICAST_PROJECT_VPS:-anicast-vps} ;;
+    mainserver) project=${ANICAST_PROJECT_MAINSERVER:-mainserver} ;;
+    vps) project=${ANICAST_PROJECT_VPS:-vps} ;;
     *) echo "unknown stack: $stack" >&2; exit 2 ;;
 esac
 
@@ -36,7 +36,7 @@ wait_healthy() {
 
 case "$stack" in
     mainserver)
-        for service in postgres redis backend celery-worker celery-beat; do wait_healthy "$service"; done
+        for service in postgres redis backend celery-worker celery-bulk celery-beat; do wait_healthy "$service"; done
         compose exec -T backend python -c "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/health/ready', headers={'X-Forwarded-Proto':'https'}), timeout=5)"
         compose exec -T celery-worker celery -A config inspect ping --timeout 10 | grep -q pong
         ;;

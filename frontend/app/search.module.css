@@ -128,7 +128,7 @@
 }
 
 .allResults:hover, .allResults.rowActive { background: var(--surface-1) }
-.allResults:hover { color: var(--primary-hover) }
+.allResults:hover { color: var(--accent-text) }
 
 @media (max-width: 1199px) {
   .wrap { justify-self: end }

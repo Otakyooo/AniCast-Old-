@@ -143,7 +143,7 @@
   transition: border-color 140ms ease, background 140ms ease;
 }
 
-.heroGenres a:hover { border-color: var(--primary); color: var(--primary-hover) }
+.heroGenres a:hover { border-color: var(--primary); color: var(--accent-text) }
 .heroGenres a:active { background: var(--surface-1) }
 
 /* Synopsis teaser: three lines fill the hero's right column and answer
@@ -319,7 +319,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.tabActive .tabCount { color: var(--primary) }
+.tabActive .tabCount { color: var(--accent-text) }
 
 /* ---------- Panels ---------- */
 
@@ -439,7 +439,7 @@
 .episodeCard:hover .episodeArrow {
   border-color: var(--primary);
   background: var(--primary-soft);
-  color: var(--primary-hover);
+  color: var(--accent-text);
   transform: translateX(2px);
 }
 
@@ -499,7 +499,7 @@
 }
 
 .detailsList dd a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border) }
-.detailsList dd a:hover { color: var(--primary); text-decoration-color: var(--primary) }
+.detailsList dd a:hover { color: var(--accent-text); text-decoration-color: var(--primary) }
 
 /* ---------- Cast ---------- */
 
@@ -588,7 +588,7 @@
   place-items: center;
   border-radius: 10px;
   background: var(--primary-soft);
-  color: var(--primary-hover);
+  color: var(--accent-text);
   font-size: 17px;
   font-weight: 800;
   overflow: hidden;

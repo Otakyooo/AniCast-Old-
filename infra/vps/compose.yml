@@ -1,5 +1,8 @@
 services:
   frontend:
+    mem_limit: 512m
+    init: true
+    security_opt: [no-new-privileges:true]
     image: ${FRONTEND_IMAGE:-anicast-frontend:local}
     build:
       context: ../../frontend
@@ -12,6 +15,9 @@ services:
     # the container id, which leaves loopback unusable for the healthcheck.
     environment:
       - HOSTNAME=0.0.0.0
+      - NODE_OPTIONS=--max-old-space-size=320
+    volumes:
+      - frontend_images:/app/.next/cache/images
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
@@ -41,5 +47,6 @@ services:
       retries: 3
     logging: *container-logging
 volumes:
+  frontend_images:
   caddy_data:
   caddy_config:

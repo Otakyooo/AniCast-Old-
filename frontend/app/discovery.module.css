@@ -59,7 +59,7 @@
   cursor: pointer;
   transition: color 140ms ease, border-color 140ms ease;
 }
-.notice button:hover { color: var(--primary); border-color: var(--primary) }
+.notice button:hover { color: var(--accent-text); border-color: var(--primary) }
 .notice button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
 .avatarWrap{position:relative;aspect-ratio:4/3;border-radius:9px;overflow:hidden;background:var(--poster-gradient);display:grid;place-items:center;font-size:46px;font-weight:800}
 .portraitWrap{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:var(--poster-gradient);display:grid;place-items:center;font-size:72px;font-weight:800}

@@ -81,7 +81,7 @@ export function websiteJsonLd(locale: Locale) {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "AniCast",
+    name: "Anicast",
     alternateName: "АниКаст",
     url: SITE_URL,
     inLanguage: locale,

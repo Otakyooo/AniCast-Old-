@@ -40,3 +40,17 @@ Review observable behavior, not only JSX and CSS. Classify findings as:
 
 Run the relevant frontend checks from `docs/FRONTEND_DESIGN_RULES.md`. If a browser,
 viewport, keyboard, or screen-reader check was not performed, state that limitation.
+
+## Brand Guide v0.1 (2026-09-08)
+
+The current semantic token source is `frontend/app/theme.css`; `globals.css`
+holds the shared frame. Read `docs/BRAND_UI_TECH_SPEC.md` before using earlier
+palette references. Themes are light/dark/system via `lib/theme.ts` and
+`ThemeSwitcher`; small text on warm-white uses berry, not amber. Keep the same
+mascot and spelling Anicast across themes. Scope light text inside dark media
+surfaces instead of relying on inherited page text. New interface typography
+uses self-hosted Manrope; retain Noto Sans JP for Japanese titles.
+
+Check theme persistence, OS changes, disabled storage, keyboard focus, and a
+mobile viewport. `lib/theme.test.ts` covers the bootstrap contract. Raster mockup
+counters and titles are sample content, never production fixtures.

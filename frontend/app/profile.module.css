@@ -172,7 +172,7 @@
 }
 
 .activityCard .sectionHeading > strong {
-  color: var(--primary);
+  color: var(--accent-text);
   font-size: 26px;
   font-variant-numeric: tabular-nums;
 }

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+umask 077
 
 stack=${1:?usage: deploy.sh mainserver|vps release.env [state-dir]}
 release=$(realpath "${2:?release manifest is required}")
@@ -21,21 +22,27 @@ case "$stack" in
         # Overridable so the pipeline can adopt the live compose project
         # names (mainserver/vps) instead of spawning parallel stacks with
         # fresh, empty volumes.
-        project=${ANICAST_PROJECT_MAINSERVER:-anicast-mainserver} ;;
+        project=${ANICAST_PROJECT_MAINSERVER:-mainserver} ;;
     vps)
         image_var=FRONTEND_IMAGE
-        project=${ANICAST_PROJECT_VPS:-anicast-vps} ;;
+        project=${ANICAST_PROJECT_VPS:-vps} ;;
     *) echo "unknown stack: $stack" >&2; exit 2 ;;
 esac
 image=$(sed -n "s/^$image_var=//p" "$release")
 [ -n "$image" ] || { echo "$image_var is missing" >&2; exit 2; }
-if [ "${ALLOW_MUTABLE_IMAGES:-0}" != 1 ]; then
-    case "$image" in *@sha256:*) ;; *) echo "$image_var must use an immutable digest" >&2; exit 2 ;; esac
-fi
+case "$image" in
+    *@sha256:*) ;;
+    sha256:*)
+        [ "${ANICAST_LOCAL_IMAGES:-0}" = 1 ] || { echo "local images require ANICAST_LOCAL_IMAGES=1" >&2; exit 2; }
+        printf '%s' "$image" | grep -Eq '^sha256:[a-f0-9]{64}$' || exit 2
+        docker image inspect "$image" >/dev/null ;;
+    *) echo "$image_var must use an immutable registry digest or an explicitly allowed local image ID" >&2; exit 2 ;;
+esac
 
 candidate="$state_dir/candidate.env"
 cp "$release" "$candidate"
-if [ -f "$state_dir/current.env" ]; then cp "$state_dir/current.env" "$state_dir/previous.env"; fi
+[ -f "$state_dir/current.env" ] || { echo "bootstrap current.env from the live image before deploying" >&2; exit 2; }
+cp "$state_dir/current.env" "$state_dir/previous.env"
 
 rollback_on_failure() {
     code=$?
@@ -54,10 +61,10 @@ compose() {
 }
 
 compose config -q
-compose pull
+if [ "${ANICAST_LOCAL_IMAGES:-0}" != 1 ]; then compose pull; fi
 if [ "$stack" = mainserver ]; then
     compose up -d postgres redis
-    compose run --rm backend python manage.py check --deploy
+    compose run --rm backend python manage.py check --deploy --fail-level WARNING
     compose run --rm backend python manage.py migrate --noinput
 fi
 compose up -d --no-build --remove-orphans

@@ -2,11 +2,14 @@ import type { Metadata, Viewport } from "next";
 import { I18nProvider } from "../components/i18n-provider";
 import { SITE_URL } from "../lib/site";
 import { getI18n } from "../i18n/server";
+import "@fontsource-variable/manrope";
+import "./theme.css";
 import "./globals.css";
+import { THEME_SCRIPT } from "../lib/theme";
 
 export const viewport: Viewport = {
-  colorScheme: "dark",
-  themeColor: "#0B131C",
+  colorScheme: "dark light",
+  themeColor: "#171311",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -14,18 +17,18 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     // Anchors relative canonical/OG URLs to the public origin.
     metadataBase: new URL(SITE_URL),
-    applicationName: "AniCast",
+    applicationName: "Anicast",
     title: {
       default: t("meta.homeTitle"),
-      template: "%s — AniCast",
+      template: "%s — Anicast",
     },
     description: t("meta.homeDescription"),
-    creator: "AniCast",
+    creator: "Anicast",
     openGraph: {
       type: "website",
-      siteName: "AniCast",
+      siteName: "Anicast",
       url: SITE_URL,
-      images: [{ url: "/og.png", width: 1200, height: 630, alt: "AniCast" }],
+      images: [{ url: "/og.png", width: 1200, height: 630, alt: "Anicast" }],
     },
     twitter: { card: "summary_large_image" },
   };
@@ -33,5 +36,5 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { locale, dictionary } = await getI18n();
-  return <html lang={locale}><body><I18nProvider locale={locale} dictionary={dictionary}>{children}</I18nProvider></body></html>;
+  return <html lang={locale} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head><body><I18nProvider locale={locale} dictionary={dictionary}>{children}</I18nProvider></body></html>;
 }

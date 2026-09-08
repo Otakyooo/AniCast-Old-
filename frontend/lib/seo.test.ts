@@ -37,7 +37,7 @@ test("schema helpers describe the site and distinguish movies", () => {
   assert.deepEqual(websiteJsonLd("ru"), {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "AniCast",
+    name: "Anicast",
     alternateName: "АниКаст",
     url: SITE_URL,
     inLanguage: "ru",

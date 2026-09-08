@@ -1,4 +1,4 @@
-export const CHARACTER_FALLBACK_IMAGE = "/brand-mark.png";
+export const CHARACTER_FALLBACK_IMAGE = "/brand-mark-v01.png";
 
 const LOCAL_MEDIA_PATH = "/api/v1/media/";
 

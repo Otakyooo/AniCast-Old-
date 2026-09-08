@@ -24,10 +24,10 @@ export function NotFoundState({
       <div className={styles.panel} role="status">
         <Image
           className={styles.illustration}
-          src="/not-found-brand.webp"
+          src="/not-found-brand-v01.webp"
           alt={imageAlt}
-          width={720}
-          height={900}
+          width={1254}
+          height={1254}
           priority
           sizes="(max-width: 760px) 86vw, 420px"
         />

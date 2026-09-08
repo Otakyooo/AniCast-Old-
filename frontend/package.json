@@ -5,11 +5,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/title-template.test.ts lib/title-names.test.ts lib/similar-shelf.test.ts lib/episode-coverage.test.ts lib/watch-controls.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts lib/continue-watching.test.ts lib/home-shelves.test.ts lib/episode-count.test.ts"
+    "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/title-template.test.ts lib/title-names.test.ts lib/similar-shelf.test.ts lib/episode-coverage.test.ts lib/watch-controls.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts lib/continue-watching.test.ts lib/home-shelves.test.ts lib/episode-count.test.ts lib/theme.test.ts"
   },
   "dependencies": {
+    "@fontsource-variable/manrope": "5.3.0",
     "@fontsource-variable/noto-sans-jp": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
     "next": "15.5.23",

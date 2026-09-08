@@ -20,7 +20,7 @@ export async function SiteFooter() {
           <Link href="/community">{t("nav.community")}</Link>
         </nav>
         <div className="site-footer-meta">
-          <small>© {new Date().getUTCFullYear()} AniCast</small>
+          <small>© {new Date().getUTCFullYear()} Anicast</small>
         </div>
       </div>
     </footer>

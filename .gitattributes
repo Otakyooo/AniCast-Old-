@@ -1,0 +1,2 @@
+# Brand documents are binary assets; never normalize their bytes or whitespace.
+*.pdf binary
