@@ -46,3 +46,18 @@ volumes: 54 таблицы, 7 647 изображений, API каталога/�
 Ресурсы удалены. Это репетиция переносимости, не постоянный перенос data tier:
 MainServer остаётся единой точкой отказа. [Отчёт](RELEASE-2026-09-09-registry.md),
 [ADR 004](architecture/004-registry-and-recovery.md).
+
+## Этап 5: hardening и независимое восстановление
+
+В production выделен третий Redis для control. Действует nonce CSP, SHA/digest
+pinning Actions и сервисов, новый SVG набор бренда и social preview. Исправлена
+холодная загрузка постеров через firewall. DB backup выполняется каждые 6h,
+media ежедневно; offsite freshness виден в мониторинге. Зашифрованные recovery
+kits обоих серверов проверены на компьютере.
+
+Полная изолированная репетиция на VPS прошла login/reset/notifications sink/player
+и switch/rollback отдельного proxy за 142.16s без учёта скачивания.
+Ожидается подтверждение Google consent для собственного OAuth; до него действует
+прежний рабочий rclone config. Постоянный внешний хост для API/БД не предоставлен.
+[Отчёт](RELEASE-2026-09-09-hardening.md), [runbook](RECOVERY_AND_MIGRATION.md),
+[ADR 005](architecture/005-control-and-offline-recovery.md).
