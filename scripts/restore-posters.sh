@@ -86,7 +86,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$volume":/data:ro -v "$backup_dir
 chmod 600 "$snapshot"
 echo "current volume saved: $snapshot"
 
-( cd "$compose_dir" && docker compose stop backend celery-worker celery-beat )
+( cd "$compose_dir" && docker compose stop celery-beat celery-worker celery-bulk backend )
 
 docker run --rm -v "$volume":/data -v "$backup_dir":/backup:ro "$helper_image" \
     sh -c 'find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -xzf "$1" -C /data; chmod -R a+rX /data' \

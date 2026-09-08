@@ -12,7 +12,7 @@ root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 backup_dir=${BACKUP_DIR:-$root/backups/db}
 pg_container=${PG_CONTAINER:-mainserver-postgres-1}
 compose_dir=$root/infra/mainserver
-scratch_db=${SCRATCH_DB:-anicast_restore_test}
+scratch_db=${SCRATCH_DB:-anicast_restore_test_$$}
 backend_container=${BACKEND_CONTAINER:-mainserver-backend-1}
 
 mode=${1:-}
@@ -40,11 +40,18 @@ pg_db=$(sed -n 's/^POSTGRES_DB=//p' "$root/infra/mainserver/.env")
 echo "dump: $dump ($(wc -c < "$dump") bytes, created $(date -u -r "$dump" +%Y-%m-%dT%H:%M:%SZ))"
 
 if [ "$mode" = "--verify" ]; then
-    docker exec "$pg_container" dropdb -U "$pg_user" --if-exists "$scratch_db"
+    case "$scratch_db" in anicast_restore_*) ;; *) echo "scratch name must begin anicast_restore_" >&2; exit 2 ;; esac
+    case "$scratch_db" in *[!a-zA-Z0-9_]*) echo "invalid scratch name" >&2; exit 2 ;; esac
+    [ "$scratch_db" != "$pg_db" ] && [ "${#scratch_db}" -le 63 ] || { echo "unsafe scratch database" >&2; exit 2; }
+    exists=$(docker exec "$pg_container" psql -U "$pg_user" -d "$pg_db" -tAc "SELECT 1 FROM pg_database WHERE datname='$scratch_db'")
+    [ -z "$exists" ] || { echo "scratch database already exists; refusing to replace it" >&2; exit 2; }
     docker exec "$pg_container" createdb -U "$pg_user" "$scratch_db"
+    cleanup_scratch() { docker exec "$pg_container" dropdb -U "$pg_user" --if-exists "$scratch_db"; }
+    trap cleanup_scratch EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     if ! docker exec -i "$pg_container" pg_restore -U "$pg_user" \
             --no-owner --no-privileges -d "$scratch_db" < "$dump"; then
-        docker exec "$pg_container" dropdb -U "$pg_user" --if-exists "$scratch_db"
         echo "restore verification FAILED: pg_restore reported errors" >&2
         exit 1
     fi
@@ -55,6 +62,7 @@ if [ "$mode" = "--verify" ]; then
     titles=$(docker exec "$pg_container" psql -U "$pg_user" -d "$scratch_db" -tAc \
         "SELECT count(*) FROM catalog_title" 2>/dev/null || echo '?')
     docker exec "$pg_container" dropdb -U "$pg_user" --if-exists "$scratch_db"
+    trap - EXIT INT TERM
     echo "verify ok: $restored_tables tables, accounts_user=$users, catalog_title=$titles (scratch database dropped)"
     exit 0
 fi
@@ -65,7 +73,7 @@ printf 'Type the database name to continue: '
 read -r reply
 [ "$reply" = "$pg_db" ] || { echo "aborted" >&2; exit 1; }
 
-( cd "$compose_dir" && docker compose stop backend celery-worker celery-beat )
+( cd "$compose_dir" && docker compose stop celery-beat celery-worker celery-bulk backend )
 docker exec "$pg_container" dropdb -U "$pg_user" --if-exists "$pg_db"
 docker exec "$pg_container" createdb -U "$pg_user" "$pg_db"
 docker exec -i "$pg_container" pg_restore -U "$pg_user" \

@@ -31,7 +31,8 @@ esac
 image=$(sed -n "s/^$image_var=//p" "$release")
 [ -n "$image" ] || { echo "$image_var is missing" >&2; exit 2; }
 case "$image" in
-    *@sha256:*) ;;
+    *@sha256:*)
+        printf '%s' "$image" | grep -Eq '^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$' || { echo "invalid registry digest" >&2; exit 2; } ;;
     sha256:*)
         [ "${ANICAST_LOCAL_IMAGES:-0}" = 1 ] || { echo "local images require ANICAST_LOCAL_IMAGES=1" >&2; exit 2; }
         printf '%s' "$image" | grep -Eq '^sha256:[a-f0-9]{64}$' || exit 2
@@ -61,7 +62,9 @@ compose() {
 }
 
 compose config -q
-if [ "${ANICAST_LOCAL_IMAGES:-0}" != 1 ]; then compose pull; fi
+if [ "${ANICAST_LOCAL_IMAGES:-0}" != 1 ]; then
+    case "$stack" in mainserver) compose pull backend ;; vps) compose pull frontend ;; esac
+fi
 if [ "$stack" = mainserver ]; then
     compose up -d postgres redis redis-cache
     compose run --rm backend python manage.py check --deploy --fail-level WARNING

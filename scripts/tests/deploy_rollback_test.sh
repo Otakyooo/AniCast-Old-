@@ -49,12 +49,12 @@ done
 chmod +x "$tmp"/bin-fail/* "$tmp"/bin-ok/*
 
 cat >"$tmp/state/current.env" <<EOF
-FRONTEND_IMAGE=registry.example/anicast-frontend@sha256:old
+FRONTEND_IMAGE=registry.example/anicast-frontend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ANICAST_ENV_FILE=$root/infra/vps/env.example
 EOF
 cp "$tmp/state/current.env" "$tmp/state-ok/current.env"
 cat >"$tmp/release.env" <<EOF
-FRONTEND_IMAGE=registry.example/anicast-frontend@sha256:new
+FRONTEND_IMAGE=registry.example/anicast-frontend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 ANICAST_ENV_FILE=$root/infra/vps/env.example
 EOF
 
@@ -62,8 +62,8 @@ if PATH="$tmp/bin-fail:$PATH" VERIFY_ATTEMPTS=1 "$root/scripts/deploy.sh" vps "$
     echo "deployment unexpectedly succeeded" >&2
     exit 1
 fi
-grep -q 'sha256:old' "$tmp/state/current.env"
-grep -q 'sha256:new' "$tmp/state/failed.env"
+grep -q 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$tmp/state/current.env"
+grep -q 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$tmp/state/failed.env"
 [ ! -d "$tmp/state/deploy.lock" ]
 echo "automatic rollback test passed"
 
@@ -71,8 +71,8 @@ echo "automatic rollback test passed"
 # keeps the old release as previous.env and releases the lock.
 PATH="$tmp/bin-ok:$PATH" VERIFY_ATTEMPTS=1 \
     "$root/scripts/deploy.sh" vps "$tmp/release.env" "$tmp/state-ok"
-grep -q 'sha256:new' "$tmp/state-ok/current.env"
-grep -q 'sha256:old' "$tmp/state-ok/previous.env"
+grep -q 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$tmp/state-ok/current.env"
+grep -q 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$tmp/state-ok/previous.env"
 [ ! -e "$tmp/state-ok/candidate.env" ]
 [ ! -d "$tmp/state-ok/deploy.lock" ]
 echo "deployment promotion test passed"
@@ -93,7 +93,7 @@ if PATH="$tmp/bin-ok:$PATH" "$root/scripts/deploy.sh" vps "$tmp/mutable.env" "$t
     echo "mutable release unexpectedly accepted" >&2
     exit 1
 fi
-grep -q 'sha256:new' "$tmp/state-ok/current.env"
+grep -q 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$tmp/state-ok/current.env"
 echo "mutable image rejected without changing current release"
 
 local_id=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -111,3 +111,18 @@ if grep -q ' pull$' "$tmp/local-docker.log"; then
     exit 1
 fi
 echo "local immutable image deployment passed"
+
+# Reject malformed registry digests before a release is promoted.
+printf 'FRONTEND_IMAGE=registry.example/anicast-frontend@sha256:sha256:broken\n' > "$tmp/bad-digest.env"
+if PATH="$tmp/bin-ok:$PATH" "$root/scripts/deploy.sh" vps "$tmp/bad-digest.env" "$tmp/state-ok"; then
+    echo "malformed digest unexpectedly accepted" >&2; exit 1
+fi
+# A normal registry-mode rollback can use a retained local baseline without pull.
+printf 'FRONTEND_IMAGE=%s\n' "$local_id" > "$tmp/state-ok/previous.env"
+: > "$tmp/rollback-local.log"
+PATH="$tmp/bin-ok:$PATH" ANICAST_DOCKER_LOG="$tmp/rollback-local.log" \
+    "$root/scripts/rollback.sh" vps "$tmp/state-ok"
+if grep -q ' pull' "$tmp/rollback-local.log"; then
+    echo "local rollback unexpectedly attempted registry pull" >&2; exit 1
+fi
+echo "registry-to-local rollback passed"
