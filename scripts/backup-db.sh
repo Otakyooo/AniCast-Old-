@@ -99,7 +99,7 @@ for old in "$backup_dir"/anicast-*.dump; do
     if [ "$age" -le "$retention_days" ]; then continue; fi
     weekday=$(date -u -r "$old" +%u)
     if [ "$weekday" = "7" ] && [ "$age" -le "$weekly_keep_days" ]; then continue; fi
-    rm -f "$old"
+    rm -f "$old" "$old.sha256"
 done
 
 sha256sum "$dump" > "$dump.sha256"

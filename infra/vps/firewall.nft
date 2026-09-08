@@ -8,6 +8,10 @@ table inet anicast_edge {
         ct state established,related accept
         # Includes IPv6 neighbour discovery and path-MTU signalling.
         meta l4proto { icmp, ipv6-icmp } accept
+        # Next image optimization fetches our public HTTPS origin from Docker.
+        # Hairpin traffic reaches INPUT through a bridge, not through eth0.
+        # Expose only the same public web ports; SSH/relay/metrics stay closed.
+        iifname "br-*" tcp dport { 80, 443 } accept
         iifname "eth0" tcp dport { 22, 80, 443 } accept
         iifname "eth0" udp dport 443 accept
         iifname "awg0" ip saddr 10.78.0.2 tcp dport { 22, 8443, 9100 } accept

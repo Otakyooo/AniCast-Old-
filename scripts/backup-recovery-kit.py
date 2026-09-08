@@ -28,6 +28,9 @@ def main():
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     private_home = Path.home()
     files = {f"infra/{role}/runtime.env": root / f"infra/{role}/.env"}
+    files[f"infra/{role}/compose.yml"] = root / f"infra/{role}/compose.yml"
+    for name in ("deploy.sh", "rollback.sh", "verify-deploy.sh"):
+        files["scripts/" + name] = root / "scripts" / name
     if role == "mainserver":
         files.update({
             "recovery/rclone.conf": private_home / ".config/rclone/rclone.conf",
@@ -39,8 +42,12 @@ def main():
             if p.is_file():
                 files["infra/monitoring/secrets/" + p.name] = p
         state = root / "backups/releases/mainserver/current.env"
+        for name in ("compose.yml", "prometheus.yml", "alertmanager.yml", "blackbox.yml", "rules/anicast-alerts.yml", "nginx/metrics-proxy.conf"):
+            files["infra/monitoring/" + name] = root / "infra/monitoring" / name
     else:
         files["recovery/awg0.conf"] = Path("/etc/amnezia/amneziawg/awg0.conf")
+        for name in ("Caddyfile", "firewall.nft"):
+            files["infra/vps/" + name] = root / "infra/vps" / name
         state = Path("/var/lib/anicast/releases/vps/current.env")
     files["recovery/current.env"] = state
     values = dict(line.split("=", 1) for line in state.read_text().splitlines() if "=" in line)
@@ -51,8 +58,11 @@ def main():
     for source in files.values():
         if not source.is_file():
             raise SystemExit("required recovery input is missing")
+    # Read once: an OAuth refresh may atomically replace rclone.conf while the
+    # kit is being made. Hash exactly the bytes we encrypt.
+    contents = {name: path.read_bytes() for name, path in files.items()}
     metadata = {"role": role, "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "files": {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files.items()}}
+                "files": {name: hashlib.sha256(data).hexdigest() for name, data in contents.items()}}
     temporary = output.with_suffix(".age.partial")
     age = os.environ.get("AGE_BIN", str(private_home / ".local/bin/age"))
     try:
@@ -60,8 +70,9 @@ def main():
             process = subprocess.Popen([age, "-R", str(recipient)], stdin=subprocess.PIPE, stdout=destination, stderr=subprocess.PIPE)
             try:
                 with tarfile.open(fileobj=process.stdin, mode="w|gz") as archive:
-                    for name, source in files.items():
-                        archive.add(source, arcname=name, recursive=False)
+                    for name, data in contents.items():
+                        info = tarfile.TarInfo(name); info.size = len(data); info.mode = 0o600
+                        archive.addfile(info, io.BytesIO(data))
                     data = json.dumps(metadata).encode()
                     info = tarfile.TarInfo("recovery/manifest.json"); info.size = len(data); info.mode = 0o600
                     archive.addfile(info, io.BytesIO(data))

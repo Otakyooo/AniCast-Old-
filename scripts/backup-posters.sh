@@ -68,7 +68,7 @@ if [ "${files_before:-0}" -gt 0 ] && [ "$files_archive" -lt "$files_before" ]; t
 fi
 chmod 600 "$dump"
 
-find "$backup_dir" -name 'posters-*.tar.gz' -mtime "+$retention_days" -delete
+find "$backup_dir" -name 'posters-*.tar.gz*' -mtime "+$retention_days" -delete
 
 sha256sum "$dump" > "$dump.sha256"
 

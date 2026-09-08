@@ -11,6 +11,7 @@ import secrets
 import subprocess
 import sys
 import time
+import tempfile
 import uuid
 
 
@@ -37,9 +38,11 @@ def main():
     started = time.monotonic()
     # Passwords go through inherited environment, not command arguments or logs.
     env = {**os.environ, "POSTGRES_PASSWORD": password}
+    phase = "setup"
     try:
         docker("network", "create", "--internal", network); made.append(("network", network))
         if media_archive:
+            phase = "media"
             docker("volume", "create", "--label", "anicast.restore=" + prefix, media_volume); made.append(("volume", media_volume))
             made.append(("container", prefix + "-extract"))
             result = docker("run", "--rm", "--name", prefix + "-extract", "--network", "none",
@@ -62,6 +65,7 @@ def main():
         else:
             raise RuntimeError("isolated PostgreSQL did not start")
         with dump.open("rb") as source:
+            phase = "pg_restore"
             subprocess.run(["docker", "exec", "-i", database, "pg_restore", "-U", "drill", "--exit-on-error", "--single-transaction", "--no-owner", "--no-privileges", "-d", "recovery"], stdin=source, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         sql = f"CREATE ROLE drill_reader LOGIN PASSWORD '{read_password}'; GRANT CONNECT ON DATABASE recovery TO drill_reader; GRANT USAGE ON SCHEMA public TO drill_reader; GRANT SELECT ON ALL TABLES IN SCHEMA public TO drill_reader;"
         docker("exec", "-i", database, "psql", "-U", "drill", "-d", "recovery", "-v", "ON_ERROR_STOP=1", input=sql)
@@ -69,6 +73,7 @@ def main():
         # No host ports, production volume, real secrets, workers or outbound network.
         made.append(("container", app))
         media_args = ["-v", media_volume + ":/app/media:ro", "-e", "DRILL_MEDIA=1"] if media_archive else []
+        phase = "read-only-smoke"
         result = docker("run", "--rm", "--name", app, "--label", "anicast.restore=" + prefix,
                "--network", network, "--memory", "160m", "--memory-swap", "160m", "--cpus", "0.4",
                "-e", "POSTGRES_PASSWORD", "-e", "DJANGO_SECRET_KEY", "-e", "POSTGRES_USER=drill_reader",
@@ -77,11 +82,68 @@ def main():
                "-v", str(Path(__file__).with_name("recovery-smoke.py").resolve()) + ":/app/recovery_smoke.py:ro",
                *media_args, backend, "python", "/app/recovery_smoke.py", env=runtime)
         print(result.stdout.strip())
+        flow_env = {**runtime, "POSTGRES_PASSWORD": password}
+        phase = "synthetic-flows"
+        made.append(("container", app + "-flows"))
+        result = docker("run", "--rm", "--name", app + "-flows", "--network", network,
+               "--memory", "160m", "--memory-swap", "160m", "--cpus", "0.4",
+               "-e", "POSTGRES_PASSWORD", "-e", "DJANGO_SECRET_KEY", "-e", "POSTGRES_USER=drill",
+               "-e", "POSTGRES_DB=recovery", "-e", "POSTGRES_HOST=" + database,
+               "-e", "DJANGO_DEBUG=1", "-e", "DRILL_WRITE_FLOWS=1",
+               "-v", str(Path(__file__).with_name("recovery-flows.py").resolve()) + ":/app/recovery_flows.py:ro",
+               backend, "python", "/app/recovery_flows.py", env=flow_env)
+        print(result.stdout.strip())
+        if os.environ.get("DRILL_CUTOVER") == "1":
+            phase = "isolated-caddy-cutover"
+            proxy_image = "caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+            docker("image", "inspect", proxy_image)
+            origin, proxy = app + "-http", app + "-proxy"
+            made.append(("container", origin))
+            docker("run", "-d", "--name", origin, "--network", network,
+                   "--memory", "160m", "--memory-swap", "160m", "--cpus", "0.4",
+                   "-e", "POSTGRES_PASSWORD", "-e", "DJANGO_SECRET_KEY", "-e", "POSTGRES_USER=drill_reader",
+                   "-e", "POSTGRES_DB=recovery", "-e", "POSTGRES_HOST=" + database, "-e", "DJANGO_DEBUG=1",
+                   "-v", str(Path(__file__).with_name("recovery-http.py").resolve()) + ":/app/recovery_http.py:ro",
+                   backend, "python", "/app/recovery_http.py", env=runtime)
+            with tempfile.TemporaryDirectory(prefix=prefix + "-routing-") as config_dir:
+                config = Path(config_dir) / "Caddyfile"
+                previous = ':8080 {\n respond "previous-route" 200\n}\n'
+                config.write_text(previous)
+                made.append(("container", proxy))
+                docker("run", "-d", "--name", proxy, "--network", network,
+                       "--memory", "48m", "--memory-swap", "48m", "--cpus", "0.2",
+                       "-v", config_dir + ":/config:ro", proxy_image, "caddy", "run", "--config", "/config/Caddyfile", "--adapter", "caddyfile")
+                def request_probe(path, restored=False):
+                    code = "import urllib.request,json; r=urllib.request.urlopen(urllib.request.Request(" + repr("http://" + proxy + ":8080" + path) + ",headers={'Host':'testserver'}),timeout=5); b=r.read(); assert r.status==200; "
+                    code += "assert json.loads(b)['results']" if restored else "assert b==b'previous-route'"
+                    for _ in range(30):
+                        result = subprocess.run(["docker", "exec", origin, "python", "-c", code], capture_output=True)
+                        if result.returncode == 0:
+                            return
+                        time.sleep(1)
+                    raise RuntimeError("isolated route probe failed")
+                request_probe("/")
+                config.write_text(":8080 {\n reverse_proxy " + origin + ":8000\n}\n")
+                docker("exec", proxy, "caddy", "reload", "--config", "/config/Caddyfile", "--adapter", "caddyfile")
+                request_probe("/api/v1/titles/?page_size=1", restored=True)
+                config.write_text(previous)
+                docker("exec", proxy, "caddy", "reload", "--config", "/config/Caddyfile", "--adapter", "caddyfile")
+                request_probe("/")
+                docker("rm", "-f", "-v", proxy)
+                made.remove(("container", proxy))
+            print("isolated_proxy_cutover_and_rollback=passed; public_routing_unchanged")
         with dump.open("rb") as source:
             print("dump_sha256=" + hashlib.file_digest(source, "sha256").hexdigest())
         print("restore_and_smoke_seconds=" + str(round(time.monotonic() - started, 2)))
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as error:
+        print(f"recovery_phase={phase} exit_code={error.returncode}")
         # Raw pg_restore/API exception text can include personal data or secrets.
+        details = error.stderr or ""
+        if isinstance(details, bytes):
+            details = details.decode(errors="replace")
+        safe_location = re.search(r"drill_flow_error=[A-Za-z]+ line=[0-9]+", details)
+        if safe_location:
+            print(safe_location.group())
         raise RuntimeError("isolated recovery step failed; no production state was changed") from None
     finally:
         for kind, name in reversed(made):

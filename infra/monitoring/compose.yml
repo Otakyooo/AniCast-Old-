@@ -72,11 +72,13 @@ services:
       - --path.rootfs=/host/root
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
+      - --collector.textfile.directory=/textfile
     pid: host
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/host/root:ro,rslave
+      - ../../backups/metrics:/textfile:ro
     mem_limit: 64m
     logging: *container-logging
     networks: [monitoring]

@@ -80,9 +80,9 @@ docker exec mainserver-backend-1 python -c \
 
 ## Backups
 
-`scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (14 daily dumps plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
+`scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (all dumps for 14 days plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
 
-`scripts/backup-posters.sh` does the same for the shared artwork volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. It contains title posters and mirrored character/creator portraits. Scheduled weekly (Sundays 03:45, after the DB backup); the pipeline can rebuild missing files from private origins, but a backup restores them without upstream traffic.
+`scripts/backup-posters.sh` does the same for the shared artwork volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. It contains title posters and mirrored character/creator portraits. Scheduled daily at 03:45 UTC; the pipeline can rebuild missing files from private origins, but a backup restores them without upstream traffic.
 
 Poster restore runbook (`scripts/restore-posters.sh`, defaults to the newest archive):
 
@@ -100,13 +100,17 @@ scripts/restore-posters.sh --force [archive]
 Cron on MainServer runs the backups and verifications (logs in `~/anicast/backups/{backup,restore-verify}.log`):
 
 ```cron
-15 3 * * *  ~/anicast/scripts/backup-db.sh >> ~/anicast/backups/backup.log 2>&1
-45 3 * * 0  ~/anicast/scripts/backup-posters.sh >> ~/anicast/backups/backup.log 2>&1
+15 */6 * * *  ~/anicast/scripts/backup-db.sh >> ~/anicast/backups/backup.log 2>&1
+45 3 * * *  ~/anicast/scripts/backup-posters.sh >> ~/anicast/backups/backup.log 2>&1
+5 5 * * 0  sh ~/anicast/scripts/backup-recovery-kit.sh >> ~/anicast/backups/backup.log 2>&1
+*/5 * * * *  python3 ~/anicast/scripts/backup-metrics.py >> ~/anicast/backups/backup.log 2>&1
 30 4 * * 0  ~/anicast/scripts/restore-db.sh --verify >> ~/anicast/backups/restore-verify.log 2>&1
 10 5 * * *  ~/anicast/scripts/prune-docker-cache.sh >> ~/anicast/backups/maintenance.log 2>&1
 ```
 
-The newest successful DB dump is recorded in `backups/db/last_backup`. A failed backup sends a Telegram message through the ops bot and exits non-zero; a failed offsite upload still alerts even when the local dump succeeded.
+Host timezone is UTC. Install idempotently with `python3 scripts/install-backup-schedule.py`; unrelated crontab entries are preserved. Target RPO: DB 6h, media 24h, conditional on successful offsite upload. Target RTO: 2h after a suitable recovery host and credentials are available; it is not yet a guaranteed end-to-end SLA.
+
+The newest successful DB dump is recorded in `backups/db/last_backup`. Separate `last_offsite_backup` markers are written only after upload succeeds. Missing rclone and failed uploads fail the job. `BACKUP_NOTIFY=0` suppresses messaging during manual tests. Freshness is exported through node-exporter; alerts cover stale copies and stopped metric updates. A failed backup sends a Telegram message through the ops bot and exits non-zero; a failed offsite upload still alerts even when the local dump succeeded.
 
 `prune-docker-cache.sh` removes only BuildKit cache older than 24 hours. It does not prune images, containers or volumes, so production and image rollback remain available. The daily limit prevents rapid local-image builds from filling the MainServer root filesystem and triggering `DiskSpaceWarning`.
 
@@ -120,17 +124,17 @@ scripts/restore-db.sh --verify [dump]
 scripts/restore-db.sh --force [dump]
 ```
 
-`--force` requires typing the production database name, drops and recreates it, restores with `pg_restore`, brings the stack back and waits for backend health. Dumps contain user PII; the Google Drive copy is encrypted with keys that exist only in `~/.config/rclone/rclone.conf` on MainServer.
+`--force` requires typing the production database name, drops and recreates it, restores with `pg_restore`, brings the stack back and waits for backend health. Dumps contain user PII; the Google Drive copy is encrypted with keys stored in `~/.config/rclone/rclone.conf` and encrypted offline recovery kits; the decryption identity stays on the operator workstation.
 
 ### Migrating rclone to a project-owned Google Drive client
 
-`rclone` uses a shared Google Drive client_id today; when that client is retired, token refreshes stop working and offsite uploads fail (the backup alert fires). Migration, done once, in order:
+The project-owned Desktop client **Anicast rclone recovery** exists in `anicast-backups-506301`, with Drive API enabled and the app in Production status. The owner must complete the Google authorization screen before the running rclone configuration switches from the shared client. Production status avoids the seven-day Testing token limit; it does not mean public Google verification. Migration procedure:
 
 1. Create (or pick) an owned Google Cloud project, enable the Drive API and create an OAuth client ID of type *Desktop app*. Note the client id and secret.
 2. On MainServer back up the current config: `cp ~/.config/rclone/rclone.conf ~/.config/rclone/rclone.conf.bak-$(date -u +%Y%m%d)` (keep until the new client is proven).
 3. The crypt remote `gdcrypt:` sits on top of a plain drive remote; the client credentials live on the **underlying** remote. Run `rclone config`, choose the underlying remote (not `gdcrypt`), set `client_id` and `client_secret`.
-4. Re-authorize headless: from a workstation with a browser run `rclone authorize "drive" "<client_id>" "<client_secret>"` and paste the resulting token into the MainServer prompt of `rclone config reconnect <underlying-remote>`.
-5. Prove both paths: `rclone touch gdcrypt:.migration-probe && rclone lsl gdcrypt:.migration-probe && rclone delete gdcrypt:.migration-probe`, then run `scripts/backup-db.sh` manually once and confirm the upload message.
+4. Re-authorize on the workstation with `rclone authorize drive --auth-no-open-browser`. Supply client ID/secret through private process environment, never shell history or chat. Store output privately; preserve the existing crypt keys and backup root folder. The owner handles Google security interstitials.
+5. With the candidate private config, upload/read/check/delete a uniquely named probe in the backup folder, then atomically select that config. Run `BACKUP_NOTIFY=0 scripts/backup-db.sh`; verify token refresh and offsite retrieval. Regenerate both age kits and verify them from the workstation.
 6. Keep the `.bak` config for ~30 days, then remove it.
 
 ## Monitoring stack
@@ -597,7 +601,7 @@ python3 scripts/restore-isolated.py /private/backup.dump \
 The utility refuses to start below 448 MiB MemAvailable. Do not lower this guard
 to fit a busy VPS: wait for transient work to finish or use another host. It uses
 new random volumes, an internal network, no public ports, no real runtime secrets,
-no workers and a SELECT-only database role for API probes. Media extraction is
+no workers and a SELECT-only database role for the initial API probes. A separate process tests synthetic session login, one-use password reset, in-memory email, captured Telegram delivery and signed playback resolution inside a rolled-back transaction on the disposable DB. Media extraction is
 streamed and bounded, followed by a read-only volume mount. Keep the shell alive
 until completion; after an interrupted process, inspect and remove only its exact
 `anicast-restore-<id>-*` resources. Never use global Docker prune as cleanup.
@@ -606,8 +610,7 @@ Record aggregate counts, backup dates/hashes, API result and restore duration.
 Confirm no temporary containers/volumes/networks remain, check public health and
 memory, then remove only the explicitly named transferred drill inputs. Do not
 delete scheduled local/offsite backups. Duration excludes fetching images/data
-and is not an end-to-end RTO. Real auth, external playback and traffic cutover need
-separate tests. This drill does not restore production.
+and is not an end-to-end RTO. Set `DRILL_CUTOVER=1` and preload the pinned Caddy image to rehearse private proxy switch/rollback against a real restored HTTP API. External video streaming, delivery to real mailboxes/chats and a public traffic cutover remain separate operations. This drill does not restore production.
 
 `restore-db.sh --verify` remains a lighter local DB check, with a unique scratch
 name. It refuses an existing scratch DB instead of dropping it; it cannot replace

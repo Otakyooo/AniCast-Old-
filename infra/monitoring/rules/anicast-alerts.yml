@@ -118,6 +118,23 @@ groups:
           summary: "Постеры отклоняются валидацией (битые/мелкие изображения): {{ $value | humanize }} за 6 часов"
   - name: host
     rules:
+      - alert: OffsiteBackupStale
+        expr: |
+          time() - anicast_offsite_backup_timestamp_seconds{kind="db"} > 7 * 3600
+          or time() - anicast_offsite_backup_timestamp_seconds{kind="posters"} > 26 * 3600
+          or time() - anicast_offsite_backup_timestamp_seconds{kind="recovery-kit"} > 8 * 86400
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Внешняя копия {{ $labels.kind }} отсутствует или устарела"
+      - alert: BackupFreshnessMetricsMissing
+        expr: absent(anicast_offsite_backup_timestamp_seconds{kind="db"}) or time() - node_textfile_mtime_seconds{file=~".*backup.prom"} > 900
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Не обновляются метрики внешнего резервного копирования"
       - alert: DiskSpaceWarning
         expr: node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} < 0.15
         for: 10m

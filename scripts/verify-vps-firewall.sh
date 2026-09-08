@@ -17,3 +17,6 @@ subprocess.run(["nft", "list", "table", "ip", "anicast_awg_nat"], check=True, st
 subprocess.run(["iptables", "-C", "FORWARD", "-j", "DOCKER-USER"], check=True)
 print("Firewall enabled: INPUT drop, pre-Docker filter, AWG NAT and Docker chains present")
 PY
+# Cached images can hide a broken Docker-to-public-origin route. Use an
+# uncached API request from the real frontend network as a separate gate.
+docker exec vps-frontend-1 node -e "fetch('https://anicast.online/api/v1/titles/?page_size=1',{signal:AbortSignal.timeout(10000)}).then(r=>{if(!r.ok)process.exit(1);console.log('Frontend can reach public HTTPS origin through host firewall')}).catch(()=>process.exit(1))"

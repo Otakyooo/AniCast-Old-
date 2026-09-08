@@ -1,2 +1,7 @@
 # Brand documents are binary assets; never normalize their bytes or whitespace.
 *.pdf binary
+*.sh text eol=lf
+*.py text eol=lf
+*.nft text eol=lf
+*.yml text eol=lf
+**/Caddyfile text eol=lf

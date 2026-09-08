@@ -41,3 +41,16 @@ authorization. Do not run a production restore as a release smoke test.
 
 Record evidence, remaining risks, and whether a commit was pushed. Do not describe
 an unrun check, an unverified offsite backup or a prepared release as successful.
+
+Three Redis roles now exist: broker, control and ephemeral. A topology rollback
+must keep the authoritative control state; stale DB 2 on the broker is not an
+automatic rollback target. Use ADR 005 for the migration and RPO/RTO contract.
+After firewall changes, test a fresh request from the frontend container to the
+public HTTPS origin: Docker hairpin traffic enters through a bridge, not eth0.
+Cached posters and successful external requests do not prove that path works.
+
+Recovery credentials are encrypted to an offline recipient. Test from the
+operator's computer without MainServer and refresh both host kits after OAuth or
+runtime changes. Manual backup checks use BACKUP_NOTIFY=0. Read/write drills use
+only disposable restore resources; email stays in memory and Telegram uses a
+capture sink. Do not label these checks real external message delivery.
