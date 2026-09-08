@@ -89,6 +89,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nftables iproute2
       - run: sudo python3 scripts/tests/vps_firewall_test.py infra/vps/firewall.nft
       - run: python3 -m unittest discover -s scripts/tests -p "test_release*.py"
+      - run: python3 -m py_compile scripts/create-release-manifests.py scripts/restore-isolated.py scripts/recovery-smoke.py scripts/recovery-media.py
       - run: docker build frontend
       - run: docker run --rm -v "$PWD/infra/vps/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
       - run: git diff --check

@@ -25,6 +25,11 @@ A generic inspect ping that receives one pong is not proof both workers work.
 Never purge queues to resolve a deployment delay; allow warm shutdown.
 
 Build/check before changing services. Run `scripts/validate.sh` for infrastructure.
+Use the successful CI `release-<sha>` artifact for registry deployments; add only
+the host's immutable private ANICAST_ENV_FILE snapshot. Do not build on the VPS
+or overwrite an env snapshot used by current/previous releases. See ADR 004.
+For isolated recovery use `scripts/restore-isolated.py` and the recovery runbook;
+preserve its memory guard, unique resources and separation from production data.
 After deployment require container health, backend readiness, the public home and
 titles API, and a public 404 for `/internal/metrics`. For UI changes verify a
 real browser as well. Do not expose `/health` or metrics through Caddy.

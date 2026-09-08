@@ -1,6 +1,6 @@
 """Restore a supplied dump on a recovery host, without production access.
 
-python3 scripts/restore-isolated.py DUMP BACKEND_IMAGE POSTGRES_IMAGE
+python3 scripts/restore-isolated.py DUMP BACKEND_IMAGE POSTGRES_IMAGE [MEDIA_ARCHIVE]
 Images must be preloaded, immutable IDs/digests. No real env or user data is logged.
 """
 import hashlib
@@ -21,6 +21,7 @@ def docker(*args, **kwargs):
 def main():
     dump = Path(sys.argv[1]).resolve(strict=True)
     backend, postgres = sys.argv[2:4]
+    media_archive = Path(sys.argv[4]).resolve(strict=True) if len(sys.argv) > 4 else None
     for image in (backend, postgres):
         assert re.fullmatch(r"(?:[a-z0-9][a-z0-9._:/-]*@)?sha256:[a-f0-9]{64}", image), "immutable image required"
         docker("image", "inspect", image)
@@ -29,6 +30,7 @@ def main():
     prefix = "anicast-restore-" + uuid.uuid4().hex[:12]
     network, volume, database = prefix + "-net", prefix + "-data", prefix + "-pg"
     app = prefix + "-app"
+    media_volume = prefix + "-media"
     password = secrets.token_urlsafe(32)
     read_password = secrets.token_urlsafe(32)
     made = []
@@ -37,6 +39,15 @@ def main():
     env = {**os.environ, "POSTGRES_PASSWORD": password}
     try:
         docker("network", "create", "--internal", network); made.append(("network", network))
+        if media_archive:
+            docker("volume", "create", "--label", "anicast.restore=" + prefix, media_volume); made.append(("volume", media_volume))
+            made.append(("container", prefix + "-extract"))
+            result = docker("run", "--rm", "--name", prefix + "-extract", "--network", "none",
+                   "--memory", "128m", "--memory-swap", "128m", "--cpus", "0.4",
+                   "-v", media_volume + ":/data", "-v", str(media_archive) + ":/archive.tar.gz:ro",
+                   "-v", str(Path(__file__).with_name("recovery-media.py").resolve()) + ":/extract.py:ro",
+                   backend, "python", "/extract.py", "/archive.tar.gz")
+            print(result.stdout.strip())
         docker("volume", "create", "--label", "anicast.restore=" + prefix, volume); made.append(("volume", volume))
         made.append(("container", database))
         docker("run", "-d", "--name", database, "--label", "anicast.restore=" + prefix,
@@ -57,13 +68,14 @@ def main():
         runtime = {**os.environ, "POSTGRES_PASSWORD": read_password, "DJANGO_SECRET_KEY": secrets.token_urlsafe(48)}
         # No host ports, production volume, real secrets, workers or outbound network.
         made.append(("container", app))
+        media_args = ["-v", media_volume + ":/app/media:ro", "-e", "DRILL_MEDIA=1"] if media_archive else []
         result = docker("run", "--rm", "--name", app, "--label", "anicast.restore=" + prefix,
                "--network", network, "--memory", "160m", "--memory-swap", "160m", "--cpus", "0.4",
                "-e", "POSTGRES_PASSWORD", "-e", "DJANGO_SECRET_KEY", "-e", "POSTGRES_USER=drill_reader",
                "-e", "POSTGRES_DB=recovery", "-e", "POSTGRES_HOST=" + database,
                "-e", "DJANGO_DEBUG=1", "-e", "DJANGO_EMAIL_BACKEND=django.core.mail.backends.dummy.EmailBackend",
                "-v", str(Path(__file__).with_name("recovery-smoke.py").resolve()) + ":/app/recovery_smoke.py:ro",
-               backend, "python", "/app/recovery_smoke.py", env=runtime)
+               *media_args, backend, "python", "/app/recovery_smoke.py", env=runtime)
         print(result.stdout.strip())
         with dump.open("rb") as source:
             print("dump_sha256=" + hashlib.file_digest(source, "sha256").hexdigest())

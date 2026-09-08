@@ -482,6 +482,17 @@ rollback: [ADR 003](architecture/003-vps-firewall.md), [release](RELEASE-2026-09
 
 ## Release manifests
 
+The primary path is the successful `publish` workflow in GitHub Actions. It calls
+all CI gates before publishing linux/amd64 application images to GHCR, then uploads
+`release-<full-git-sha>` with mainserver.env, vps.env and release.json (90-day artifact
+retention). Download that artifact for the chosen successful run, retain it with
+the release records, and add ANICAST_ENV_FILE pointing to an immutable private
+runtime snapshot on each host. Do not build on production or deploy a moving tag.
+The artifact is not an automatic production deployment and contains no secrets.
+
+Current registry rollout and measured recovery evidence:
+[release 09.09](RELEASE-2026-09-09-registry.md), [ADR 004](architecture/004-registry-and-recovery.md).
+
 Build and publish backend/frontend images outside the hosts, then resolve them to immutable digests. A MainServer release file contains no secrets:
 
 ```dotenv
@@ -522,7 +533,13 @@ Before MainServer deployment, create and verify a PostgreSQL logical backup acco
 
 ## Automatic rollback
 
-Any failed Compose health or smoke gate triggers `scripts/rollback.sh` for that stack and verifies the previous manifest with the same probes. Manual rollback is:
+Any failed Compose health or smoke gate triggers `scripts/rollback.sh` for that stack and verifies the previous manifest with the same probes.
+
+The script also accepts a retained local SHA baseline during the transition from
+local images: it inspects the image locally and skips registry pull. Keep the
+previous image and its env snapshot until the release is no longer needed.
+
+Manual rollback is:
 
 ```bash
 sudo scripts/rollback.sh mainserver
@@ -559,6 +576,42 @@ configuration; restore the captured configuration separately when undoing topolo
 Never restore a database automatically to roll back application code.
 
 The 2026-09-08 rollout and actual checks are recorded in `RELEASE-2026-09-08.md`.
+
+## Isolated offsite recovery drill
+
+Download the chosen DB dump and optional media archive from `gdcrypt:` into a
+private directory (0700, files 0600), retaining their original backup timestamps
+and SHA-256. Transfer only these inputs and drill scripts to the recovery host.
+Preload the selected immutable backend and PostgreSQL images; no build is needed.
+Ensure sufficient disk for archive, expanded media (up to 2 GiB), DB and images.
+
+```bash
+# On a separate recovery host, with Docker available. Arguments are paths and
+# immutable image references, never credentials. Omit the last argument for DB only.
+umask 077
+python3 scripts/restore-isolated.py /private/backup.dump \
+  ghcr.io/otakyooo/anicast-backend@sha256:<64-hex-digest> \
+  postgres@sha256:<64-hex-digest> /private/posters.tar.gz
+```
+
+The utility refuses to start below 448 MiB MemAvailable. Do not lower this guard
+to fit a busy VPS: wait for transient work to finish or use another host. It uses
+new random volumes, an internal network, no public ports, no real runtime secrets,
+no workers and a SELECT-only database role for API probes. Media extraction is
+streamed and bounded, followed by a read-only volume mount. Keep the shell alive
+until completion; after an interrupted process, inspect and remove only its exact
+`anicast-restore-<id>-*` resources. Never use global Docker prune as cleanup.
+
+Record aggregate counts, backup dates/hashes, API result and restore duration.
+Confirm no temporary containers/volumes/networks remain, check public health and
+memory, then remove only the explicitly named transferred drill inputs. Do not
+delete scheduled local/offsite backups. Duration excludes fetching images/data
+and is not an end-to-end RTO. Real auth, external playback and traffic cutover need
+separate tests. This drill does not restore production.
+
+`restore-db.sh --verify` remains a lighter local DB check, with a unique scratch
+name. It refuses an existing scratch DB instead of dropping it; it cannot replace
+an independent-host recovery drill.
 
 ## Validation
 

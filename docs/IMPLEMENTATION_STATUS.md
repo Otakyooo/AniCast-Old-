@@ -34,3 +34,15 @@ Throttles, locks и cursors сохраняются в прежнем noeviction-
 Включён Anicast nftables firewall с boot unit; сохранены SSH, AWG, сайт,
 relay, monitoring и egress MainServer. Docker DNAT контролируется отдельно
 от INPUT. [Результаты и ограничения](RELEASE-2026-09-09-firewall.md).
+
+## Этап 4: registry и восстановление
+
+Оба production приложения используют опубликованные GHCR digests. Сборки и
+полные проверки выполняются в GitHub Actions до публикации; на VPS сборок нет.
+Сохранены предыдущие образы и приватные неизменяемые env для отката.
+
+На VPS успешно восстановлены внешние DB/media backup в отдельные временные
+volumes: 54 таблицы, 7 647 изображений, API каталога/библиотеки/истории/постеров.
+Ресурсы удалены. Это репетиция переносимости, не постоянный перенос data tier:
+MainServer остаётся единой точкой отказа. [Отчёт](RELEASE-2026-09-09-registry.md),
+[ADR 004](architecture/004-registry-and-recovery.md).

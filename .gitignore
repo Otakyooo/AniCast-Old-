@@ -34,6 +34,7 @@ coverage/
 # These are evidence for a single review, not project sources, and they were
 # adding megabytes of binaries to the history.
 /artifacts/
+/release-artifacts/
 
 # Editor-local state that is not shared configuration
 .zed/
