@@ -2,6 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+python3 -m unittest discover -s "$root/scripts/tests" -p 'test_capacity_report.py'
 for script in "$root"/scripts/*.sh "$root"/scripts/tests/*.sh; do sh -n "$script"; done
 docker compose --env-file "$root/infra/mainserver/env.example" -f "$root/infra/mainserver/compose.yml" config -q
 docker compose --env-file "$root/infra/vps/env.example" -f "$root/infra/vps/compose.yml" config -q

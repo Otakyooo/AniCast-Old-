@@ -21,11 +21,15 @@ Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.
 
 ## Redis
 
-There are two Redis services on MainServer; the VPS has none.
+There are three Redis services on MainServer; the VPS has none.
 
 - `redis` remains persistent (AOF), `noeviction`, 200 MiB maxmemory / 256 MiB
-  container limit. `CELERY_BROKER_URL` uses DB 0, `CELERY_RESULT_BACKEND` DB 1,
-  `CONTROL_CACHE_URL` DB 2. All three use `REDIS_PASSWORD`.
+  container limit. `CELERY_BROKER_URL` uses DB 0, `CELERY_RESULT_BACKEND` DB 1;
+  both use `REDIS_PASSWORD`. Former control DB 2 is retained as migration evidence,
+  not used by current clients and not an automatic rollback target.
+- `redis-control` is persistent (AOF), `noeviction`, 64 MiB maxmemory / 96 MiB
+  container limit. `CONTROL_CACHE_URL` points to DB 0 with its separate
+  `CONTROL_REDIS_PASSWORD`; this is the authoritative coordination state.
 - `redis-cache` is disposable: `allkeys-lru`, 64 MiB maxmemory / 96 MiB container
   limit, no AOF/RDB. `CACHE_URL` points to DB 0 here with the separate
   `CACHE_REDIS_PASSWORD`. It has no host port and is not on the metrics network.
@@ -38,22 +42,23 @@ There are two Redis services on MainServer; the VPS has none.
 Keep credentials out of logs. Healthchecks use REDISCLI_AUTH. Rotate a password
 in the server setting and every URL referring to that server, then recreate its
 clients with the same Compose project name. A cache password is not a broker
-password. Neither Redis is exposed through a host port.
+password. No Redis service is exposed through a host port.
 
 Cache failures skip telemetry with a five-second per-process retry pause and
 bounded socket timeouts. Readiness tests the mandatory coordination cache;
 disposable cache downtime does not make the API unready. Deploy still requires
-both Redis services to be healthy. Counters reset after cache loss/eviction;
+all three Redis services to be healthy. Counters reset after cache loss/eviction;
 Prometheus keeps previously scraped history. DB-derived gauges remain available.
 Fresh metrics `anicast_redis_up`, `anicast_redis_used_memory_bytes`,
 `anicast_redis_maxmemory_bytes`, and `anicast_redis_evicted_keys_total` distinguish
-control and ephemeral roles. Alerts cover unreachable Redis roles and control
+broker, control and ephemeral roles. Alerts cover unreachable Redis roles and persistent
 memory above 80%; these probes never depend on the counter cache.
 
-See [ADR 002](architecture/002-redis-isolation.md) for rollout/rollback. Keep runtime
-env snapshots immutable: image rollback to the old code also needs its old
-CACHE_URL. The Redis release records compatible private env snapshots in its
-current/previous manifests. Do not overwrite these files during a later deploy.
+See [ADR 005](architecture/005-control-and-offline-recovery.md) for current
+rollout/rollback; ADR 002 describes the earlier cache split. Keep runtime env
+snapshots immutable. Image rollback must preserve the authoritative control URL:
+returning to stale broker DB 2 can revive obsolete locks/cursors. Current and
+baseline rollback manifests use compatible private snapshots; never overwrite them.
 
 Key signals:
 
@@ -145,6 +150,30 @@ The project-owned Desktop client **Anicast rclone recovery** exists in `anicast-
 - Alertmanager (`127.0.0.1:9093`) delivers alerts with the native Telegram receiver;
 - node-exporter provides host disk, memory and CPU metrics;
 - every service is memory-limited; the whole stack uses roughly 110 MiB.
+
+### Capacity history on small hosts
+
+Run `python3 scripts/capacity-report.py --hours 24` on MainServer. This reads the
+existing private Prometheus over loopback and prints aggregate JSON for MainServer
+and VPS: available/total RAM, CPU busy and I/O wait, active swap-in/out rates and
+exporter availability. It installs no service, sends no messages and changes no
+runtime configuration. Use `--hours 1` to focus on the recent release; 72h is the
+maximum to bound query cost. Exit 1 means a query failed; exit 2 means at least one
+signal has no finite data. Partial coverage is printed explicitly, even on exit 0.
+
+Samples are five minutes apart and CPU/swap use five-minute averages. Coverage
+describes the presence of sampled history, not service uptime. Missing data is not
+zero load; check `scrape_up` before interpreting other signals. A historical maximum
+can include builds, deployments and restore drills. Compare one-hour and daily
+windows before changing resources; neither this report nor a short idle snapshot
+establishes a supported number of concurrent visitors.
+
+The owner plans to increase MainServer RAM to 4 GiB later. Until that happens,
+retain current limits and concurrency 1 for each Celery worker. No CPU expansion
+has been confirmed. Investigate sustained low available RAM together with active
+swap and response latency; occupied swap alone is not a reason to restart services.
+Additional RAM provides headroom but does not remove the home host/network failure
+dependency. CPU busy includes I/O wait, which is reported separately.
 
 The sidecar joins `mainserver_metrics`, a scrape-only network that carries the backend and nothing else. It previously joined `mainserver_internal`, which also carries PostgreSQL and Redis, so the monitoring stack held a path into the application's data tier for the sake of one HTTP endpoint. Docker DNS answers are per-network, so a container attached only to `mainserver_metrics` cannot even resolve `postgres` or `redis`. Keep it that way: never add a data-tier service to that network, and never reattach monitoring to `mainserver_internal`.
 
@@ -524,7 +553,7 @@ sudo scripts/deploy.sh mainserver /tmp/mainserver-release.env
 sudo scripts/deploy.sh vps /tmp/vps-release.env
 ```
 
-MainServer verification requires PostgreSQL, both Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
+MainServer verification requires PostgreSQL, all three Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
 
 ```bash
 curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null
