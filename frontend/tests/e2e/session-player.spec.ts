@@ -16,6 +16,17 @@ async function login(page: Page, info: TestInfo, scenario: string) {
 // The signed URL and redirect are real Django responses. Only the terminal
 // provider document is replaced, retaining the iframe's actual origin/window.
 async function stubVideo(page: Page) {
+  await page.context().route("**/api/v1/playback/**", async route => {
+    const response = await route.fetch({ maxRedirects: 0 });
+    expect(response.status()).toBe(302);
+    const target = response.headers().location;
+    expect(new URL(target).origin).toBe("https://kodikplayer.com");
+    // Playwright routes only the first request in an HTTP redirect chain.
+    // Verify the real resolver, then start a document navigation so the
+    // external-frame fixture below also intercepts the terminal URL.
+    await route.fulfill({ status: 200, contentType: "text/html",
+      body: `<script>location.replace(${JSON.stringify(target)})</script>` });
+  });
   await page.context().route("https://kodikplayer.com/**", route => route.fulfill({
     contentType: "text/html",
     body: `<!doctype html><title>Video fixture</title>
@@ -47,7 +58,7 @@ test("login rejects invalid credentials and CSRF; logout/expiry remove private i
   await page.getByLabel("Email", { exact: true }).fill(`${info.project.name}-auth@example.invalid`);
   await page.getByLabel("Пароль", { exact: true }).fill("invalid-passphrase");
   await page.locator("form").getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("form").getByRole("alert")).toBeVisible();
   expect([401, 403]).toContain((await context.request.get("/api/v1/auth/me/")).status());
   expect((await context.request.post("/api/v1/auth/login/", {
     data: { email: `${info.project.name}-auth@example.invalid`, password },
