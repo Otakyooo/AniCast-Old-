@@ -20,7 +20,7 @@ test("catalog filter chips synchronize fields; random title preserves selection 
   await page.getByRole("link", { name: "Сбросить: Поиск по каталогу", exact: true }).click();
   await expect(page).toHaveURL(/\/catalog\?status=finished$/);
   await expect(page.getByLabel("Поиск по каталогу", { exact: true })).toHaveValue("");
-  await expect(page.getByLabel("Статус", { exact: true })).toHaveValue("finished");
+  await expect(page.getByRole("combobox", { name: "Статус", exact: true })).toHaveValue("finished");
   await captureThemes(page, info, "catalog");
 
   let calls = 0;
@@ -33,7 +33,7 @@ test("catalog filter chips synchronize fields; random title preserves selection 
     else await route.continue();
   });
   await page.getByRole("button", { name: "Случайный тайтл", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Не удалось выбрать тайтл");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Не удалось выбрать тайтл");
   await expect(page).toHaveURL(/status=finished$/);
   await page.getByRole("button", { name: "Случайный тайтл", exact: true }).click();
   await expect(page).toHaveURL(/\/titles\/browser-fixture$/);
@@ -43,7 +43,7 @@ test("catalog filter chips synchronize fields; random title preserves selection 
 test("catalog server outage stays distinct from empty results and preserves page filters", async ({ page }) => {
   await page.goto("/catalog?q=e2e-unavailable&page=2");
   await expect(page.getByRole("heading", { name: "Каталог", exact: true })).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Не удалось загрузить данные");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Не удалось загрузить данные");
   await expect(page.getByText("Ничего не найдено", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Повторить", exact: true }).click();
   await expect(page.getByRole("button", { name: "Повторить", exact: true })).toBeEnabled();
@@ -64,7 +64,7 @@ test("empty schedule keeps dated keyboard tabs; outages do not claim zero releas
   await expect(page.getByRole("heading", { name: /18 октября/ })).toBeVisible();
   await captureThemes(page, info, "schedule");
   await page.goto("/schedule?week=2111-10-12");
-  await expect(page.getByRole("alert")).toContainText("Не удалось загрузить данные");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Не удалось загрузить данные");
   await expect(page.getByText("На этой неделе релизов нет", { exact: true })).toHaveCount(0);
 });
 
@@ -84,7 +84,7 @@ test("history exposes older pages and recovers from a failed request", async ({ 
   await page.goto("/history");
   await expect(page.getByText("Recent fixture", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Вперёд →", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Историю не удалось загрузить");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Историю не удалось загрузить");
   await page.getByRole("button", { name: "Повторить", exact: true }).click();
   await expect(page.getByText("Older fixture", { exact: true })).toBeVisible();
   await expect(page.getByText("Страница 2 из 2", { exact: true })).toBeVisible();
@@ -103,7 +103,7 @@ test("library retries in place and selected view/filter remain visibly distinct"
     return route.fulfill(calls === 1 ? { status: 503, json: {} } : { json: { count: 0, results: [] } });
   });
   await page.goto("/library?status=watching");
-  await expect(page.getByRole("alert")).toContainText("Не удалось выполнить запрос");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Не удалось выполнить запрос");
   await page.getByRole("button", { name: "Повторить", exact: true }).click();
   await expect(page.getByRole("link", { name: "Открыть каталог", exact: true })).toBeVisible();
   for (const name of ["Тайтлы", "Смотрю"]) {
