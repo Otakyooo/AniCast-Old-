@@ -72,8 +72,12 @@ test("login rejects invalid credentials and CSRF; logout/expiry remove private i
   await expect(page).toHaveURL(/\/$/);
   expect([401, 403]).toContain((await context.request.get("/api/v1/auth/me/")).status());
   await login(page, info, "auth");
+  // Leave the document first: rolling-session responses already in flight
+  // legitimately reissue their cookie. Model a later visit without a session.
+  await page.goto("about:blank");
   await context.clearCookies({ name: "sessionid" });
-  await page.reload();
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: "Гость", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: `Fixture ${info.project.name} auth`, exact: true })).toHaveCount(0);
   expect((await context.request.get("/api/v1/library/")).status()).toBe(403);
 });
@@ -98,8 +102,28 @@ test("player restores position, rejects forged messages, saves pause and complet
   await page.reload();
   await frame.getByRole("button", { name: "Duration", exact: true }).click();
   await expect(frame.locator("#seek")).toHaveText("180");
-  await frame.getByRole("button", { name: "End", exact: true }).click();
-  await expect.poll(async () => (await (await context.request.get(progressPath)).json()).is_watched).toBe(true);
+  let release!: () => void;
+  let reached!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const recorded = new Promise<void>(resolve => { reached = resolve; });
+  await page.route(`**${progressPath}`, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    expect((await response.json()).is_watched).toBe(false);
+    reached();
+    await held;
+    await route.fulfill({ response });
+  });
+  const lateOpen = page.waitForResponse(response => response.url().endsWith(progressPath) && response.request().method() === "POST");
+  await frame.getByRole("button", { name: "Play", exact: true }).click();
+  await recorded;
+  try {
+    await frame.getByRole("button", { name: "End", exact: true }).click();
+    await expect.poll(async () => (await (await context.request.get(progressPath)).json()).is_watched).toBe(true);
+    await expect(page.locator("#watch").getByText("Серия просмотрена", { exact: true })).toBeVisible();
+  } finally { release(); }
+  await (await lateOpen).finished();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
   await expect(page.locator("#watch").getByText("Серия просмотрена", { exact: true })).toBeVisible();
   // Completion must survive a source change and cannot be overwritten by a
   // delayed watched-mark response for the same title.

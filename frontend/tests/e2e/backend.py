@@ -24,7 +24,10 @@ with TemporaryDirectory(prefix="anicast-browser-") as directory:
     settings.DATABASES = {"default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": str(Path(directory) / "test.sqlite3"),
-        "OPTIONS": {"timeout": 20},
+        # SQLite has no SELECT FOR UPDATE. Serialize its write transactions
+        # before reads, avoiding deferred-lock upgrades during browser events.
+        # Production PostgreSQL row-lock behavior remains a separate check.
+        "OPTIONS": {"timeout": 20, "transaction_mode": "IMMEDIATE"},
     }}
     settings.DEBUG = True
     settings.ALLOWED_HOSTS = ["127.0.0.1", "localhost"]

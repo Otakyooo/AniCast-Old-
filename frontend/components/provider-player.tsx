@@ -131,7 +131,10 @@ function PlayerSession({
       if (durationSeconds === null && storedDuration !== null && storedDuration > 0) {
         durationSeconds = storedDuration;
       }
-      isWatched = progress.is_watched;
+      // A delayed "opened" response may precede the completion PATCH on the
+      // server but arrive after it. Completion is monotonic within this player
+      // session, just as it is in the backend progress transaction.
+      isWatched = isWatched || progress.is_watched;
       publish(nextPhase);
     }
 
