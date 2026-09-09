@@ -60,4 +60,4 @@ Image-only rollback недостаточен: старый backend знает т
 - [Redis: maxmemory и eviction](https://redis.io/docs/latest/develop/reference/eviction/).
 - [Django 5.2: именованные caches](https://docs.djangoproject.com/en/5.2/topics/cache/).
 
-Фактические проверки и выкладка: [отчёт этапа](../RELEASE-2026-09-08-redis.md).
+Фактические проверки и выкладка: [отчёт этапа](../archive/releases/RELEASE-2026-09-08-redis.md).

@@ -1,56 +1,34 @@
 ---
 name: anicast-ui
-description: Design, implement, or review AniCast frontend UI and user flows in Next.js/React/CSS Modules while preserving its brand tokens, accessibility, data honesty, and existing architecture. Use for changes under frontend/app or frontend/components and for UI design QA; do not use for backend-only or infrastructure-only work.
+description: Implement or review Anicast Next.js pages, React components, forms, themes and UI flows using the existing brand and accessibility contracts. Use for frontend behavior and visual QA, not backend-only or infrastructure-only work.
 ---
 
-# AniCast UI
+# Anicast UI
 
-Before making a visual, interaction, navigation, form, or UI-copy decision, read:
+Read [brand tokens/assets](../../../docs/BRAND_UI_TECH_SPEC.md) and
+[interface rules](../../../docs/FRONTEND_DESIGN_RULES.md). Inspect the closest route,
+shared component, CSS module and `frontend/lib` consumer before choosing a pattern.
+Preserve App Router, Server Components by default, CSS Modules, Phosphor Icons
+and existing i18n unless the user requests a different architecture.
 
-- `docs/FRONTEND_DESIGN_RULES.md` for product-specific design and QA rules;
-- `docs/BRAND_UI_TECH_SPEC.md` for the canonical assets and color tokens.
+`frontend/app/theme.css` owns semantic colors; `globals.css` owns the shared frame.
+Themes light/dark/system use `lib/theme.ts` and ThemeSwitcher. Small text on the
+warm-white surface uses berry, not amber. Dark media surfaces scope their light
+text explicitly. Keep the same mascot/spelling across themes; use the SVG asset
+table in the brand document, self-hosted Manrope and Noto Sans JP for Japanese.
 
-Inspect the closest existing route, shared component, CSS module, data boundary,
-and localized copy before choosing a pattern. Preserve CSS Modules, App Router,
-Phosphor Icons, and the existing i18n system. Do not add Tailwind, shadcn/ui, a
-new icon family, a new palette, or another UI dependency unless the user asks for
-that architectural change.
+Use the existing PageShell and data boundaries. Preserve input after failed
+mutations and show success only after backend confirmation. Check applicable
+loading/empty/unavailable/retry states and rapid repeated actions. New localized
+copy belongs in the established i18n system; PDF mockup values are not fixtures.
 
-## Implementation
+HTML uses a fresh middleware nonce, including theme bootstrap and JSON-LD. Do not
+introduce an inline script without the request nonce or shared caching of HTML.
+Numeric React style attributes remain separately permitted; this does not permit
+inline script handlers. Follow the actual CSP source in `frontend/lib/csp.ts`.
 
-- Identify the user's primary task and the affected data/interaction states.
-- Reuse the project shell, semantic tokens, shared components, and established API
-  behavior.
-- Handle applicable loading, empty, unavailable, pending, success, error, and retry
-  states. Never show success before backend confirmation.
-- Keep native semantics, keyboard behavior, visible focus, responsive reading order,
-  and localized copy intact.
-- Limit cleanup to code required for a coherent change; report adjacent design debt
-  separately.
-
-## Review
-
-Review observable behavior, not only JSX and CSS. Classify findings as:
-
-- blocking: prevents the primary flow, loses data, lies about outcome, or makes the
-  flow inaccessible;
-- significant: breaks hierarchy, responsiveness, recovery, consistency, or a
-  documented design rule;
-- polish: improvement with no material effect on task completion.
-
-Run the relevant frontend checks from `docs/FRONTEND_DESIGN_RULES.md`. If a browser,
-viewport, keyboard, or screen-reader check was not performed, state that limitation.
-
-## Brand Guide v0.1 (2026-09-08)
-
-The current semantic token source is `frontend/app/theme.css`; `globals.css`
-holds the shared frame. Read `docs/BRAND_UI_TECH_SPEC.md` before using earlier
-palette references. Themes are light/dark/system via `lib/theme.ts` and
-`ThemeSwitcher`; small text on warm-white uses berry, not amber. Keep the same
-mascot and spelling Anicast across themes. Scope light text inside dark media
-surfaces instead of relying on inherited page text. New interface typography
-uses self-hosted Manrope; retain Noto Sans JP for Japanese titles.
-
-Check theme persistence, OS changes, disabled storage, keyboard focus, and a
-mobile viewport. `lib/theme.test.ts` covers the bootstrap contract. Raster mockup
-counters and titles are sample content, never production fixtures.
+For affected flows verify keyboard/focus, mobile/desktop, long translated text,
+theme persistence, system changes and unavailable storage as applicable. Use the
+frontend [checks](../../../docs/operations/DEPLOYMENT.md#validation). State which
+browser, viewport or screen-reader checks were actually performed. Review findings
+must describe impact on the user's task; do not turn UI QA into unrelated cleanup.

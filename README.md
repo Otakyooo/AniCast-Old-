@@ -17,7 +17,7 @@ Production secrets хранятся только во внешних `.env`; в 
 
 ## Документация
 
-[Индекс документации](docs/README.md) · [Аудит](docs/SYSTEM_AUDIT-2026-09-08.md) · [Архитектурное решение](docs/architecture/001-stability-first.md)
+[Индекс документации](docs/README.md) · [Оценка стека](docs/TECHNICAL_ASSESSMENT.md) · [Архитектура](docs/architecture/README.md)
 
 
 - [Статус реализации](docs/IMPLEMENTATION_STATUS.md) — что реально работает в production;
@@ -29,16 +29,10 @@ Production secrets хранятся только во внешних `.env`; в 
 
 ## Локальная проверка
 
-```bash
-cd backend && python3 -m pytest
-cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
-
-docker compose -f infra/mainserver/compose.yml config
-# Для VPS:
-docker compose -f infra/vps/compose.yml config
-```
-
-Полная проверка одной командой: `sh scripts/validate.sh`.
+Команды для backend, frontend и инфраструктуры находятся в
+[Deployment / Validation](docs/operations/DEPLOYMENT.md#validation).
+`sh scripts/validate.sh` проверяет инфраструктуру и release scripts;
+полные тесты приложений и сборки дополнительно выполняет CI.
 
 ## Kodik и расписание
 

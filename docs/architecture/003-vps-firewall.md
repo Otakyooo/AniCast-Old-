@@ -64,7 +64,7 @@ site/API/relay/metrics и внешних TCP probes таймер отменён.
 24 проверки настоящими пакетами в временных Linux netns: IPv4, IPv6, UDP туннеля,
 loopback, Docker DNAT, блокирование чужого source, egress контейнера и MainServer.
 Изолированная проверка повторной загрузки подтверждает replace transaction.
-Production probes и сведения о резервной копии — в [отчёте](../RELEASE-2026-09-09-firewall.md).
+Production probes и сведения о резервной копии — в [отчёте](../archive/releases/RELEASE-2026-09-09-firewall.md).
 Ребут VPS не выполнялся; boot order проверен systemd-analyze verify и enable.
 Одна внешняя точка проверки не является полноценным внешним пентестом.
 

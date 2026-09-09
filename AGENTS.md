@@ -1,23 +1,29 @@
 # Anicast project guidance
 
-Read `docs/README.md` for document routing and `docs/IMPLEMENTATION_STATUS.md`
-for current state. Historical entries live in `docs/archive/`.
+Start with [docs/README.md](docs/README.md) and the current state in
+[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md). Historical releases,
+audits and plans under `docs/archive/` are evidence, not current instructions.
 
-- UI work: use `.agents/skills/anicast-ui/SKILL.md` and the current brand spec.
-- Deployment or runtime audit: use `.agents/skills/anicast-ops/SKILL.md`.
-- Architecture changes: read `docs/architecture/001-stability-first.md`; record
-  a decision when changing service boundaries, state ownership or release contracts.
+Read only the skill relevant to the task:
+- UI: [.agents/skills/anicast-ui/SKILL.md](.agents/skills/anicast-ui/SKILL.md).
+- Django/API/data/tasks: [.agents/skills/anicast-backend/SKILL.md](.agents/skills/anicast-backend/SKILL.md).
+- Runtime, release, backup, resources: [.agents/skills/anicast-ops/SKILL.md](.agents/skills/anicast-ops/SKILL.md).
 
-Production repo: `/home/lama_admin/anicast`; public VPS checkout: `/opt/anicast`.
-Compose project names are `mainserver` and `vps`. Changing them creates different
-volumes. VPS is reachable from MainServer at `10.78.0.1`; never put SSH keys,
-tokens, .env contents or user data in git or task output.
+For service/state/release-boundary changes read [architecture](docs/architecture/README.md)
+and record an ADR when the contract changes. Keep current behavior, decisions and
+dated verification in their respective documents; do not append a task diary to status.
+Use repository-root paths in prose, relative Markdown links for document navigation.
+When moving a document, update callers and links, including archived evidence.
 
-Preserve pre-existing worktree changes. Use `git add` with explicit paths.
-A user request to deploy/commit authorizes that work; these instructions do not
-introduce another confirmation gate. Do not infer authorization to restore a
-production DB or send notifications to people from a generic development task.
+Production checkout: `/home/lama_admin/anicast`; VPS: `/opt/anicast` (no git).
+Compose names `mainserver` and `vps` own existing volumes. VPS is reachable from
+MainServer at `10.78.0.1`. Never print/commit secrets, tokens, private env or user data.
+Preserve existing worktree changes; stage explicit paths. User authorization remains
+valid throughout the task; these documents add no blanket plan-approval gate.
+Generic implementation/deployment does not authorize restoring production data or
+sending test messages to people.
 
-Tests: frontend lint/typecheck/unit/build; infrastructure `sh scripts/validate.sh`.
-Backend: pytest/ruff/mypy and Django checks, using isolated SQLite or test DB,
-never production data for tests. Record actual checks and limitations in a release note.
+Use the actual check commands in [deployment](docs/operations/DEPLOYMENT.md#validation)
+for the changed layer. Documentation/skill-only edits need path/link/frontmatter
+validation and diff review, not application builds. Backend tests use isolated
+SQLite/test DB; integration drills use disposable resources. Report unrun checks.

@@ -1,56 +1,44 @@
 ---
 name: anicast-ops
-description: Audit, deploy or troubleshoot Anicast Docker services on MainServer and the public VPS, including release manifests, health checks and queue isolation. Use for Anicast runtime and release work, not unrelated servers.
+description: Audit or operate Anicast Docker services, deploy immutable releases, diagnose resources and verify encrypted backups or isolated recovery on MainServer and VPS. Use for runtime and release work, not ordinary application-only edits.
 ---
 
 # Anicast operations
 
-Read `docs/OPERATIONS.md` and the latest `docs/RELEASE-*.md` for actual state.
-For architecture decisions read `docs/architecture/001-stability-first.md`.
+Start with [current state](../../../docs/IMPLEMENTATION_STATUS.md), then read only
+the needed runbook: [deployment](../../../docs/operations/DEPLOYMENT.md),
+[monitoring/Redis/firewall](../../../docs/operations/MONITORING.md) or
+[backups/recovery/migration](../../../docs/operations/BACKUPS.md).
+[Archive](../../../docs/archive/README.md) contains dated evidence, not live settings.
 
-The production Compose names are `mainserver` and `vps`; the same names own the
-existing database and media volumes. MainServer repo is `/home/lama_admin/anicast`;
-VPS files are `/opt/anicast` and may not include git. SSH to the VPS through the
-MainServer uses `10.78.0.1`; use `ssh -n` in noninteractive command batches so a
-nested SSH process cannot consume subsequent commands from stdin.
+Production project names are `mainserver` and `vps`; changing them creates different
+volumes. MainServer checkout is `/home/lama_admin/anicast`; VPS `/opt/anicast` has
+no git. Reach VPS through MainServer at `10.78.0.1`; nested SSH in batches needs
+`ssh -n` so it cannot consume subsequent commands from stdin.
 
-Before a release record live image IDs, git diff/status, Compose files and private
-env-file paths without printing secrets. Bootstrap current.env from the actual
-running image, not the expected tag. Registry digests are preferred; transferred
-local images require `ANICAST_LOCAL_IMAGES=1` and an exact sha256 image ID.
+Before rollout record actual image IDs, git status, Compose and private env paths
+without printing values. Use a successful CI release artifact and immutable env
+snapshot; never overwrite a snapshot referenced by current/previous manifests.
+No builds on the small VPS. Confirm a real rollback baseline before deployment.
+Image rollback changes neither Compose topology nor production database contents.
 
-Check both Celery workers separately. `celery-worker` consumes default and
-notifications; `celery-bulk` consumes providers/posters/maintenance/analytics.
-A generic inspect ping that receives one pong is not proof both workers work.
-Never purge queues to resolve a deployment delay; allow warm shutdown.
+MainServer has three Redis roles: broker/results, control and ephemeral. Former
+broker DB 2 is stale migration evidence, not an automatic control rollback target.
+Check both Celery workers separately; one pong does not prove two workers work.
+Preserve queues and allow warm shutdown up to the configured 600 seconds.
 
-Build/check before changing services. Run `scripts/validate.sh` for infrastructure.
-Use the successful CI `release-<sha>` artifact for registry deployments; add only
-the host's immutable private ANICAST_ENV_FILE snapshot. Do not build on the VPS
-or overwrite an env snapshot used by current/previous releases. See ADR 004.
-For isolated recovery use `scripts/restore-isolated.py` and the recovery runbook;
-preserve its memory guard, unique resources and separation from production data.
-After deployment require container health, backend readiness, the public home and
-titles API, and a public 404 for `/internal/metrics`. For UI changes verify a
-real browser as well. Do not expose `/health` or metrics through Caddy.
+Check readiness, every configured healthcheck, public home/titles API and public
+404 for `/internal/metrics`. UI changes need real browser verification. Firewall
+changes also need a fresh frontend-container request to the public HTTPS origin;
+cached posters hide Docker hairpin failures. Never flush the global nft ruleset.
+UDP/443 belongs to AWG; enabling Caddy HTTP/3 there conflicts with the tunnel.
 
-Image rollback does not undo Compose edits or DB migrations. Restore the captured
-Compose file when reverting a topology change; keep DB migrations expand/contract.
-Use the existing backup/restore runbook for data operations, only within the user's
-authorization. Do not run a production restore as a release smoke test.
+Use `scripts/capacity-report.py --hours 24` and a recent 1h window before changing
+limits. Measure installed RAM/CPU: a future RAM upgrade is not current capacity
+and does not imply more CPU. Active swap, available RAM and latency matter together.
 
-Record evidence, remaining risks, and whether a commit was pushed. Do not describe
-an unrun check, an unverified offsite backup or a prepared release as successful.
-
-Three Redis roles now exist: broker, control and ephemeral. A topology rollback
-must keep the authoritative control state; stale DB 2 on the broker is not an
-automatic rollback target. Use ADR 005 for the migration and RPO/RTO contract.
-After firewall changes, test a fresh request from the frontend container to the
-public HTTPS origin: Docker hairpin traffic enters through a bridge, not eth0.
-Cached posters and successful external requests do not prove that path works.
-
-Recovery credentials are encrypted to an offline recipient. Test from the
-operator's computer without MainServer and refresh both host kits after OAuth or
-runtime changes. Manual backup checks use BACKUP_NOTIFY=0. Read/write drills use
-only disposable restore resources; email stays in memory and Telegram uses a
-capture sink. Do not label these checks real external message delivery.
+Manual backup checks use BACKUP_NOTIFY=0. Recovery drills use unique disposable
+resources, captured Telegram and in-memory email, not real messages. Preserve the
+restore script's memory guard. Update both encrypted kits after OAuth/runtime
+changes and verify them from the operator computer; the decryption identity never
+goes to servers. Report actual checks, remaining risks and commit/push/deploy state.
