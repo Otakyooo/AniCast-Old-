@@ -250,7 +250,11 @@
 .statusUpcoming { border-color: var(--primary-border); color: var(--accent-text) }
 .statusUnknown { border-color: var(--border); color: var(--muted-2) }
 
-.emptyWeek { display: grid; gap: 16px }
+.board [role="tabpanel"]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+  border-radius: 9px;
+}
 
 @media (max-width: 900px) {
   .dayTabs { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px }

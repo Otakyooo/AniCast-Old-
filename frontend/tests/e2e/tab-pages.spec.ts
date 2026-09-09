@@ -10,7 +10,7 @@ async function captureThemes(page: Page, info: TestInfo, name: string) {
     await page.getByLabel("Тема оформления", { exact: true }).selectOption(theme);
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: info.outputPath(`tab-${name}-${theme}.png`), fullPage: true });
+    await page.screenshot({ path: info.outputPath(`tab-${name}-${theme}.png`), fullPage: true, animations: "disabled" });
   }
 }
 
