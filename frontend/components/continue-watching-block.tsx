@@ -130,7 +130,7 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
   const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
   const heroResumeSeconds = heroEntry?.resume_at_seconds ?? 0;
   const heroResumeCopy = heroResumeSeconds > 0
-    ? t("home.resumePosition", { watched: formatPlaybackTime(heroResumeSeconds) })
+    ? t("home.watchedFor", { watched: formatPlaybackTime(heroResumeSeconds) })
     : "";
   const total = displayTitle?.episodes_count;
   const heroTemplate = titleTemplateState(displayTitle?.title_type, total);
@@ -204,13 +204,15 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
             </Link>
             {displayTitle && <HeroLibraryAction slug={displayTitle.slug} initialStatus={heroEntry ? "watching" : "planned"} />}
           </div>
-          {heroEntry && heroTarget && heroTemplate.showEpisodeCount && typeof total === "number" && total > 0 ? (
+          {heroEntry && heroTarget ? (
             <div className={styles.heroProgress}>
-              <span aria-hidden="true"><i style={{ width: `${resumeProgressPercent(heroEntry)}%` }} /></span>
-              <small>
-                {t("home.episodeOf", { number: heroTarget.number, total })}
+              <strong className={styles.heroProgressText}>
+                {heroTemplate.showEpisodeCount && typeof total === "number" && total > 0
+                  ? t("home.episodeOf", { number: heroTarget.number, total })
+                  : t("episode.number", { number: heroTarget.number })}
                 {heroResumeCopy ? ` · ${heroResumeCopy}` : ""}
-              </small>
+              </strong>
+              <span aria-hidden="true"><i style={{ width: `${resumeProgressPercent(heroEntry)}%` }} /></span>
             </div>
           ) : !heroEntry && typeof catalogCount === "number" && catalogCount > 0 ? (
             <small className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</small>
@@ -285,7 +287,10 @@ export function ResumeCard({ entry, onRemoved }: { entry: ContinueWatchingEntry;
           ) : (
             <span className={styles.resumeFallback}>{entry.title.name.charAt(0)}</span>
           )}
-          <span className={styles.resumePlay} aria-hidden="true"><Play weight="fill" size={30} /></span>
+          <span className={styles.resumePlay} aria-hidden="true">
+            <Play weight="fill" size={30} />
+            <small>{t("home.continueEpisode", { number: target.number })}</small>
+          </span>
         </span>
         <span className={styles.resumeBody}>
           <strong>{entry.title.name}</strong>

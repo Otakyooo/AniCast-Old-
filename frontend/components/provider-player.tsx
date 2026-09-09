@@ -52,6 +52,8 @@ interface ProviderPlayerProps {
   slug: string;
   episodeNumber: number;
   onProgressChange?: (progress: PlaybackProgressSnapshot) => void;
+  /** Fires once when the provider reports the episode actually ended. */
+  onEnded?: () => void;
 }
 
 export function ProviderPlayer(props: ProviderPlayerProps) {
@@ -83,6 +85,7 @@ function PlayerSession({
   slug,
   episodeNumber,
   onProgressChange,
+  onEnded,
   onRetry,
 }: ProviderPlayerProps & { onRetry: () => void }) {
   const { t } = useI18n();
@@ -91,10 +94,15 @@ function PlayerSession({
   const [loadSlow, setLoadSlow] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const progressCallbackRef = useRef(onProgressChange);
+  const endedCallbackRef = useRef(onEnded);
 
   useEffect(() => {
     progressCallbackRef.current = onProgressChange;
   }, [onProgressChange]);
+
+  useEffect(() => {
+    endedCallbackRef.current = onEnded;
+  }, [onEnded]);
 
   useEffect(() => {
     let active = true;
@@ -323,6 +331,7 @@ function PlayerSession({
           playerPositionSeconds = durationSeconds;
         }
         syncProgress("ended");
+        endedCallbackRef.current?.();
       }
     }
 

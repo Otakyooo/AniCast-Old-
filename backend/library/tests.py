@@ -672,6 +672,38 @@ def test_recommendations_franchise_boost_scales_with_engagement(users):
 
 
 @pytest.mark.django_db
+def test_recommendations_cap_titles_per_franchise(users):
+    """One engaged franchise must not fill the whole shelf with its sequels."""
+    franchise = Franchise.objects.create(name="Big Saga", slug="big-saga")
+    genre = Genre.objects.create(name="Drama", slug="drama")
+    source = Title.objects.create(name="Source", slug="source")
+    source.franchise = franchise
+    source.save()
+    source.genres.add(genre)
+    LibraryEntry.objects.create(user=users[0], title=source, status="completed")
+    # Four same-franchise candidates plus two standalone ones, all sharing drama.
+    sequels = [
+        Title.objects.create(
+            name=f"Sequel {index}", slug=f"sequel-{index}", year=2020 + index, franchise=franchise
+        )
+        for index in range(4)
+    ]
+    standalones = [
+        Title.objects.create(name=f"Other {index}", slug=f"other-{index}", year=2000 + index)
+        for index in range(2)
+    ]
+    for title in [*sequels, *standalones]:
+        title.genres.add(genre)
+    client = APIClient()
+    client.force_login(users[0])
+    slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
+    franchise_slugs = [slug for slug in slugs if slug.startswith("sequel-")]
+    assert len(franchise_slugs) == 2
+    # The standalone candidates are not crowded out by the cap.
+    assert set(standalone.slug for standalone in standalones) <= set(slugs)
+
+
+@pytest.mark.django_db
 def test_recommendations_negative_signals_penalize_and_cold_fallback_survives(users, titles):
     from community.models import TitleRating
 
@@ -721,14 +753,21 @@ def test_recommendations_only_negative_signals_keep_recency_fallback(users, titl
 
 
 @pytest.mark.django_db
-def test_recommendations_skip_fully_watched_titles_without_library_entry(users):
+def test_recommendations_skip_watched_titles_without_library_entry(users):
+    """Any watch progress excludes a title from recommendations.
+
+    A partially watched series already sits in Continue Watching; surfacing
+    it again as a "recommendation" replays the viewer's own history instead
+    of widening the choice.
+    """
     drama = Genre.objects.create(name="Drama", slug="drama")
     source = Title.objects.create(name="Source", slug="source")
     source.genres.add(drama)
     LibraryEntry.objects.create(user=users[0], title=source, status="planned")
     finished = Title.objects.create(name="Finished", slug="finished")
     started = Title.objects.create(name="Started", slug="started")
-    for title in (finished, started):
+    fresh = Title.objects.create(name="Fresh", slug="fresh")
+    for title in (finished, started, fresh):
         title.genres.add(drama)
         Episode.objects.create(title=title, number=1)
         Episode.objects.create(title=title, number=2)
@@ -743,7 +782,8 @@ def test_recommendations_skip_fully_watched_titles_without_library_entry(users):
     client.force_login(users[0])
     slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
     assert "finished" not in slugs
-    assert "started" in slugs
+    assert "started" not in slugs
+    assert "fresh" in slugs
 
 
 @pytest.mark.django_db
@@ -941,7 +981,8 @@ def test_public_collection_visibility_cache_and_payload_safety(users, titles):
     assert "email" not in str(payload)
     assert set(payload["items"][0]["title"]) == {
         "name", "slug", "original_name", "synopsis", "title_type", "status", "year", "poster_url", "genres", "franchise",
-            "episodes_count", "rating_average", "rating_count", "localized_names"
+        "episodes_count", "rating_average", "rating_count", "localized_names",
+        "last_episode_number", "next_episode_at",
     }
     assert not {"episodes", "sources", "playback", "user", "id"} & set(payload["items"][0]["title"])
 

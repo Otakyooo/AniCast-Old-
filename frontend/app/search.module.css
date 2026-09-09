@@ -52,9 +52,9 @@
 .group h3 {
   margin: 8px 8px 4px;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   text-transform: uppercase;
 }
 
@@ -98,7 +98,7 @@
 .aliases {
   overflow: hidden;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -114,7 +114,7 @@
 
 .rowBody small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .allResults {

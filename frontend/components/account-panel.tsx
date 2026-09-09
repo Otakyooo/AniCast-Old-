@@ -12,6 +12,13 @@ import { ViewingActivityChart } from "./viewing-activity-chart";
 import authStyles from "../app/auth.module.css";
 import styles from "../app/profile.module.css";
 
+/** Below this many watched episodes the activity chart is two lonely bars
+ * pretending to be analytics; it stays hidden until real history exists. */
+const MIN_EPISODES_FOR_CHART = 8;
+
+/** Fewer library titles than this make "favorite genres" fake statistics. */
+const MIN_TITLES_FOR_GENRES = 10;
+
 export function AccountPanel() {
   const { t } = useI18n();
   // Match SSR and show private data only after the session is revalidated.
@@ -42,10 +49,12 @@ export function AccountPanel() {
   if (user === undefined) return <div className={authStyles.accountState} role="status">{t("account.loading")}</div>;
   if (user === null) return <div className={authStyles.accountState}><h2>{t("account.noSession")}</h2><p>{t("account.noSessionText")}</p><Link className={authStyles.submit} href="/login">{t("common.login")}</Link></div>;
 
-  // Stats strip per spec §5.1: exactly five metrics. On-hold/dropped live in
-  // the library filters, not here. Library counts deep-link into the filtered
-  // library view; hours and rating stay plain.
-  const strip: Array<{ labelKey: string; value: number | string; href?: string }> = [
+  // Compact single stats line: "Просмотрено 3 · Смотрю 0 · …". The dashboard
+  // box existed for its own sake; one reading line carries the same facts.
+  const libraryTotal = summary
+    ? Object.values(summary.library).reduce((sum, count) => sum + count, 0)
+    : 0;
+  const stats: Array<{ labelKey: string; value: number | string; href?: string }> = [
     { labelKey: "nav.completed", value: summary?.library.completed ?? "—", href: "/library?status=completed" },
     { labelKey: "nav.watching", value: summary?.library.watching ?? "—", href: "/library?status=watching" },
     { labelKey: "nav.planned", value: summary?.library.planned ?? "—", href: "/library?status=planned" },
@@ -56,56 +65,42 @@ export function AccountPanel() {
     },
   ];
 
-  const quickLinks: Array<{ href: string; titleKey: string; hint?: string }> = [
-    {
-      href: "/library?view=collections",
-      titleKey: "collections.title",
-      hint: summary ? t("account.sectionCollectionsHint", { count: summary.collections }) : undefined,
-    },
-    { href: "/recommendations", titleKey: "recommendations.title", hint: t("account.sectionRecommendationsHint") },
-    { href: "/settings", titleKey: "settings.title", hint: t("account.sectionSettingsHint") },
-  ];
-
   return (
     <div className={styles.overview}>
-      <section className={styles.strip} aria-label={t("account.statsLabel")}>
-        {strip.map((item) =>
+      {/* The profile's job is to resume watching, not to admire a dashboard:
+          Continue Watching comes right after the header. */}
+      <ResumeShelf />
+
+      <section className={styles.statsLine} aria-label={t("account.statsLabel")}>
+        {stats.map((item) =>
           item.href ? (
-            <Link className={`${styles.stripItem} ${styles.stripItemLink}`} href={item.href} key={item.labelKey}>
-              <span className={styles.stripValue}>{item.value}</span>
-              <span className={styles.stripLabel}>{t(item.labelKey)}</span>
+            <Link className={styles.statsItem} href={item.href} key={item.labelKey}>
+              <strong>{item.value}</strong> {t(item.labelKey)}
             </Link>
           ) : (
-            <div className={styles.stripItem} key={item.labelKey}>
-              <span className={styles.stripValue}>{item.value}</span>
-              <span className={styles.stripLabel}>{t(item.labelKey)}</span>
-            </div>
+            <span className={styles.statsItem} key={item.labelKey}>
+              <strong>{item.value}</strong> {t(item.labelKey)}
+            </span>
           ),
         )}
       </section>
 
-      {summary && <ViewingActivityChart activity={summary.activity} />}
-
-      <ResumeShelf />
+      {summary && (summary.watched_episodes ?? 0) >= MIN_EPISODES_FOR_CHART && (
+        <ViewingActivityChart activity={summary.activity} />
+      )}
 
       <CollectionPreviews />
 
-      {(summary?.top_genres.length ?? 0) > 0 && (
+      {libraryTotal >= MIN_TITLES_FOR_GENRES && (summary?.top_genres.length ?? 0) > 0 && (
         <section aria-label={t("profile.favoriteGenres")}>
           <div className={styles.sectionHeading}><h2>{t("profile.favoriteGenres")}</h2></div>
-          <ul className={styles.genreList}>
+          {/* Compact chips instead of full-width bars: the fact is the count,
+              not the shape of a progress track. */}
+          <ul className={styles.genreChips}>
             {summary?.top_genres.map((genre) => (
               <li key={genre.slug}>
-                <Link
-                  className={styles.genreRow}
-                  href={`/catalog?genre=${genre.slug}`}
-                  title={t("profile.genreToCatalog")}
-                >
-                  <span className={styles.genreName}>{genre.name}</span>
-                  <span className={styles.genreTrack}>
-                    <span className={styles.genreBar} style={{ width: `${genre.share}%` }} />
-                  </span>
-                  <span className={styles.genreCount}>{t("profile.genreCount", { count: genre.count })}</span>
+                <Link className={styles.genreChip} href={`/catalog?genre=${genre.slug}`} title={t("profile.genreToCatalog")}>
+                  {genre.name} <span>{genre.count}</span>
                 </Link>
               </li>
             ))}
@@ -116,20 +111,6 @@ export function AccountPanel() {
       <RecommendationShelf />
 
       <RecentNotes />
-
-      <section aria-label={t("account.sections")}>
-        <div className={styles.grid}>
-          {quickLinks.map((link) => (
-            <Link className={styles.sectionCard} key={link.href} href={link.href}>
-              <span className={styles.sectionTitle}>{t(link.titleKey)}</span>
-              <span className={styles.sectionCount}>
-                {link.hint}
-                <span aria-hidden="true">→</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

@@ -3,34 +3,36 @@
   color-scheme: dark;
   --brand-berry: #743047;
   --progress-edge: transparent;
-  --background: #171311;
-  --surface-elevated: #28201D;
-  --surface-card: #28201D;
-  --surface-media: #171311;
+  /* Surfaces step apart in lightness so cards, panels and hover states stay
+     readable without relying on borders: page < card < elevated/hover. */
+  --background: #151110;
+  --surface-elevated: #3A2E28;
+  --surface-card: #2C231F;
+  --surface-media: #100D0C;
   --surface-poster: #352A25;
-  --surface-progress: #54443A;
-  --surface-control: #352A25;
-  --surface-control-hover: #54443A;
-  --surface-elevated-soft: rgba(40, 32, 29, .85);
-  --surface-card-opaque: rgba(40, 32, 29, .97);
-  --background-soft: rgba(23, 19, 17, .28);
-  --background-translucent: rgba(23, 19, 17, .65);
+  --surface-progress: #4A3B33;
+  --surface-control: #3A2E28;
+  --surface-control-hover: #4C3B33;
+  --surface-elevated-soft: rgba(58, 46, 40, .88);
+  --surface-card-opaque: rgba(44, 35, 31, .97);
+  --background-soft: rgba(21, 17, 16, .28);
+  --background-translucent: rgba(21, 17, 16, .65);
   --surface-1: var(--surface-card);
   --surface-2: var(--surface-elevated);
   --primary: #F3A51B;
   --primary-hover: #E3940E;
-  --accent-text: #F3A51B;
+  --accent-text: #E9C489;
   --on-primary: #211A16;
   --text: #FFF0DA;
-  --muted: #CBB49A;
-  --muted-2: #CBB49A;
-  --border: #54443A;
+  --muted: #D9C6AC;
+  --muted-2: #C3AE93;
+  --border: #4A3B33;
   --success: #3ba97c;
   --success-text: #48b889;
-  --warning: #F3A51B;
+  --warning: #F2B84B;
   --danger: #e05a5a;
   --focus-ring: #F3A51B;
-  --border-control: #54443A;
+  --border-control: #55443A;
   --border-media: rgba(255, 255, 255, .12);
   --border-emphasis: rgba(255, 255, 255, .38);
   --border-muted: rgba(168, 177, 189, .3);
@@ -53,7 +55,7 @@
   --auth-background: radial-gradient(circle at 20% 20%, var(--primary-soft) 0, transparent 35%);
   --not-found-background: radial-gradient(60% 50% at 45% 40%, var(--primary-soft) 0, transparent 70%);
   --brand-text-gradient: linear-gradient(120deg, var(--primary-hover), var(--primary) 55%, var(--focus-ring));
-  --media-edge-gradient: linear-gradient(90deg, transparent 54%, rgba(23, 19, 17, .7));
+  --media-edge-gradient: linear-gradient(90deg, transparent 54%, rgba(21, 17, 16, .7));
   --primary-surface-gradient: linear-gradient(145deg, var(--primary-border), var(--surface-elevated));
   --avatar-control-gradient: linear-gradient(140deg, var(--primary-border), var(--surface-elevated));
   --surface-gradient: linear-gradient(135deg, var(--surface-card), var(--surface-elevated));
@@ -61,8 +63,8 @@
   /* The right side stays more opaque than the old .32 tail: a blurred poster
      showing through a thin veil read as a gray smear, while a stronger tint
      reads as an intentional backdrop. */
-  --home-hero-overlay: linear-gradient(90deg, rgba(40, 32, 29, .99) 0%, rgba(40, 32, 29, .96) 38%, rgba(40, 32, 29, .84) 72%, rgba(40, 32, 29, .6) 100%);
-  --home-hero-overlay-mobile: linear-gradient(180deg, rgba(40, 32, 29, .2) 0%, rgba(40, 32, 29, .58) 38%, rgba(40, 32, 29, .96) 76%, rgba(40, 32, 29, 1) 100%);
+  --home-hero-overlay: linear-gradient(90deg, rgba(30, 24, 21, .99) 0%, rgba(30, 24, 21, .96) 38%, rgba(30, 24, 21, .84) 72%, rgba(30, 24, 21, .6) 100%);
+  --home-hero-overlay-mobile: linear-gradient(180deg, rgba(30, 24, 21, .2) 0%, rgba(30, 24, 21, .58) 38%, rgba(30, 24, 21, .96) 76%, rgba(30, 24, 21, 1) 100%);
   --profile-banner: radial-gradient(circle at 78% 18%, rgba(243, 165, 27, .5) 0, transparent 42%), radial-gradient(circle at 12% 85%, rgba(116, 48, 71, .55) 0, transparent 48%), linear-gradient(135deg, var(--surface-card) 0%, var(--background) 70%);
   --profile-banner-overlay: linear-gradient(0deg, rgba(7, 9, 14, .55) 0%, transparent 60%);
   --profile-avatar-gradient: linear-gradient(145deg, rgba(243, 165, 27, .45), rgba(243, 165, 27, .08));
@@ -74,30 +76,37 @@
   --shadow-profile-avatar: 0 10px 30px rgba(0, 0, 0, .45);
   --shadow-overlay: 0 18px 48px rgba(0, 0, 0, .45);
   --shadow-illustration: 0 24px 70px rgba(0, 0, 0, .28);
-  --content-width: 1600px;
+  /* Shared type scale: nothing in the UI goes below --fs-caption. */
+  --fs-caption: 13px;
+  --fs-small: 14px;
+  --fs-body: 16px;
+  --fs-lead: 18px;
+  --fs-title: 20px;
+  --fs-section: 24px;
+  --content-width: 1440px;
   --gutter: 32px;
   --nav-height: 64px;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --background: #FFFCF7;
+  --background: #F1E9DD;
   --surface-elevated: #FFFFFF;
   --surface-card: #FFFFFF;
-  --surface-media: #F6EFE5;
-  --surface-poster: #F6EFE5;
-  --surface-progress: #DED1C2;
+  --surface-media: #F8F4EC;
+  --surface-poster: #EDE4D6;
+  --surface-progress: #DCCEBB;
   --surface-control: #F6EFE5;
-  --surface-control-hover: #DED1C2;
+  --surface-control-hover: #E9DFD0;
   --surface-elevated-soft: rgba(255, 255, 255, .9);
   --surface-card-opaque: rgba(255, 255, 255, .98);
-  --background-soft: rgba(246, 239, 229, .65);
-  --background-translucent: rgba(255, 252, 247, .85);
+  --background-soft: rgba(241, 233, 221, .65);
+  --background-translucent: rgba(241, 233, 221, .88);
   --text: #211A16;
-  --muted: #746151;
-  --muted-2: #746151;
-  --border: #DED1C2;
-  --border-control: #DED1C2;
+  --muted: #665647;
+  --muted-2: #7A685A;
+  --border: #D8C8B5;
+  --border-control: #C9B9A5;
   --border-media: rgba(33, 26, 22, .18);
   --border-emphasis: rgba(33, 26, 22, .5);
   --border-muted: rgba(116, 97, 81, .35);

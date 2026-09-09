@@ -576,6 +576,9 @@ class RecommendationListView(ListAPIView):
     watched_genre_weight = 0.5
     franchise_boost_per_entry = 1.5
     franchise_engagement_cap = 4
+    # Recommendations must widen the choice, not replay one franchise: at most
+    # this many titles per franchise survive, regardless of boost.
+    per_franchise_cap = 2
     reason_genre_limit = 3
     _signals_cache: tuple[dict[int, float], dict[int, int]] | None = None
 
@@ -645,11 +648,42 @@ class RecommendationListView(ListAPIView):
             row["title_id"] for row in episode_counts if watched_by_title[row["title_id"]] >= row["total"]
         }
 
+    def _apply_franchise_cap(self, queryset):
+        """Keep at most `per_franchise_cap` titles of any one franchise.
+
+        The boost makes engaged franchises dominate the top of the list; a
+        viewer who just watched one part does not need a shelf of its sequels.
+        Titles without a franchise pass through untouched. The id list is
+        evaluated once in score order; the catalog is small, so this stays
+        cheaper than a window-function reimplementation of the same cap.
+        """
+        rows = list(queryset.values_list("id", "franchise_id"))
+        seen: dict[int, int] = {}
+        kept: list[int] = []
+        for title_id, franchise_id in rows:
+            if franchise_id is None:
+                kept.append(title_id)
+                continue
+            count = seen.get(franchise_id, 0)
+            if count >= self.per_franchise_cap:
+                continue
+            seen[franchise_id] = count + 1
+            kept.append(title_id)
+        if len(kept) == len(rows):
+            return queryset
+        return queryset.filter(id__in=kept)
+
     def get_queryset(self):
         user = self.request.user
         excluded_ids = (
             set(LibraryEntry.objects.filter(user=user).values_list("title_id", flat=True))
             | self._fully_watched_title_ids()
+            # Any watch progress at all means the viewer already found the
+            # title; a partially watched series must not reappear as a
+            # "recommendation" next to its own Continue Watching row.
+            | set(
+                EpisodeProgress.objects.filter(user=user).values_list("episode__title_id", flat=True)
+            )
             | set(RecommendationDismissal.objects.filter(user=user).values_list("title_id", flat=True))
         )
         queryset = Title.objects.exclude(id__in=excluded_ids).select_related("franchise").prefetch_related(
@@ -659,9 +693,9 @@ class RecommendationListView(ListAPIView):
         positive_genres = [genre_id for genre_id, weight in sorted(weights.items()) if weight > 0]
         if not positive_genres:
             # Cold start or only negative signals: an honest recency fallback.
-            return queryset.annotate(score=Value(0.0, output_field=FloatField())).order_by(
+            return self._apply_franchise_cap(queryset.annotate(score=Value(0.0, output_field=FloatField())).order_by(
                 F("year").desc(nulls_last=True), "name", "slug"
-            )
+            ))
         # Candidacy stays a subquery so the scoring join below sees every genre
         # of a title and negative weights reach the sum without WHERE filtering.
         candidates = Title.objects.filter(genres__id__in=positive_genres).values("id")
@@ -683,7 +717,7 @@ class RecommendationListView(ListAPIView):
                 for franchise_id, count in sorted(engagement.items())
             ]
             score = score + Case(*franchise_whens, default=Value(0.0), output_field=FloatField())
-        return (
+        return self._apply_franchise_cap(
             queryset.filter(id__in=Subquery(candidates))
             .annotate(**rating_subquery_annotations(), score=score)
             .order_by(

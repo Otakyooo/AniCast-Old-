@@ -524,6 +524,56 @@ def test_episode_air_at_keeps_air_date_in_sync(catalog_data):
 
 
 @pytest.mark.django_db
+def test_airing_titles_expose_last_aired_episode_and_next_release(catalog_data):
+    now = timezone.now()
+    # Episode 1 from the fixture has no air date, so it does not count as aired.
+    Episode.objects.create(title=catalog_data, number=2, air_at=now - timedelta(days=1))
+    # Pre-created schedule row for the next episode: must not become the "last" one.
+    Episode.objects.create(title=catalog_data, number=3, air_at=now + timedelta(days=2))
+    Title.objects.create(name="Done Test", slug="done-test", status="finished")
+
+    body = APIClient().get("/api/v1/titles/airing/").json()
+
+    # Unpaginated list payload; finished titles never appear.
+    assert [item["slug"] for item in body] == ["sky-test"]
+    assert body[0]["last_episode_number"] == 2
+    assert body[0]["next_episode_at"] is not None
+    # Plain list endpoints stay annotation-honest for other callers.
+    plain = APIClient().get("/api/v1/titles/?status=ongoing").json()["results"]
+    assert plain[0]["last_episode_number"] is None
+    assert plain[0]["next_episode_at"] is None
+
+
+@pytest.mark.django_db
+def test_recent_episodes_list_released_window_and_exclude_future(catalog_data):
+    now = timezone.now()
+    today = timezone.localdate()
+    released = Episode.objects.create(title=catalog_data, number=2, air_at=now - timedelta(hours=3))
+    Episode.objects.create(title=catalog_data, number=3, air_at=now + timedelta(days=1))
+    Episode.objects.create(title=catalog_data, number=4, air_date=today - timedelta(days=10))
+
+    response = APIClient().get("/api/v1/episodes/recent/")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["number"] for item in body] == [2]
+    assert body[0]["id"] == released.id
+    assert body[0]["title"]["slug"] == "sky-test"
+
+    widened = APIClient().get("/api/v1/episodes/recent/?days=15").json()
+    # Newest first: today's exact-time release, then the day-only older one.
+    assert [item["number"] for item in widened] == [2, 4]
+
+
+@pytest.mark.django_db
+def test_recent_episodes_validates_the_days_parameter(catalog_data):
+    assert APIClient().get("/api/v1/episodes/recent/?days=0").status_code == 400
+    assert APIClient().get("/api/v1/episodes/recent/?days=31").status_code == 400
+    assert APIClient().get("/api/v1/episodes/recent/?days=soon").status_code == 400
+    assert APIClient().get("/api/v1/episodes/recent/?days=7").status_code == 200
+
+
+@pytest.mark.django_db
 def test_seed_catalog_is_idempotent_and_sets_air_moments():
     call_command("seed_catalog")
     call_command("seed_catalog")

@@ -13,14 +13,15 @@
 
 .bannerCard {
   overflow: hidden;
-  border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-1);
 }
 
+/* A gradient banner with no function eats the first screen; one accent band
+   is enough. A real cover photo feature would change this decision. */
 .banner {
   position: relative;
-  height: clamp(150px, 22vw, 216px);
+  height: clamp(56px, 8vw, 84px);
   background: var(--profile-banner);
 }
 
@@ -36,25 +37,25 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 16px var(--gutter) 18px;
+  gap: 18px;
+  padding: 14px var(--gutter) 16px;
 }
 
 .avatar {
   display: grid;
-  width: 104px;
-  height: 104px;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
   align-self: flex-start;
-  margin-top: -60px;
+  margin-top: -38px;
   place-items: center;
-  border: 4px solid var(--background);
-  border-radius: 24px;
+  border: 3px solid var(--background);
+  border-radius: 18px;
   background: var(--profile-avatar-gradient);
   background-color: var(--surface-1);
   box-shadow: var(--shadow-profile-avatar);
   color: var(--text);
-  font-size: 40px;
+  font-size: 28px;
   font-weight: 800;
 }
 
@@ -124,45 +125,39 @@
   content: "";
 }
 
-/* ---------- Stats strip: exactly five metrics per spec §5.1 ---------- */
+/* ---------- Stats: one compact reading line ---------- */
 
-.strip {
+.statsLine {
   display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  background: var(--surface-1);
-  overflow-x: auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 0;
+  padding: 2px 4px;
 }
 
-.stripItem {
-  display: grid;
-  gap: 3px;
-  min-width: 96px;
-  flex: 1;
-  justify-items: center;
-  text-align: center;
-}
-
-.stripValue {
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-
-.stripLabel {
+.statsItem {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
+.statsItem strong {
+  color: var(--text);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.statsLine > * + *::before {
+  content: "·";
+  margin: 0 9px;
+  color: var(--muted-2);
+}
+
+a.statsItem { border-radius: 7px; transition: color 140ms ease }
+a.statsItem:hover { color: var(--text) }
+
 .activityCard {
-  padding: 20px;
-  border: 1px solid var(--border);
+  padding: 18px 20px;
   border-radius: 13px;
   background: var(--surface-1);
 }
@@ -174,23 +169,25 @@
 }
 
 .activityCard .sectionHeading > strong {
-  color: var(--accent-text);
-  font-size: 26px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
+/* A compact chart: the page is a resume hub, not an analytics product. */
 .activityChart {
   display: grid;
   grid-template-columns: repeat(12, minmax(24px, 1fr));
   gap: clamp(4px, 1vw, 10px);
-  height: 190px;
-  margin-top: 18px;
+  height: 96px;
+  margin-top: 14px;
 }
 
 .activityColumn {
   display: grid;
-  grid-template-rows: 18px minmax(0, 1fr) 18px;
-  gap: 5px;
+  grid-template-rows: 16px minmax(0, 1fr) 16px;
+  gap: 4px;
   min-width: 0;
   text-align: center;
 }
@@ -199,7 +196,7 @@
 .activityMonth {
   overflow: hidden;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   text-transform: lowercase;
   white-space: nowrap;
@@ -221,19 +218,7 @@
   background: var(--profile-activity-gradient);
 }
 
-/* Clickable strip entries deep-link into the filtered library view. */
-a.stripItem {
-  color: inherit;
-  text-decoration: none;
-  border-radius: 10px;
-  transition: background 140ms ease;
-}
-
-a.stripItem:hover {
-  background: var(--surface-2);
-}
-
-/* ---------- Favorite genres: top-5 horizontal bars per spec §5.3 ---------- */
+/* ---------- Favorite genres: compact chips with counts ---------- */
 
 .sectionHeading {
   display: flex;
@@ -248,61 +233,33 @@ a.stripItem:hover {
   font-size: 20px;
 }
 
-.genreList {
-  display: grid;
-  gap: 10px;
+.genreChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.genreRow {
-  display: grid;
-  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-}
-
-/* Genre rows deep-link into the catalog filtered by that genre. */
-a.genreRow {
-  color: inherit;
-  text-decoration: none;
-  padding: 6px 8px;
-  margin: -6px -8px;
-  border-radius: 10px;
-  transition: background 140ms ease;
-}
-
-a.genreRow:hover {
-  background: var(--surface-2);
-}
-
-.genreName {
+.genreChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--surface-control);
   color: var(--text);
   font-size: 14px;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  transition: background 140ms ease;
 }
 
-.genreTrack {
-  height: 9px;
-  border-radius: 5px;
-  background: var(--surface-2);
-  overflow: hidden;
-}
+.genreChip:hover { background: var(--surface-control-hover); color: var(--text) }
 
-.genreBar {
-  display: block;
-  height: 100%;
-  border-radius: 5px;
-  background: var(--profile-genre-gradient);
-}
-
-.genreCount {
+.genreChip span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -344,14 +301,13 @@ a.genreRow:hover {
   display: grid;
   gap: 5px;
   padding: 14px 16px;
-  border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--surface-1);
-  transition: border-color 140ms ease;
+  transition: background 140ms ease;
 }
 
 .noteCard:hover {
-  border-color: var(--primary);
+  background: var(--surface-2);
 }
 
 .noteTitle {
@@ -378,14 +334,13 @@ a.genreRow:hover {
   display: grid;
   gap: 10px;
   padding: 14px 16px;
-  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-1);
-  transition: border-color 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
 .collectionCard:hover {
-  border-color: var(--primary);
+  background: var(--surface-2);
   transform: translateY(-2px);
 }
 
@@ -426,7 +381,7 @@ a.genreRow:hover {
 
 .collectionCount {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .grid {
@@ -435,65 +390,32 @@ a.genreRow:hover {
   gap: 12px;
 }
 
-.sectionCard {
-  display: grid;
-  gap: 6px;
-  padding: 17px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-1);
-  transition: border-color 140ms ease, transform 140ms ease;
-}
-
-.sectionCard:hover {
-  border-color: var(--primary);
-  transform: translateY(-2px);
-}
-
-.sectionCard:active {
-  transform: none;
-  background: var(--surface-2);
-}
-
-.sectionTitle {
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.sectionCount {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 @media (max-width: 767px) {
   .profilePage {
     gap: 18px;
   }
 
   .banner {
-    height: 128px;
+    height: 48px;
   }
 
   .header {
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 12px;
+    padding-block: 10px 12px;
   }
 
   .avatar {
-    width: 72px;
-    height: 72px;
-    margin-top: -52px;
-    font-size: 28px;
+    width: 56px;
+    height: 56px;
+    margin-top: -26px;
+    font-size: 22px;
+    border-radius: 14px;
     border-width: 3px;
   }
 
   .identity {
-    flex-basis: calc(100% - 86px);
+    flex-basis: calc(100% - 68px);
   }
 
   .name {
@@ -511,25 +433,10 @@ a.genreRow:hover {
     scrollbar-width: none;
   }
 
-  .strip {
-    flex-wrap: nowrap;
-    padding: 13px 12px;
-  }
+  .statsItem { font-size: 13px }
+  .statsItem strong { font-size: 14px }
 
-  .stripItem {
-    min-width: 84px;
-  }
-
-  .stripValue {
-    font-size: 20px;
-  }
-
-  .genreRow {
-    grid-template-columns: minmax(90px, 1fr) minmax(0, 1fr) auto;
-    gap: 10px;
-  }
-
-  .activityCard { padding: 16px 12px }
-  .activityChart { gap: 4px; height: 155px }
-  .activityMonth { font-size: 9px }
+  .activityCard { padding: 14px 12px }
+  .activityChart { gap: 4px; height: 84px }
+  .activityValue, .activityMonth { font-size: 11px }
 }

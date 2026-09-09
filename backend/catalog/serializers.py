@@ -145,6 +145,8 @@ class TitleSerializer(serializers.ModelSerializer):
     episodes_count = serializers.SerializerMethodField()
     localized_names = serializers.SerializerMethodField()
     poster_url = serializers.SerializerMethodField()
+    last_episode_number = serializers.SerializerMethodField()
+    next_episode_at = serializers.SerializerMethodField()
 
     def get_poster_url(self, obj):
         return posters.public_poster_reference(obj.poster_url)
@@ -170,6 +172,14 @@ class TitleSerializer(serializers.ModelSerializer):
         # per-row COUNT that would reintroduce an N+1 into every list.
         return getattr(obj, "episodes_count", None)
 
+    def get_last_episode_number(self, obj):
+        """Highest aired episode number; only airing views annotate it."""
+        return getattr(obj, "last_episode_number", None)
+
+    def get_next_episode_at(self, obj):
+        """Next scheduled exact release time; only airing views annotate it."""
+        return getattr(obj, "next_episode_at", None)
+
     def get_localized_names(self, obj):
         """Stable RU/EN/JA names independent from the request locale.
 
@@ -192,6 +202,7 @@ class TitleSerializer(serializers.ModelSerializer):
             "name", "slug", "original_name", "synopsis", "title_type", "status",
             "year", "poster_url", "genres", "franchise", "episodes_count",
             "rating_average", "rating_count", "localized_names",
+            "last_episode_number", "next_episode_at",
         ]
 
 

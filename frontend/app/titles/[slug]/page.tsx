@@ -134,6 +134,22 @@ function isTab(value: string | undefined): value is Tab {
   return TABS.includes((value ?? "") as Tab);
 }
 
+/** "12 430 оценок" with the locale's plural form; numeric-only stays
+ * locale-formatted so en/ru share one helper. */
+function ratingCountLabel(count: number, locale: string, t: Translator) {
+  const formatted = new Intl.NumberFormat(intlLocale[locale as keyof typeof intlLocale]).format(count);
+  if (locale === "ru") {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) return t("title.ratingCountOne", { count: formatted });
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return t("title.ratingCountFew", { count: formatted });
+    return t("title.ratingCountMany", { count: formatted });
+  }
+  return count === 1
+    ? t("title.ratingCountOne", { count: formatted })
+    : t("title.ratingCountMany", { count: formatted });
+}
+
 /** Noon-UTC anchor so a plain YYYY-MM-DD renders the same day in every timezone. */
 function isoDay(value: string): Date {
   return new Date(`${value}T12:00:00Z`);
@@ -217,6 +233,46 @@ function CreditCard({ credit }: { credit: TitleCreditEntry }) {
         ) : <User size={22} weight="bold" />}
       </span>
       <span className={styles.creditBody}><strong>{credit.creator.name}</strong><small>{primaryRole}</small></span>
+    </Link>
+  );
+}
+
+/** One numbered step of the franchise watch order. The counter answers "what
+ * do I watch next", which a plain poster grid never did. */
+function WatchOrderCard({
+  related,
+  step,
+  current,
+  t,
+}: {
+  related: NonNullable<CatalogItem["related_titles"]>[number];
+  step: number;
+  current: boolean;
+  t: Translator;
+}) {
+  return (
+    <Link
+      className={current ? `${styles.watchOrderCard} ${styles.watchOrderCurrent}` : styles.watchOrderCard}
+      href={`/titles/${related.slug}`}
+      title={related.name}
+    >
+      <span className={styles.watchOrderPoster}>
+        {related.poster_url ? (
+          <Image
+            src={related.poster_url}
+            alt=""
+            fill
+            sizes="(max-width: 767px) 40vw, 168px"
+            quality={92}
+            referrerPolicy="no-referrer"
+          />
+        ) : null}
+        <span className={styles.watchOrderStep} aria-hidden="true">{step}</span>
+      </span>
+      <span className={styles.watchOrderBody}>
+        <strong>{related.name}</strong>
+        <small>{[related.year, related.title_type ? t(`type.${related.title_type}`) : ""].filter(Boolean).join(" · ")}</small>
+      </span>
     </Link>
   );
 }
@@ -405,6 +461,12 @@ export default async function CatalogDetailPage({
     community: t("title.tabCommunity"),
     notes: t("title.tabNotes"),
   };
+  // Watch focus: an explicit episode request means the viewer came to watch,
+  // not to read. The hero compacts and the people blocks step aside until the
+  // viewer returns to the plain title page.
+  const watchFocus = Boolean(query.episode) && tab === "overview";
+  const secondaryTabs = TABS.filter((value) => ["characters", "community", "notes"].includes(value));
+  const primaryTabs = TABS.filter((value) => !["characters", "community", "notes"].includes(value));
 
   return (
     <PageShell active="catalog" back={{ href: "/catalog", label: t("catalog.title") }}>
@@ -416,7 +478,7 @@ export default async function CatalogDetailPage({
           { name: item.name, href: `/titles/${item.slug}` },
         ]}
       />
-      <article className={styles.hero}>
+      <article className={watchFocus ? `${styles.hero} ${styles.heroCompact}` : styles.hero}>
         <div className={styles.heroPoster}>
           {item.poster_url ? (
             <Image
@@ -443,47 +505,54 @@ export default async function CatalogDetailPage({
               {t("title.franchiseLabel")}: {item.franchise.name}
             </Link>
           )}
-          <div className={styles.titleNames}>
-            {titleNameRows(item.localized_names, item.name, item.original_name).map((row, index) => index === 0
-              ? (
-                <div className={styles.titleNamePrimary} key={`${row.language}-${row.name}`}>
-                  <span>{row.language.toUpperCase()}</span>
-                  <h1 className={styles.heroTitle} lang={row.language}>{row.name}</h1>
-                </div>
-              )
-              // A secondary name without a trustworthy language tag (a Latin
-              // "ja" original) renders as a plain original-title line instead
-              // of a tagged row with an empty label.
-              : row.showLanguageTag
-                ? (
-                  <div className={styles.titleNameSecondary} key={`${row.language}-${row.name}`}>
-                    <span>{row.language.toUpperCase()}</span>
-                    <p className={styles.heroOriginal} lang={row.language}>{row.name}</p>
-                  </div>
-                )
-                : <p className={styles.heroOriginal} lang={row.language} key={`${row.language}-${row.name}`}>{row.name}</p>)}
-          </div>
+          {(() => {
+            // One primary headline; every other spelling collapses into an
+            // "Other names" disclosure instead of a wall of RU/EN/JA rows.
+            const rows = titleNameRows(item.localized_names, item.name, item.original_name);
+            const [primary, ...others] = rows;
+            return (
+              <>
+                <h1 className={styles.heroTitle} lang={primary.language}>{primary.name}</h1>
+                {others.length > 0 && (
+                  <details className={styles.otherNames}>
+                    <summary>{t("title.otherNames")} ({others.length})</summary>
+                    {others.map((row) => (
+                      <p className={styles.heroOriginal} lang={row.language} key={`${row.language}-${row.name}`}>
+                        {row.showLanguageTag && <span aria-hidden="true">{row.language.toUpperCase()}</span>}
+                        {row.name}
+                      </p>
+                    ))}
+                  </details>
+                )}
+              </>
+            );
+          })()}
           <div className={styles.heroMeta}>
             {rating && (
               <Link
                 className={styles.metaRating}
                 href={tabHref("community")}
-                // Numeric-only tooltip keeps every locale free of plural forms.
-                title={`${rating.average} / 10 · ${rating.count}`}
+                title={`${rating.average} / 10`}
               >
-                <span aria-hidden="true">★</span> {rating.average} · {rating.count}
+                <span aria-hidden="true">★</span> {rating.average} · {ratingCountLabel(rating.count, locale, t)}
               </Link>
             )}
-            <span className={item.status === "ongoing" ? styles.metaOngoing : undefined}>
-              {item.status ? t(`status.${item.status}`) : t("status.unknown")}
-            </span>
             <span>
               {item.status === "ongoing" && item.year
                 ? t("title.yearsOngoing", { year: item.year })
                 : item.year ?? t("title.yearUnknown")}
             </span>
-            {template.showEpisodeCount && <span>{episodeCountLabel(t, locale, episodesCount)}</span>}
-            {item.duration_minutes ? <span>{t("title.durationValue", { minutes: item.duration_minutes })}</span> : null}
+            <span className={item.status === "ongoing" ? styles.metaOngoing : undefined}>
+              {item.status ? t(`status.${item.status}`) : t("status.unknown")}
+            </span>
+            {template.showEpisodeCount && (
+              <span>
+                {episodeCountLabel(t, locale, episodesCount)}
+                {item.duration_minutes
+                  ? ` × ${t("title.minutesValue", { minutes: item.duration_minutes })}`
+                  : ""}
+              </span>
+            )}
           </div>
           {genres.length > 0 && (
             <div className={styles.heroGenres}>
@@ -492,25 +561,32 @@ export default async function CatalogDetailPage({
               ))}
             </div>
           )}
-          {/* A clamped synopsis teaser fills the hero and answers "what is
-              this about" before the fold; the full text stays in Overview. */}
-          {item.synopsis && <p className={styles.heroSynopsis}>{item.synopsis}</p>}
+          {/* A clamped synopsis teaser answers "what is this about" in the
+              first screen; "Подробнее" anchors to the full description. */}
+          {item.synopsis && (
+            <p className={styles.heroSynopsis}>
+              {item.synopsis}
+              {" "}
+              <a className={styles.heroSynopsisMore} href="#title-description">{t("title.synopsisMore")}</a>
+            </p>
+          )}
         </div>
         <TitleActions
           slug={item.slug}
           watchHref={watchActionHref}
           explicitEpisode={Boolean(query.episode)}
         />
-        {/* Library-adjacent personal actions live together under the hero
-            buttons instead of scattering down the page. */}
+        {/* Collection membership is a personal folder action, not a viewing
+            state: it stays a quiet cluster under the hero buttons. Finished
+            titles get no "notify about new episodes" control at all. */}
         <div className={styles.heroSubscribe}>
           <TitleCollectionControl titleSlug={item.slug} />
-          <NotificationSubscription slug={item.slug} />
+          {item.status !== "finished" && <NotificationSubscription slug={item.slug} />}
         </div>
       </article>
 
       <nav className={styles.tabs} id="title-tabs" aria-label={t("title.tabOverview")}>
-        {TABS.filter((value) => value !== "episodes" || template.showEpisodeTab).map((value) => (
+        {primaryTabs.filter((value) => value !== "episodes" || template.showEpisodeTab).map((value) => (
           <Link
             className={`${styles.tab} ${value === tab ? styles.tabActive : ""}`}
             href={tabHref(value)}
@@ -520,9 +596,24 @@ export default async function CatalogDetailPage({
           >
             {tabLabel[value]}
             {value === "episodes" && episodesCount > 0 && <span className={styles.tabCount}>{compactCount(episodesCount)}</span>}
-            {value === "characters" && castCount + credits.length > 0 && <span className={styles.tabCount}>{compactCount(castCount + credits.length)}</span>}
           </Link>
         ))}
+        {/* Watching is the core task; people/community/notes are secondary
+            destinations and step back both visually and positionally. */}
+        <span className={styles.tabsSecondary}>
+          {secondaryTabs.map((value) => (
+            <Link
+              className={`${styles.tab} ${styles.tabSecondary} ${value === tab ? styles.tabActive : ""}`}
+              href={tabHref(value)}
+              prefetch={false}
+              aria-current={value === tab ? "page" : undefined}
+              key={value}
+            >
+              {tabLabel[value]}
+              {value === "characters" && castCount + credits.length > 0 && <span className={styles.tabCount}>{compactCount(castCount + credits.length)}</span>}
+            </Link>
+          ))}
+        </span>
       </nav>
 
       {tab === "overview" && (
@@ -551,44 +642,42 @@ export default async function CatalogDetailPage({
               people blocks. Without a synopsis there is nothing honest to
               render — the missing text is a data gap, not a UI state. */}
           {item.synopsis && (
-            <section className={`${styles.block} ${styles.descriptionCard}`}>
+            <section className={`${styles.block} ${styles.descriptionCard}`} id="title-description">
               <h2>{t("title.description")}</h2>
               <p>{item.synopsis}</p>
-            </section>
-          )}
-          {mainCredits.length > 0 && (
-            <section className={styles.block}>
-              <div className="section-heading">
-                <h2>{t("title.authorsMain")}</h2>
-              </div>
-              <div className={styles.creditGrid}>
-                {mainCredits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} />)}
-              </div>
-            </section>
-          )}
-          {mainCast.length > 0 && (
-            <section className={styles.block}>
-              <div className="section-heading">
-                <h2>{t("title.charactersMain")}</h2>
-                {cast.length > mainCast.length && (
-                  <Link href={tabHref("characters")}>{t("title.peopleAll")}</Link>
-                )}
-              </div>
-              <div className={styles.castGrid}>
-                {mainCast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
-              </div>
             </section>
           )}
           {relatedTitles.length > 0 && (
             <section className={styles.block}>
               <div className="section-heading">
                 <div>
-                  <h2>{t("title.relatedWorks")}</h2>
-                  {item.franchise && <p className="muted">{item.franchise.name}</p>}
+                  <h2>{t("title.watchOrder")}</h2>
+                  <p className="muted">{t("title.watchOrderHint")}</p>
                 </div>
+                {item.franchise && (
+                  <Link href={`/franchises/${item.franchise.slug}`}>{item.franchise.name}</Link>
+                )}
               </div>
-              <RailScroller railClassName={styles.relatedRail}>
-                {relatedTitles.map((related) => <CatalogCard key={related.slug} item={related} variant="media" />)}
+              {/* Numbered chronology of the franchise: the step counter says
+                  what to watch next, which a plain poster grid never did. */}
+              <RailScroller railClassName={styles.watchOrderRail}>
+                {[
+                  ...relatedTitles,
+                  { slug: item.slug, name: item.name, poster_url: item.poster_url ?? null, title_type: item.title_type ?? null, status: item.status ?? null, year: item.year ?? null },
+                ]
+                  .sort((left, right) => (
+                    (left.year ?? 99999) - (right.year ?? 99999)
+                    || left.name.localeCompare(right.name)
+                  ))
+                  .map((related, index) => (
+                    <WatchOrderCard
+                      related={related}
+                      step={index + 1}
+                      current={related.slug === item.slug}
+                      t={t}
+                      key={related.slug}
+                    />
+                  ))}
               </RailScroller>
             </section>
           )}
@@ -605,6 +694,32 @@ export default async function CatalogDetailPage({
                 )}
               </div>
               <RailScroller railClassName={styles.relatedRail}>{similarUnique.map((entry) => <CatalogCard key={entry.slug} item={entry} variant="media" />)}</RailScroller>
+            </section>
+          )}
+          {/* People are reference material, not the viewing task: they sit
+            below description, watch order and similar titles, and step aside
+            entirely while the viewer is watching an episode. */}
+          {!watchFocus && mainCredits.length > 0 && (
+            <section className={styles.block}>
+              <div className="section-heading">
+                <h2>{t("title.authorsMain")}</h2>
+              </div>
+              <div className={styles.creditGrid}>
+                {mainCredits.map((credit) => <CreditCard credit={credit} key={`${credit.role}-${credit.creator.slug}`} />)}
+              </div>
+            </section>
+          )}
+          {!watchFocus && mainCast.length > 0 && (
+            <section className={styles.block}>
+              <div className="section-heading">
+                <h2>{t("title.charactersMain")}</h2>
+                {cast.length > mainCast.length && (
+                  <Link href={tabHref("characters")}>{t("title.allCharacters")}</Link>
+                )}
+              </div>
+              <div className={styles.castGrid}>
+                {mainCast.map((entry) => <CastCard entry={entry} key={entry.character.slug} t={t} />)}
+              </div>
             </section>
           )}
         </div>

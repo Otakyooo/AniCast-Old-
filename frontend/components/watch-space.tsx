@@ -6,11 +6,8 @@ import {
   CaretLeft,
   CaretRight,
   CaretDown,
-  ClosedCaptioning,
   Check,
-  FilmStrip,
   MagnifyingGlass,
-  SpeakerHigh,
   X,
 } from "@phosphor-icons/react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -56,13 +53,8 @@ interface EpisodeRailMeta {
   airDate: string | null;
 }
 
-/** Icon per voice kind: dubs, subtitles and raw audio are different animals
- *  and the chip row must tell them apart at a glance. */
-const VOICE_KIND_ICON = {
-  dub: SpeakerHigh,
-  sub: ClosedCaptioning,
-  raw: FilmStrip,
-} as const;
+/** Voice kinds in display order: voice-over first, subtitles, then raw. */
+const KIND_ORDER = ["dub", "sub", "raw"] as const;
 
 /** Noon-UTC anchor so a plain YYYY-MM-DD renders the same day in every zone. */
 function isoDay(value: string): Date {
@@ -174,6 +166,8 @@ export function WatchSpace(props: WatchSpaceProps) {
   return <TitleWatchSpace key={props.slug} {...props} />;
 }
 
+const AUTOPLAY_COUNTDOWN_SECONDS = 10;
+
 function TitleWatchSpace({
   slug,
   titleName,
@@ -207,6 +201,14 @@ function TitleWatchSpace({
     [currentNumber, playableSources, singlePlayback, sourceGroups],
   );
   const requestedGroup = resolveRequestedGroupKey(groups, requestedSourceKey);
+  const groupsByKind = useMemo(() => {
+    const byKind = new Map<string, ResolvedWatchSourceGroup[]>();
+    for (const group of groups) {
+      const section = voiceSection(group.kind);
+      byKind.set(section, [...(byKind.get(section) ?? []), group]);
+    }
+    return byKind;
+  }, [groups]);
   const preferredKey = requestedGroup?.key
     ?? firstRankedPlayableGroupKey(
       groups,
@@ -223,6 +225,7 @@ function TitleWatchSpace({
   const [episodeMeta, setEpisodeMeta] = useState<Map<number, EpisodeRailMeta>>(new Map());
   const [watchedNumbers, setWatchedNumbers] = useState<Set<number> | null>(null);
   const [completedNumbers, setCompletedNumbers] = useState<Set<number>>(new Set());
+  const [autoplaySeconds, setAutoplaySeconds] = useState<number | null>(null);
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
   const episodeRailSearchRef = useRef<HTMLInputElement>(null);
@@ -283,6 +286,33 @@ function TitleWatchSpace({
       });
     }
   }, [currentNumber, progressScope]);
+
+  /** The provider's own "ended" event is the only autoplay trigger: a high
+   * progress percentage alone cannot distinguish a finished episode from a
+   * resumed one. */
+  const handleEnded = useCallback(() => {
+    if (singlePlayback) return;
+    if (nextNumber === undefined) return;
+    setAutoplaySeconds(AUTOPLAY_COUNTDOWN_SECONDS);
+  }, [nextNumber, singlePlayback]);
+
+  // Countdown to the next episode. State changes live inside the timer
+  // callback; leaving the page, cancelling or a route change clears the
+  // timer together with the component state.
+  useEffect(() => {
+    if (autoplaySeconds === null) return;
+    const timer = window.setTimeout(() => {
+      if (autoplaySeconds <= 1) {
+        if (nextNumber !== undefined) {
+          router.push(titleWatchHref(slug, nextNumber, selectedGroupKey), { scroll: false });
+        }
+        setAutoplaySeconds(null);
+        return;
+      }
+      setAutoplaySeconds(autoplaySeconds - 1);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [autoplaySeconds, nextNumber, router, selectedGroupKey, slug]);
 
   // Watched marks come from the viewer's own history; guests and API failures
   // keep `null`, which renders the rail without marks instead of guessing.
@@ -411,6 +441,7 @@ function TitleWatchSpace({
       slug={slug}
       episodeNumber={currentNumber}
       onProgressChange={handleProgressChange}
+      onEnded={handleEnded}
     />
   ) : chosen ? (
     <section className={`${styles.playerShell} ${styles.playerPreview}`} aria-label={playerTitle}>
@@ -517,12 +548,32 @@ function TitleWatchSpace({
         </div>
       )}
       {/* Single-playback titles (movies) have no episode rail: the stage spans
-          the full column and voice choice lives in the chips below. */}
+          the full column and voice choice lives in the selects below. */}
       <div className={`${styles.watchStage} ${singlePlayback ? styles.watchStageFull : ""}`}>
-        <div className={styles.watchPlayer}>{player}</div>
+        <div className={styles.watchPlayer}>
+          {player}
+          {/* Explicit next-episode scenario after the provider reports the end:
+              a countdown the viewer can cancel, instead of a silent jump or a
+              dead stop. */}
+          {autoplaySeconds !== null && nextNumber !== undefined && (
+            <div className={styles.autoplayBar} role="status">
+              <span>{t("watch.autoplayNext", { seconds: autoplaySeconds })}</span>
+              <Link
+                className={styles.autoplayNext}
+                href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
+                onClick={() => setAutoplaySeconds(null)}
+              >
+                {t("watch.next")}
+              </Link>
+              <button type="button" onClick={() => setAutoplaySeconds(null)}>
+                {t("watch.autoplayCancel")}
+              </button>
+            </div>
+          )}
+        </div>
 
-        {/* Mobile-only episode controls. Voice switching is not duplicated
-            here: the chips under the player are the one selector. */}
+        {/* Episode controls under the player on every viewport: big obvious
+            prev/next steps plus the current-episode chooser. */}
         {!singlePlayback && (
           <nav className={styles.watchControls} aria-label={t("watch.navigation")}>
             {previousNumber !== undefined ? (
@@ -533,10 +584,12 @@ function TitleWatchSpace({
                 title={t("watch.prev")}
               >
                 <CaretLeft aria-hidden="true" weight="bold" />
+                <span>{t("watch.prev")}</span>
               </Link>
             ) : (
               <span className={styles.episodeStep} aria-disabled="true">
                 <CaretLeft aria-hidden="true" weight="bold" />
+                <span>{t("watch.prev")}</span>
               </span>
             )}
 
@@ -559,10 +612,12 @@ function TitleWatchSpace({
                 aria-label={t("watch.next")}
                 title={t("watch.next")}
               >
+                <span>{t("watch.next")}</span>
                 <CaretRight aria-hidden="true" weight="bold" />
               </Link>
             ) : (
               <span className={styles.episodeStep} aria-disabled="true">
+                <span>{t("watch.next")}</span>
                 <CaretRight aria-hidden="true" weight="bold" />
               </span>
             )}
@@ -579,21 +634,8 @@ function TitleWatchSpace({
           <aside className={styles.episodeRail} aria-label={t("watch.navigation")}>
             {availableEpisodeNumbers.length > 0 && (
               <div className={styles.episodeRailTools}>
-                {previousNumber !== undefined ? (
-                  <Link
-                    className={styles.episodeStep}
-                    href={titleWatchHref(slug, previousNumber, selectedGroupKey)}
-                    aria-label={t("watch.prev")}
-                    title={t("watch.prev")}
-                  >
-                    <CaretLeft aria-hidden="true" weight="bold" />
-                  </Link>
-                ) : (
-                  <span className={styles.episodeStep} aria-disabled="true">
-                    <CaretLeft aria-hidden="true" weight="bold" />
-                  </span>
-                )}
-
+                {/* Prev/next live in the big control bar under the player;
+                    the rail toolbar keeps only the number search. */}
                 <form className={styles.episodeSearch} onSubmit={submitEpisodeSearch} role="search">
                   <MagnifyingGlass aria-hidden="true" />
                   <label htmlFor="watch-episode-search">{t("watch.episodeSearch")}</label>
@@ -607,21 +649,6 @@ function TitleWatchSpace({
                     onChange={(event) => setEpisodeQuery(event.target.value)}
                   />
                 </form>
-
-                {nextNumber !== undefined ? (
-                  <Link
-                    className={styles.episodeStep}
-                    href={titleWatchHref(slug, nextNumber, selectedGroupKey)}
-                    aria-label={t("watch.next")}
-                    title={t("watch.next")}
-                  >
-                    <CaretRight aria-hidden="true" weight="bold" />
-                  </Link>
-                ) : (
-                  <span className={styles.episodeStep} aria-disabled="true">
-                    <CaretRight aria-hidden="true" weight="bold" />
-                  </span>
-                )}
               </div>
             )}
 
@@ -689,29 +716,38 @@ function TitleWatchSpace({
 
       </div>
 
-      {/* The single voice selector: one click under the player on every
-          viewport. Kind icons separate dubs from subtitles; the coverage
-          breakdown lives in each chip's tooltip. */}
+      {/* The voice selector: one labeled dropdown per kind (voice-over /
+          subtitles / original) under the player. Scales to any number of
+          teams; the coverage breakdown stays in each option's label. */}
       {groups.length > 0 && (
-        <div className={styles.voiceChips} role="group" aria-label={t("watch.voiceOptionsTitle")}>
-          {groups.map((group) => {
-            const selected = group.key === selectedGroupKey;
-            const name = cleanSourceName(group.name, group.provider_name);
-            const kind = t(`watch.voiceGroup.${voiceSection(group.kind)}`);
-            const coverage = coverageCopy(group, playableSet, t, locale);
-            const KindIcon = VOICE_KIND_ICON[voiceSection(group.kind)];
+        <div className={styles.voiceSelects} role="group" aria-label={t("watch.voiceOptionsTitle")}>
+          {KIND_ORDER.filter((kind) => groupsByKind.get(kind)?.length).map((kind) => {
+            const sectionGroups = groupsByKind.get(kind) ?? [];
+            const sectionHasSelection = sectionGroups.some((group) => group.key === selectedGroupKey);
             return (
-              <button
-                key={group.key}
-                type="button"
-                className={selected ? styles.voiceChipSelected : styles.voiceChip}
-                aria-pressed={selected}
-                title={[name, kind, coverage.summary, coverage.detail].filter(Boolean).join(" · ")}
-                onClick={() => chooseGroup(group.key)}
-              >
-                <KindIcon aria-hidden="true" weight="bold" />
-                {name}
-              </button>
+              <label className={styles.voiceSelect} key={kind}>
+                <span>{t(`watch.voiceGroup.${kind}`)}</span>
+                <span className={styles.voiceSelectControl}>
+                  <select
+                    value={sectionHasSelection ? selectedGroupKey : ""}
+                    onChange={(event) => {
+                      if (event.target.value) chooseGroup(event.target.value);
+                    }}
+                  >
+                    {!sectionHasSelection && <option value="">{t("watch.voiceNone")}</option>}
+                    {sectionGroups.map((group) => {
+                      const name = cleanSourceName(group.name, group.provider_name);
+                      const coverage = coverageCopy(group, playableSet, t, locale);
+                      return (
+                        <option value={group.key} key={group.key}>
+                          {[name, coverage.summary].filter(Boolean).join(" · ")}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <CaretDown aria-hidden="true" weight="bold" />
+                </span>
+              </label>
             );
           })}
         </div>

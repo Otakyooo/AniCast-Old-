@@ -28,8 +28,9 @@ test("explicit themes persist; logo stays transparent and navigation readable", 
     await expect(page.locator(".brand-logo").first()).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Check the actual computed text colors, not just the token source file.
-    await expect(page.locator(".primary-nav a:not(.active)").first()).toHaveCSS("color", theme === "light" ? "rgb(116, 97, 81)" : "rgb(203, 180, 154)");
-    const contrast = await page.locator(".primary-nav a:not(.active)").first().evaluate(el => {
+    // Secondary nav links stay muted in both themes.
+    await expect(page.locator(".primary-nav a.nav-secondary:not(.active)").first()).toHaveCSS("color", theme === "light" ? "rgb(102, 86, 71)" : "rgb(217, 198, 172)");
+    const contrast = await page.locator(".primary-nav a.nav-secondary:not(.active)").first().evaluate(el => {
       const rgb = (s: string) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
       const luminance = (c: number[]) => c.map(n => n / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4).reduce((s, n, i) => s + n * [.2126, .7152, .0722][i], 0);
       const fg = luminance(rgb(getComputedStyle(el).color));

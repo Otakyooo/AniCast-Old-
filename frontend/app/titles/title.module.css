@@ -20,9 +20,9 @@
   grid-area: poster;
   aspect-ratio: 2 / 3;
   place-items: center;
-  border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--poster-gradient);
+  box-shadow: var(--shadow-media);
 }
 
 .heroImage { object-fit: cover }
@@ -40,6 +40,21 @@
   min-width: 0;
   align-content: start;
 }
+
+/* Watch focus: an explicit episode request compacts the hero so the player
+   owns the first screen; secondary reading collapses away. */
+.heroCompact {
+  padding-top: clamp(14px, 2.5vw, 24px);
+  padding-bottom: 20px;
+}
+
+.heroCompact .heroSynopsis,
+.heroCompact .heroGenres,
+.heroCompact .otherNames { display: none }
+
+.heroCompact .heroCopy { gap: 10px }
+
+.heroCompact .heroTitle { font-size: clamp(24px, 3vw, 36px) }
 
 /* The franchise eyebrow is a real link, so it needs link affordance beyond
    the shared .eyebrow typography. */
@@ -60,73 +75,87 @@
   overflow-wrap: anywhere;
 }
 
-.titleNames { display: grid; gap: 8px }
-
-.titleNamePrimary,
-.titleNameSecondary {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 9px;
+/* Alternative spellings collapse into one disclosure: the headline stays a
+   single readable title instead of a wall of RU/EN/JA rows. */
+.otherNames summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
 
-.titleNamePrimary > span,
-.titleNameSecondary > span {
-  color: var(--muted-2);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .08em;
-}
+.otherNames summary::-webkit-details-marker { display: none }
 
-.titleNamePrimary .heroTitle { margin: 0 }
+.otherNames summary:hover { color: var(--text) }
+
+.otherNames summary:before { content: "＋"; margin-right: 6px; color: var(--muted-2) }
+.otherNames[open] summary:before { content: "−" }
+
+.otherNames[open] summary { margin-bottom: 4px }
 
 .heroOriginal {
   margin: 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
-.titleNames :where(h1, p)[lang="ja"] {
+.heroOriginal span {
+  margin-right: 7px;
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+:is(.heroTitle, .heroOriginal)[lang="ja"] {
   font-family: "Noto Sans JP Variable", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
   font-variant-east-asian: proportional-width;
 }
 
+/* One reading line: "2018 · Завершён · 24 серии × 23 мин" instead of a row of
+   tiny bordered pills. */
 .heroMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 4px 0;
 }
 
 .heroMeta span {
-  padding: 6px 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: 0;
+  border: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.heroMeta > * + *::before {
+  content: "·";
+  margin: 0 9px;
+  color: var(--muted-2);
 }
 
 /* Community score chip: gold tone matches the favorite state, links to the
-   community tab where the vote breakdown lives. */
+    community tab where the vote breakdown lives. */
 .metaRating {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 11px;
+  padding: 5px 11px;
   border: 1px solid var(--favorite-border-soft);
   border-radius: 999px;
   color: var(--favorite);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .metaRating:hover { border-color: var(--favorite-border) }
 
-.metaOngoing {
-  border-color: var(--success-border) !important;
-  color: var(--success) !important;
-}
+.metaOngoing { color: var(--success) !important }
 
 .heroGenres {
   display: flex;
@@ -136,29 +165,36 @@
 
 .heroGenres a {
   padding: 6px 11px;
-  border: 1px solid var(--border);
   border-radius: 999px;
+  background: var(--surface-control);
   color: var(--text);
-  font-size: 12px;
-  transition: border-color 140ms ease, background 140ms ease;
+  font-size: 13px;
+  transition: background 140ms ease, color 140ms ease;
 }
 
-.heroGenres a:hover { border-color: var(--primary); color: var(--accent-text) }
-.heroGenres a:active { background: var(--surface-1) }
+.heroGenres a:hover { background: var(--surface-control-hover); color: var(--text) }
 
-/* Synopsis teaser: three lines fill the hero's right column and answer
-   "what is this about" before the fold; the full text lives in Overview. */
+/* Synopsis teaser: four lines answer "what is this about" in the first
+   screen; "Подробнее" anchors down to the full description. */
 .heroSynopsis {
   display: -webkit-box;
   overflow: hidden;
   max-width: 640px;
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
 }
+
+.heroSynopsisMore {
+  color: var(--accent-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.heroSynopsisMore:hover { text-decoration: underline; text-underline-offset: 3px }
 
 /* ---------- Actions ---------- */
 
@@ -192,7 +228,6 @@
 
 .watch,
 .secondaryAction,
-.actionActive,
 .favoriteActive {
   display: inline-flex;
   align-items: center;
@@ -219,16 +254,9 @@
 .watch:hover:not(:disabled) { background: var(--primary-hover) }
 .watch:active:not(:disabled) { transform: scale(.985) }
 
-.secondaryAction:hover:not(:disabled),
-.actionActive:hover:not(:disabled),
-.favoriteActive:hover:not(:disabled) { border-color: var(--primary) }
+.secondaryAction:hover:not(:disabled) { border-color: var(--border-emphasis); background: var(--surface-1) }
 
-.secondaryAction:active:not(:disabled) { background: var(--surface-1) }
-
-.actionActive {
-  border-color: var(--primary);
-  background: var(--primary-soft-strong);
-}
+.secondaryAction:active:not(:disabled) { background: var(--surface-2) }
 
 .favoriteActive {
   border-color: var(--favorite-border);
@@ -238,7 +266,6 @@
 
 .watch:disabled,
 .secondaryAction:disabled,
-.actionActive:disabled,
 .favoriteActive:disabled {
   border-color: var(--border);
   background: var(--surface-1);
@@ -246,28 +273,75 @@
   cursor: not-allowed;
 }
 
-.statusField {
-  display: grid;
-  gap: 6px;
-  max-width: 240px;
-}
-
-.statusField span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.statusField select {
-  min-height: 42px;
-  padding: 0 32px 0 11px;
+/* The single list control: the status select owns library membership, the
+   star toggles "Любимое" inside the same entry. No competing add buttons. */
+.listControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding-left: 14px;
   border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--surface-2);
-  color: var(--text);
+  border-radius: 10px;
+  background: transparent;
+  transition: border-color 140ms ease;
 }
 
-.statusField select:hover { border-color: var(--primary) }
-.statusField select:disabled { color: var(--muted-2); cursor: not-allowed }
+.listControl:hover { border-color: var(--border-emphasis) }
+
+.listControl > span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.listSelect { position: relative; display: grid }
+
+.listSelect select {
+  min-height: 44px;
+  padding: 0 34px 0 10px;
+  border: 0;
+  border-radius: 0 9px 9px 0;
+  background: var(--surface-control);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+}
+
+.listSelect select:disabled { color: var(--muted-2); cursor: not-allowed }
+
+.listSelect select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.listSelect svg {
+  position: absolute;
+  right: 10px;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.favoriteToggle {
+  display: inline-grid;
+  width: 46px;
+  min-height: 46px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.favoriteToggle:hover:not(:disabled) { border-color: var(--border-emphasis); background: var(--surface-1); color: var(--text) }
 
 .actionHint,
 .actionError {
@@ -298,6 +372,7 @@
   border-bottom: 2px solid transparent;
   color: var(--muted);
   font-size: 14px;
+  font-weight: 600;
   white-space: nowrap;
   transition: color 140ms ease, border-color 140ms ease;
 }
@@ -310,12 +385,32 @@
   color: var(--text);
 }
 
+/* Watching is the core task: people/community/notes step back visually and
+   move to the right side of the bar. */
+.tabsSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.tabsSecondary .tab {
+  padding: 13px 11px;
+  color: var(--muted-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tabsSecondary .tabActive { color: var(--text) }
+
 .tabCount {
   padding: 2px 7px;
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -356,20 +451,19 @@
   gap: 20px;
   min-height: 90px;
   padding: 16px 18px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 12px;
   background: var(--surface-1);
   color: var(--text);
-  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
 .episodeCard:hover {
-  border-color: var(--primary);
   background: var(--surface-2);
 }
 
 .episodeCard:focus-visible {
-  border-color: var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -399,7 +493,7 @@
   border-radius: 6px;
   background: var(--surface-2);
   color: var(--accent-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -420,7 +514,7 @@
   justify-content: flex-end;
   gap: 14px;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -453,7 +547,6 @@
 
 .overviewCard {
   padding: 22px;
-  border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-1);
 }
@@ -488,7 +581,7 @@
 
 .detailsList dt {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -516,13 +609,12 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-1);
-  transition: border-color 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
-.castCard:hover { border-color: var(--primary) }
+.castCard:hover { background: var(--surface-2) }
 .castCard:active { transform: none }
 
 .castAvatar {
@@ -555,7 +647,7 @@
 
 .castBody small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .creditGrid {
@@ -572,13 +664,12 @@
   gap: 12px;
   min-height: 76px;
   padding: 14px;
-  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-1);
-  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
-.creditCard:hover { border-color: var(--primary); background: var(--surface-2) }
+.creditCard:hover { background: var(--surface-2) }
 .creditCard:active { transform: none }
 
 .creditAvatar {
@@ -616,7 +707,6 @@
   min-height: 150px;
   align-content: center;
   padding: 24px;
-  border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-card);
   color: var(--muted);
@@ -625,10 +715,91 @@
 .watchAvailability strong { color: var(--text) }
 
 /* Related shelves scroll inside RailScroller; only the column sizing lives
-   here. */
+   here. The fractional --rail-fit keeps a deliberate peek of the next card. */
 .relatedRail {
-  --rail-cols: minmax(150px, 180px);
+  --rail-fit: 6.7;
   --rail-gap: 16px;
+}
+
+/* ---------- Franchise watch order ---------- */
+
+.watchOrderRail {
+  --rail-fit: 4.9;
+  --rail-gap: 16px;
+}
+
+.watchOrderCard {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.watchOrderCard:hover .watchOrderBody strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.watchOrderPoster {
+  position: relative;
+  display: grid;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--poster-gradient);
+}
+
+.watchOrderPoster img { object-fit: cover }
+
+.watchOrderStep {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  min-width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(9, 11, 16, .82);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.watchOrderBody {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.watchOrderBody strong {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 2.7em;
+  font-size: 15px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.watchOrderBody small {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The current title wears the brand accent instead of a "you are here" chip. */
+.watchOrderCurrent .watchOrderPoster {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.watchOrderCurrent .watchOrderStep {
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 @media (max-width: 767px) {
@@ -646,15 +817,17 @@
   .heroCopy { gap: 10px }
   .heroTitle { font-size: clamp(20px, 5.6vw, 26px); line-height: 1.18 }
   .heroOriginal { font-size: 13px }
-  .titleNamePrimary, .titleNameSecondary { grid-template-columns: 20px minmax(0, 1fr); gap: 6px }
-  .heroMeta { gap: 6px 10px }
-  .heroMeta span { padding: 0; border: 0; font-size: 11px }
+  .heroMeta { gap: 4px 0 }
+  .heroMeta span { font-size: 13px }
+  .heroMeta > * + *::before { margin: 0 7px }
+  .metaRating { padding: 4px 9px; font-size: 12px }
   .heroGenres { gap: 6px }
-  .heroGenres a { padding: 5px 8px; font-size: 11px }
-  .heroFranchise { font-size: 10px; letter-spacing: .06em; line-height: 1.5 }
+  .heroGenres a { padding: 5px 9px; font-size: 13px }
+  .heroFranchise { font-size: 12px; letter-spacing: .06em; line-height: 1.5 }
+  .otherNames summary { font-size: 12px }
   /* Actions span the full row so each button gets a usable tap target. */
   .actionRow > * { flex: 1 1 140px }
-  .statusField { max-width: none }
+  .listControl { flex: 1 1 200px }
   .panel { gap: 22px; padding-top: 22px }
   .episodeCard {
     grid-template-columns: 1fr;
@@ -706,7 +879,7 @@
   border-radius: 9px;
   background: var(--warning-soft-subtle);
   color: var(--warning);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -736,10 +909,7 @@
   gap: 10px 16px;
   width: 100%;
   margin: -8px 0 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-card);
+  padding: 2px 4px;
 }
 
 .watchProgress {
@@ -766,7 +936,7 @@
 .watchProgressCopy span,
 .watchProgressCopy a {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .watchProgressCopy a {
@@ -783,7 +953,7 @@
   border-radius: 9px;
   background: var(--warning-soft-subtle);
   color: var(--warning);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -826,7 +996,7 @@
   background: var(--surface-control);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .playerToolbar button:hover, .playerSlow button:hover { background: var(--surface-control-hover) }
@@ -900,7 +1070,6 @@
   place-content: center;
   gap: 7px;
   padding: 24px;
-  border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-media);
   color: var(--muted);
@@ -920,13 +1089,19 @@
 .watchStage {
   position: relative;
   /* Full content column: the player must align with the page grid instead of
-     floating narrower and off-center inside the panel. */
+     floating narrower and off-center inside the panel. The wider rail keeps
+     long episode names readable on series like One Piece. */
   width: 100%;
-  padding-right: 310px;
+  padding-right: 380px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-media);
+}
+
+@media (max-width: 1199px) {
+  .watchStage { padding-right: 340px }
+  .episodeRail { width: 340px }
 }
 
 /* Single-playback titles (movies) have no episode rail. */
@@ -944,9 +1119,60 @@
 .watchPlayer .watchEmpty,
 .watchPlayer .playerPreviewBody { aspect-ratio: 16 / 9 }
 
+/* Autoplay scenario under the player: a visible countdown with explicit
+   next/cancel actions instead of a silent jump. */
+.autoplayBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--primary-border);
+  border-radius: 10px;
+  background: var(--primary-soft);
+}
+
+.autoplayBar > span {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.autoplayNext {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.autoplayNext:hover { background: var(--primary-hover) }
+
+.autoplayBar button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-control);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.autoplayBar button:hover { background: var(--surface-control-hover) }
+
+/* Episode controls under the player on every viewport: big obvious prev/next
+   steps with text labels plus the current-episode chooser. */
 .watchControls {
-  display: none;
-  grid-template-columns: 44px minmax(150px, 1fr) 44px minmax(190px, 260px);
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -967,11 +1193,18 @@
 }
 
 .episodeStep {
-  display: grid;
-  width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 44px;
   height: 44px;
-  place-items: center;
+  padding: 0 13px;
+  font-size: 13px;
+  font-weight: 600;
 }
+
+.episodeStep span { white-space: nowrap }
 
 .episodeStep svg { width: 19px; height: 19px }
 .episodeStep[aria-disabled="true"] { color: var(--muted-2); opacity: .45 }
@@ -1003,7 +1236,7 @@
 
 .currentEpisodeButton span {
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1036,7 +1269,7 @@
   inset-block: 0;
   right: 0;
   display: flex;
-  width: 310px;
+  width: 380px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -1047,7 +1280,7 @@
 
 .episodeRailTools {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   padding: 10px;
@@ -1062,7 +1295,7 @@
   font-size: 15px;
 }
 
-.dialogHeader span { color: var(--muted-2); font-size: 11px }
+.dialogHeader span { color: var(--muted-2); font-size: 13px }
 
 .episodeRailContent {
   position: relative;
@@ -1091,7 +1324,7 @@
   border-radius: 9px;
   background: var(--warning-soft-subtle);
   color: var(--warning);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -1147,7 +1380,7 @@
 
 .episodeRangeField span {
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1160,7 +1393,7 @@
   background: var(--surface-control);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* The closed select carries a custom caret so it matches the other controls;
@@ -1225,18 +1458,22 @@
   color: var(--text);
 }
 
+/* The current episode must be unmistakable in a long rail: brand accent edge,
+   tinted surface and bolder text at once. */
 .episodeRailList a[aria-current="page"],
 .dialogEpisodeList a[aria-current="page"] {
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
+  border-color: var(--primary);
+  background: var(--primary-soft-strong);
   color: var(--text);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .episodeRailList small,
 .dialogEpisodeList small {
-  color: var(--accent-text);
-  font-size: 10px;
-  font-weight: 800;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* ---------- Enriched rail rows: number + name, date + watched mark ---------- */
@@ -1250,13 +1487,13 @@
 
 .episodeRowNumber { white-space: nowrap }
 
-/* List-wide `small` rules paint accent red; names must stay muted, so this
-   selector intentionally outranks them. */
+/* List-wide `small` rules set the aside copy; names must stay readable, so
+   this selector intentionally outranks them. */
 .episodeRailList small.episodeRowName,
 .dialogEpisodeList small.episodeRowName {
   overflow: hidden;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1271,7 +1508,7 @@
 
 .episodeAirDate {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1292,63 +1529,63 @@
   .episodeAirDate { display: none }
 }
 
-/* ---------- Voice chips: one-click switching under the player ---------- */
+/* ---------- Voice selection: labeled dropdowns under the player ---------- */
 
-.voiceChips {
+.voiceSelects {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
-.voiceChip,
-.voiceChipSelected {
+.voiceSelect {
   display: inline-flex;
-  min-height: 44px;
-  max-width: 220px;
-  overflow: hidden;
   align-items: center;
-  gap: 7px;
-  padding: 8px 13px;
+  gap: 9px;
+  min-height: 44px;
+  padding-left: 13px;
   border: 1px solid var(--border-control);
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--surface-control);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+  transition: border-color 140ms ease;
 }
 
-/* The kind icon tells dubs, subtitles and raw audio apart in the chip row. */
-.voiceChip svg,
-.voiceChipSelected svg {
-  flex: 0 0 auto;
+.voiceSelect:hover { border-color: var(--border-emphasis) }
+
+.voiceSelect > span:first-child {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.voiceSelectControl { position: relative; display: grid }
+
+.voiceSelectControl select {
+  min-height: 42px;
+  max-width: 320px;
+  padding: 0 34px 0 10px;
+  border: 0;
+  border-radius: 0 9px 9px 0;
+  background: var(--surface-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+}
+
+.voiceSelectControl select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.voiceSelectControl svg {
+  position: absolute;
+  right: 10px;
   width: 14px;
   height: 14px;
-  color: var(--accent-text);
-}
-
-.voiceChip:hover,
-.voiceChipSelected {
-  border-color: var(--primary);
-  color: var(--text);
-}
-
-.voiceChipSelected {
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-  color: var(--text);
-}
-
-.voiceChip:active,
-.voiceChipSelected:active { background: var(--surface-control-hover) }
-
-.voiceChip:focus-visible,
-.voiceChipSelected:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .episodeSearchEmpty {
@@ -1414,14 +1651,24 @@
 
   .episodeRail { display: none }
 
+  /* Compact icon-only steps on phones; the labels stay on desktop. */
   .watchControls {
-    display: grid;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
     padding: 8px;
   }
 
+  .episodeStep { width: 44px; padding: 0 }
+
+  .episodeStep span { display: none }
+
   .currentEpisodeButton { text-align: center }
   .currentEpisodeButton span { display: none }
+
+  .autoplayBar { padding: 10px 12px }
+  .autoplayNext, .autoplayBar button { min-height: 38px }
+
+  .voiceSelect { flex: 1 1 100% }
+  .voiceSelectControl select { max-width: none }
 
   .watchDialog {
     inset: auto 0 0;

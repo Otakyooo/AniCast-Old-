@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { WarningCircle } from "@phosphor-icons/react";
 import { createSourceReport, SourceReportApiError, type SourceReportReason } from "../lib/reports";
 import styles from "../app/reports.module.css";
 import { useI18n } from "./i18n-provider";
@@ -33,7 +34,14 @@ export function SourceReportControl({ sourceId }: { sourceId: number }) {
 
   if (submitted) return <span className={styles.success} role="status">{t("report.sent")}</span>;
   if (guest) return <span className={styles.guest} role="status"><Link href="/login">{t("common.login")}</Link>: {t("report.guest")}</span>;
-  if (!open) return <button className={styles.open} type="button" onClick={() => setOpen(true)}>{t("report.open")}</button>;
+  // A real icon + explicit label next to the player controls: a broken source
+  // is a critical feedback path, not a footnote.
+  if (!open) return (
+    <button className={styles.open} type="button" onClick={() => setOpen(true)}>
+      <WarningCircle aria-hidden="true" weight="bold" size={16} />
+      {t("report.videoProblem")}
+    </button>
+  );
   return <form className={styles.form} onSubmit={submit}>
     <label><span>{t("report.what")}</span><select name="reason" defaultValue="unavailable"><option value="unavailable">{t("report.unavailable")}</option><option value="wrong_content">{t("report.wrong")}</option><option value="geo_blocked">{t("report.geo")}</option><option value="quality">{t("report.quality")}</option><option value="other">{t("report.other")}</option></select></label>
     <label><span>{t("report.comment")}</span><textarea name="message" maxLength={500} rows={3} placeholder={t("report.details")} /></label>

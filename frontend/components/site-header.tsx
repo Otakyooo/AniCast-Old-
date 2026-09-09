@@ -20,6 +20,10 @@ export async function SiteHeader({ active }: { active: NavSection }) {
   // component confirms the real session, so a stale cookie cannot grant access.
   const hasSessionCookie = Boolean((await cookies()).get("sessionid")?.value);
   const linkClass = (section: NavSection) => section === active ? "active" : undefined;
+  // Catalog browsing is the core daily task; franchise/collection/community
+  // links stay reachable but visually secondary.
+  const secondaryClass = (section: NavSection) =>
+    section === active ? "nav-secondary active" : "nav-secondary";
 
   return (
     <header className="global-nav">
@@ -29,9 +33,10 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("home")} href="/">{t("nav.home")}</Link>
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
-          <Link className={linkClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
-          <Link className={linkClass("collections")} href="/collections">{t("nav.collections")}</Link>
-          <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
+          <span className="nav-divider" aria-hidden="true" />
+          <Link className={secondaryClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
+          <Link className={secondaryClass("collections")} href="/collections">{t("nav.collections")}</Link>
+          <Link className={secondaryClass("community")} href="/community">{t("nav.community")}</Link>
         </nav>
         <div className="header-search"><GlobalSearch /></div>
         <div className="global-actions">

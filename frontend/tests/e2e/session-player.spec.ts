@@ -56,6 +56,16 @@ async function stubVideo(page: Page) {
   }));
 }
 
+// Voice switching is a labeled dropdown now: resolve the option value by its
+// visible name (the group key is provider-dependent and stays opaque here).
+async function chooseVoice(page: Page, name: string) {
+  const select = page.locator("#watch").getByRole("combobox", { name: "Озвучка", exact: true });
+  const value = await select.locator("option", { hasText: name }).getAttribute("value");
+  expect(value).toBeTruthy();
+  await select.selectOption(value!);
+  return value!;
+}
+
 test("login rejects invalid credentials and CSRF; logout/expiry remove private identity", async ({ page, context }, info) => {
   const canonical = await context.request.get("/login/?from=test", { maxRedirects: 0 });
   expect(canonical.status()).toBe(308);
@@ -142,10 +152,15 @@ test("player restores position, rejects forged messages, saves pause and complet
   await (await lateOpen).finished();
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
   await expect(page.locator("#watch").getByText("Серия просмотрена", { exact: true })).toBeVisible();
+  // The provider's end event offers the next episode with a cancellable
+  // countdown instead of a silent jump.
+  await expect(page.locator("#watch").getByText(/Следующая серия через/)).toBeVisible();
+  await page.locator("#watch").getByRole("button", { name: "Отмена", exact: true }).click();
+  await expect(page.locator("#watch").getByText(/Следующая серия через/)).toHaveCount(0);
   // Completion must survive a source change and cannot be overwritten by a
   // delayed watched-mark response for the same title.
-  await page.locator("#watch").getByRole("button", { name: "Beta", exact: true }).click();
-  await expect(page.locator("#watch").getByRole("button", { name: "Beta", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const betaKey = await chooseVoice(page, "Beta");
+  await expect(page.locator("#watch").getByRole("combobox", { name: "Озвучка", exact: true })).toHaveValue(betaKey);
   await expect.poll(() => page.frames().some(frame => frame.url().includes("fixture-1-Beta"))).toBe(true);
   await expect(frame.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -174,9 +189,9 @@ test("guest player retries a failed source; late response cannot replace the new
     await held;
     await route.fulfill({ response });
   }, { times: 1 });
-  await page.locator("#watch").getByRole("button", { name: "Beta", exact: true }).click();
+  await chooseVoice(page, "Beta");
   await requested;
-  await page.locator("#watch").getByRole("button", { name: "Alpha", exact: true }).click();
+  await chooseVoice(page, "Alpha");
   release();
   await expect.poll(() => page.frames().some(frame => frame.url().includes("fixture-1-Alpha"))).toBe(true);
   await expect(page.locator("#watch iframe")).toHaveCount(1);
@@ -188,7 +203,7 @@ test("guest player retries a failed source; late response cannot replace the new
 test("title tabs preserve episode and voice; player controls fit both themes", async ({ page }, info) => {
   await stubVideo(page);
   await page.goto("/titles/browser-fixture?episode=2#watch");
-  await page.locator("#watch").getByRole("button", { name: "Beta", exact: true }).click();
+  await chooseVoice(page, "Beta");
   await expect(page).toHaveURL(/episode=2&voice=.+#watch$/);
   const voice = new URL(page.url()).searchParams.get("voice");
   await page.locator("#title-tabs").getByRole("link", { name: /^Серии/ }).click();
@@ -196,7 +211,9 @@ test("title tabs preserve episode and voice; player controls fit both themes", a
   await expect(page.locator("main").getByRole("link", { name: "Смотреть", exact: true })).toHaveAttribute("href", `/titles/browser-fixture?episode=2&voice=${voice}#watch`);
   await page.locator("#title-tabs").getByRole("link", { name: "Обзор", exact: true }).click();
   await expect.poll(() => page.frames().some(frame => frame.url().includes("fixture-2-Beta"))).toBe(true);
-  await expect(page.locator("#watch").getByRole("button", { name: "Beta", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const voiceSelect = page.locator("#watch").getByRole("combobox", { name: "Озвучка", exact: true });
+  const betaValue = await voiceSelect.locator("option", { hasText: "Beta" }).getAttribute("value");
+  await expect(voiceSelect).toHaveValue(betaValue!);
   for (const theme of ["light", "dark"]) {
     await page.evaluate(value => {
       localStorage.setItem("anicast-theme", value);

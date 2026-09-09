@@ -65,7 +65,7 @@
 .dayTabToday .dayTabDate { color: var(--accent-text) }
 
 .dayTabName {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -78,7 +78,7 @@
 
 .dayTabCount {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -126,7 +126,7 @@
 .timezoneNote {
   margin: 0;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .episodes {
@@ -202,7 +202,7 @@
   border-radius: 6px;
   background: var(--surface-2);
   color: var(--accent-text);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -240,7 +240,7 @@
   padding: 4px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -259,7 +259,7 @@
 @media (max-width: 900px) {
   .dayTabs { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px }
   .dayTab { padding: 9px 3px }
-  .dayTabName { font-size: 10px }
+  .dayTabName { font-size: 12px }
   .dayTabDate { font-size: 17px }
 }
 

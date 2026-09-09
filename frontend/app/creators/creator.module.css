@@ -30,7 +30,7 @@
 .works h2 { margin: 0 }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 22px }
 .work { display: grid; align-content: start; gap: 8px }
-.work > span { color: var(--muted); font-size: 12px }
+.work > span { color: var(--muted); font-size: 13px }
 
 @media (max-width: 560px) {
   .header { grid-template-columns: 68px minmax(0, 1fr); gap: 16px; padding-top: 28px }

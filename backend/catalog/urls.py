@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AiringTitleListView,
     CharacterDetailView,
     CharacterListView,
     CreatorDetailView,
@@ -11,6 +12,7 @@ from .views import (
     MediaAssetListView,
     PlaybackView,
     PlaybackResolveView,
+    RecentEpisodesView,
     ScheduleView,
     SimilarTitleListView,
     EpisodeDetailView,
@@ -23,10 +25,12 @@ from .views import (
 
 urlpatterns = [
     path("titles/", TitleListView.as_view(), name="title-list"),
+    path("titles/airing/", AiringTitleListView.as_view(), name="title-airing"),
     path("titles/<slug:slug>/similar/", SimilarTitleListView.as_view(), name="title-similar"),
     path("titles/<slug:slug>/watch-navigation/", WatchNavigationView.as_view(), name="watch-navigation"),
     path("titles/<slug:slug>/episodes/<int:number>/", EpisodeDetailView.as_view(), name="episode-detail"),
     path("titles/<slug:slug>/", TitleDetailView.as_view(), name="title-detail"),
+    path("episodes/recent/", RecentEpisodesView.as_view(), name="episode-recent"),
     path("schedule/", ScheduleView.as_view(), name="schedule"),
     path("search/", GlobalSearchView.as_view(), name="global-search"),
     path("source-reports/", SourceReportView.as_view(), name="source-report-list"),

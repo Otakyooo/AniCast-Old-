@@ -1,34 +1,33 @@
-/* Home page shelves: section headings, resume row and the airing strip. */
-
-.homeColumn {
-  width: min(100%, 1360px);
-  margin: 0 auto;
-}
+/* Home page shelves: section headings, resume row, release rails and the
+   airing strip. */
 
 /* ---------- Resume hero (design spec §4.2) ---------- */
 
+/* The hero is always dark so the poster backdrop reads in both themes. The
+   pinned tokens mirror the dark theme values from theme.css. */
 .resumeHero {
   --text: #FFF0DA;
-  --muted: #CBB49A;
-  --muted-2: #CBB49A;
-  --accent-text: #F3A51B;
-  --border: #54443A;
-  --border-muted: rgba(203, 180, 154, .35);
+  --muted: #D9C6AC;
+  --muted-2: #C3AE93;
+  --accent-text: #E9C489;
+  --border: #4A3B33;
+  --border-muted: rgba(195, 174, 147, .35);
   --border-emphasis: rgba(255, 240, 218, .5);
-  --surface-elevated: #28201D;
-  --surface-elevated-soft: rgba(40, 32, 29, .85);
-  --background-soft: rgba(23, 19, 17, .45);
+  --surface-elevated: #241D1A;
+  --surface-elevated-soft: rgba(36, 29, 26, .85);
+  --background-soft: rgba(21, 17, 16, .45);
   --focus-ring: #F3A51B;
   position: relative;
   display: grid;
-  grid-template-columns: 164px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
-  gap: clamp(24px, 3vw, 42px);
+  gap: clamp(22px, 2.6vw, 36px);
   width: 100%;
-  min-height: 286px;
-  margin: 28px 0 4px;
-  padding: 20px clamp(22px, 3vw, 38px) 20px 20px;
-  border: 1px solid var(--border);
+  /* Compact by request: the hero sells one resume action, not a poster
+     wall — it must not eat the first screen. */
+  min-height: 212px;
+  margin: 26px 0 4px;
+  padding: 18px clamp(22px, 3vw, 36px) 18px 18px;
   border-radius: 14px;
   overflow: hidden;
   background: var(--surface-elevated);
@@ -61,10 +60,9 @@
 .resumeHeroArtFrame {
   position: relative;
   z-index: 1;
-  width: 164px;
+  width: 150px;
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  border: 1px solid var(--border-media);
   border-radius: 9px;
   background: var(--surface-media);
   box-shadow: var(--shadow-media);
@@ -81,7 +79,7 @@
   z-index: 1;
   display: grid;
   align-content: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   padding: 4px 0;
 }
@@ -89,17 +87,17 @@
 .resumeHeroEyebrow {
   margin: 0;
   color: var(--accent-text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: .14em;
+  letter-spacing: .12em;
   text-transform: uppercase;
 }
 
 .resumeHeroTitle {
   margin: 0;
   color: var(--text);
-  font-size: clamp(30px, 3vw, 42px);
-  line-height: 1.08;
+  font-size: clamp(28px, 2.7vw, 38px);
+  line-height: 1.1;
   letter-spacing: -.025em;
   overflow-wrap: normal;
   word-break: normal;
@@ -126,35 +124,35 @@
 /* Genre chips are links into the filtered catalog: the hover state says so. */
 .heroGenres a {
   display: inline-block;
-  padding: 5px 9px;
-  border: 1px solid var(--border-muted);
+  padding: 5px 10px;
   border-radius: 6px;
   background: var(--background-soft);
   color: var(--text);
-  font-size: 12px;
-  transition: border-color 140ms ease, color 140ms ease;
+  font-size: 13px;
+  transition: background 140ms ease, color 140ms ease;
 }
 
-.heroGenres a:hover { border-color: var(--primary); color: var(--accent-text) }
+.heroGenres a:hover { background: var(--surface-elevated-soft); color: var(--accent-text) }
 .heroGenres a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
 
 .heroSynopsis {
   display: -webkit-box;
-  max-width: 530px;
+  max-width: 640px;
   overflow: hidden;
   margin: 0;
   color: var(--muted);
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.5;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 .resumeHeroActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .resumeHeroCta,
@@ -164,32 +162,37 @@
   gap: 9px;
   min-height: 44px;
   margin-top: 0;
-  padding: 12px 20px;
   border-radius: 9px;
-  font-weight: 700;
 }
 
 .resumeHeroCta {
+  padding: 12px 22px;
   border: 1px solid var(--primary);
   background: var(--primary);
   color: var(--on-primary) !important;
+  font-weight: 700;
 }
 
 .resumeHeroCta:hover { background: var(--primary-hover) }
 
+/* The library action is deliberately quiet: the hero has exactly one primary
+   action (continue watching), everything else steps back. */
 .resumeHeroSecondary {
-  border: 1px solid var(--border-emphasis);
+  padding: 11px 14px;
+  border: 0;
   background: transparent;
-  color: var(--text) !important;
+  color: var(--muted) !important;
+  font-weight: 500;
   /* The global .secondary is a text-link style; on a button the underline
      mixes two patterns, so it is reset here. */
   text-decoration: none;
   cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
 }
 
-.resumeHeroSecondary:hover { border-color: var(--muted); background: var(--surface-elevated-soft) }
+.resumeHeroSecondary:hover { color: var(--text) !important; background: var(--surface-elevated-soft) }
 
-.resumeHeroSecondary:disabled { border-color: var(--border); color: var(--muted) !important }
+.resumeHeroSecondary:disabled { color: var(--muted-2) !important; background: transparent }
 
 .heroLibraryState {
   display: grid;
@@ -201,38 +204,37 @@
   max-width: 260px;
   margin-top: 6px;
   color: var(--danger);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
-/* One reading unit: the bar and the "episode N of M" caption share a row, so
-   the numbers explain the bar instead of floating as separate gray text. */
+/* Reading unit for the resume state: an explicit text line ("Серия 3 из
+   1180 · просмотрено 14:52") carries the fact, the thin bar only supports
+   it. The text stays keyboard- and screen-reader visible. */
 .heroProgress {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  gap: 7px;
+  max-width: 640px;
   margin-top: 4px;
 }
 
+.heroProgressText {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .heroProgress > span {
-  flex: 1 1 120px;
   overflow: hidden;
-  height: 4px;
-  border-radius: 2px;
+  height: 5px;
+  border-radius: 3px;
   background: var(--border-muted);
 }
 
 .heroProgress i { display: block; height: 100%; border-radius: inherit; background: var(--primary) }
 
-.heroProgress small {
-  flex: 0 0 auto;
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.catalogFact { color: var(--muted); font-size: 12px }
+.catalogFact { color: var(--muted); font-size: 13px }
 
 .shelfHeading {
   display: grid;
@@ -248,48 +250,115 @@
 .shelfHeading p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
-/* Poster shelves scroll inside RailScroller; only the column sizing lives
-   here. The clamp keeps the smallest mirrored originals at or above 2x pixel
-   density on desktop instead of enlarging them into visibly soft artwork. */
+/* Poster shelves scroll inside RailScroller; the fractional --rail-fit keeps
+   a deliberate peek of the next card instead of a random cut. */
 .posterRail {
-  --rail-cols: clamp(148px, 12vw, 176px);
+  --rail-fit: 6.7;
   --rail-gap: 18px;
 }
 
 /* Resume shelf columns for RailScroller (16:9 frames per spec §4.3: the
    frame is the artwork, not the library poster). */
 .resumeRow {
-  --rail-cols: minmax(170px, 188px);
+  --rail-fit: 5.6;
   --rail-gap: 14px;
 }
 
 /* Schedule cards are wider reading rows: a lone upcoming entry must occupy a
    substantial block, not a stub in the corner of an empty section. */
 .scheduleStrip {
-  --rail-cols: 420px;
+  --rail-fit: 2.9;
   --rail-gap: 14px;
 }
 
 /* Franchise cards carry a three-poster strip, so their column is wider than
    a single-poster shelf card. */
 .franchiseRail {
-  --rail-cols: 264px;
+  --rail-fit: 4.7;
   --rail-gap: 18px;
 }
+
+/* ---------- Release cards (recent episodes / airing) ---------- */
+
+.releaseCard {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.releaseCard:hover strong { text-decoration: underline; text-underline-offset: 3px }
+
+.releasePoster {
+  position: relative;
+  display: grid;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 8px;
+  place-items: center;
+  background: var(--poster-gradient);
+  transition: background 140ms ease;
+}
+
+.releaseCard:hover .releasePoster,
+.releaseCard:focus-visible .releasePoster { background: var(--surface-control-hover) }
+
+.releasePosterArt { object-fit: cover; object-position: 50% 18% }
+
+.releaseBadge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: rgba(9, 11, 16, .82);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.releaseBody {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.releaseBody strong {
+  display: -webkit-box;
+  overflow: hidden;
+  /* Two reserved lines keep the meta row aligned across one- and two-line
+     titles instead of letting the metadata jump between cards. */
+  min-height: 2.7em;
+  font-size: 15px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.releaseBody small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Franchise shelf ---------- */
 
 .franchiseCard {
   display: grid;
   overflow: hidden;
-  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-1);
-  transition: border-color 140ms ease;
+  transition: background 140ms ease;
 }
 
-.franchiseCard:hover { border-color: var(--primary) }
+.franchiseCard:hover { background: var(--surface-2) }
 .franchiseCard:active { transform: none }
 
 /* Three 2:3 posters side by side read as one 2:1 strip. */
@@ -318,19 +387,19 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding: 10px 12px 12px;
+  padding: 11px 13px 13px;
 }
 
 .franchiseBody strong {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .franchiseBody small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -350,19 +419,19 @@
   height: 26px;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--border-emphasis);
+  border: 0;
   border-radius: 999px;
   background: var(--surface-card-opaque);
   color: var(--muted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition: opacity 140ms ease, color 140ms ease;
 }
 
 .resumeItem:hover .resumeRemove,
 .resumeRemove:focus-visible { opacity: 1 }
 
-.resumeRemove:hover { border-color: var(--danger-border); color: var(--danger) }
+.resumeRemove:hover { color: var(--danger) }
 
 .resumeRemove:disabled { cursor: wait; opacity: .6 }
 
@@ -373,21 +442,24 @@
   z-index: 2;
   max-width: 200px;
   padding: 6px 9px;
-  border: 1px solid var(--danger-border);
   border-radius: 7px;
   background: var(--surface-card-opaque);
   color: var(--danger);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.35;
   text-align: left;
 }
 
+/* The hover overlay answers "continue with what exactly": the episode
+   number rides along with the play icon instead of hiding in a tooltip. */
 .resumePlay {
   position: absolute;
   inset: 0;
   z-index: 1;
   display: grid;
-  place-items: center;
+  gap: 8px;
+  place-content: center;
+  justify-items: center;
   color: #fff;
   opacity: 0;
   transition: opacity 140ms ease;
@@ -399,26 +471,39 @@
 .resumePlay:before {
   position: absolute;
   inset: 0;
-  background: rgba(8, 11, 18, .38);
+  background: rgba(8, 11, 18, .5);
   content: "";
 }
 
 .resumePlay svg { position: relative; filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .5)) }
 
+.resumePlay small {
+  position: relative;
+  max-width: 90%;
+  overflow: hidden;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .resumeCard {
   display: grid;
   overflow: hidden;
   height: 100%;
-  border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  transition: border-color 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
 /* The remove button is a sibling of this link inside .resumeItem, so the card
    itself must fill the wrapper and keep its own hover surface. */
 .resumeCard:hover,
-.resumeItem:focus-within .resumeCard { border-color: var(--border); background: var(--surface-card) }
+.resumeItem:focus-within .resumeCard { background: var(--surface-1) }
 .resumeCard:active { transform: none }
 
 .resumeFrame {
@@ -450,7 +535,7 @@
   /* Two reserved lines keep the fact row aligned across one- and two-line
      titles instead of letting the metadata jump between cards. */
   min-height: 2.7em;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -459,7 +544,7 @@
 
 .resumeBody small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -485,13 +570,12 @@
   gap: 12px;
   height: 100%;
   padding: 12px;
-  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-1);
-  transition: border-color 140ms ease, transform 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
-.scheduleCard:hover { border-color: var(--primary) }
+.scheduleCard:hover { background: var(--surface-2) }
 .scheduleCard:active { transform: none }
 
 .schedulePoster {
@@ -507,6 +591,8 @@
 
 .schedulePoster .resumeFallback { font-size: 26px }
 
+.resumeImage { object-fit: cover }
+
 .scheduleBody {
   display: grid;
   gap: 3px;
@@ -516,7 +602,7 @@
 .scheduleBody strong {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.3;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -525,7 +611,7 @@
 
 .scheduleBody small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .scheduleWhen {
@@ -538,19 +624,17 @@
 .scheduleSoon {
   justify-self: start;
   padding: 3px 8px;
-  border: 1px solid transparent;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .scheduleNow {
-  border-color: var(--success-border);
   background: var(--success-soft);
   color: var(--success);
 }
 
 .scheduleSoon {
-  border-color: var(--warning-border);
   background: var(--warning-soft);
   color: var(--warning);
 }
@@ -559,54 +643,32 @@
   .shelfHeading h2 { font-size: 19px }
   .shelfHeading p { display: none }
   .resumeHero {
-  --text: #FFF0DA;
-  --muted: #CBB49A;
-  --muted-2: #CBB49A;
-  --accent-text: #F3A51B;
-  --border: #54443A;
-  --border-muted: rgba(203, 180, 154, .35);
-  --border-emphasis: rgba(255, 240, 218, .5);
-  --surface-elevated: #28201D;
-  --surface-elevated-soft: rgba(40, 32, 29, .85);
-  --background-soft: rgba(23, 19, 17, .45);
-  --focus-ring: #F3A51B;
-    grid-template-columns: 118px minmax(0, 1fr);
-    gap: 18px;
+    grid-template-columns: 108px minmax(0, 1fr);
+    gap: 16px;
     min-height: 0;
     margin: 18px auto 0;
     padding: 16px;
   }
-  .resumeHeroArtFrame { width: 118px }
+  .resumeHeroArtFrame { width: 108px }
   .resumeHeroBody { padding: 0 }
-  .resumeHeroTitle { font-size: clamp(25px, 6.8vw, 32px) }
+  .resumeHeroTitle { font-size: clamp(24px, 6.4vw, 30px) }
   .heroSynopsis { display: none }
   .resumeHeroActions { width: 100% }
   .resumeHeroCta, .resumeHeroSecondary { justify-content: center; flex: 1 1 180px }
-  .posterRail { --rail-cols: minmax(142px, 42vw); --rail-gap: 12px }
-  .resumeRow { --rail-cols: minmax(150px, 44vw); --rail-gap: 10px }
+  .posterRail { --rail-cols: minmax(148px, 44vw); --rail-gap: 12px }
+  .resumeRow { --rail-cols: minmax(160px, 46vw); --rail-gap: 10px }
   .scheduleStrip { --rail-cols: 300px; --rail-gap: 10px }
   .franchiseRail { --rail-cols: minmax(220px, 62vw); --rail-gap: 12px }
   .resumeFallback { font-size: 30px }
 }
 
 @media (max-width: 520px) {
-  .resumeHero {
-  --text: #FFF0DA;
-  --muted: #CBB49A;
-  --muted-2: #CBB49A;
-  --accent-text: #F3A51B;
-  --border: #54443A;
-  --border-muted: rgba(203, 180, 154, .35);
-  --border-emphasis: rgba(255, 240, 218, .5);
-  --surface-elevated: #28201D;
-  --surface-elevated-soft: rgba(40, 32, 29, .85);
-  --background-soft: rgba(23, 19, 17, .45);
-  --focus-ring: #F3A51B; grid-template-columns: 1fr; gap: 14px; min-height: 318px; padding: 24px 18px 18px }
+  .resumeHero { grid-template-columns: 1fr; gap: 14px; min-height: 300px; padding: 24px 18px 18px }
   .resumeHeroBackdrop:after { background: var(--home-hero-overlay-mobile) }
   .resumeHeroBackdropArt { object-position: 68% 18%; filter: none; transform: scale(1.045) }
   .resumeHeroArtFrame { display: none }
-  .resumeHeroBody { align-content: end; min-height: 274px }
-  .resumeHeroEyebrow { font-size: 10px }
+  .resumeHeroBody { align-content: end; min-height: 256px }
+  .resumeHeroEyebrow { font-size: 12px }
   .resumeHeroTitle { font-size: 24px }
   .heroGenres { display: none }
   .resumeHeroCta, .resumeHeroSecondary { min-height: 42px; padding: 10px 13px }

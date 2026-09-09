@@ -1,7 +1,24 @@
-.open{padding:0;border:0;background:transparent;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer}.form{display:grid;gap:10px;width:100%;margin-top:8px;padding-top:12px;border-top:1px solid var(--border)}.form label{display:grid;gap:5px}.form label span{color:var(--muted);font-size:12px}.form select,.form textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font:inherit}.form textarea{resize:vertical}.actions{display:flex;gap:8px}.actions button{padding:8px 11px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text);cursor:pointer}.actions button:first-child{border-color:var(--primary);background:var(--primary);color:var(--on-primary)}.error{color:var(--danger);font-size:12px}.success{color:var(--success-text);font-size:12px}.guest{color:var(--muted);font-size:12px}.guest a{color:var(--accent-text)}
+.open{
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-control);
+  border-radius: 9px;
+  background: var(--surface-control);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.open svg { color: var(--warning) }
+.form{display:grid;gap:10px;width:100%;margin-top:8px;padding-top:12px;border-top:1px solid var(--border)}.form label{display:grid;gap:5px}.form label span{color:var(--muted);font-size:13px}.form select,.form textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font:inherit}.form textarea{resize:vertical}.actions{display:flex;gap:8px}.actions button{padding:8px 11px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text);cursor:pointer}.actions button:first-child{border-color:var(--primary);background:var(--primary);color:var(--on-primary)}.error{color:var(--danger);font-size:13px}.success{color:var(--success-text);font-size:13px}.guest{color:var(--muted);font-size:13px}.guest a{color:var(--accent-text)}
 
 /* Interaction states for the source report form. */
-.open:hover { color: var(--text) }
+.open:hover { border-color: var(--border-emphasis); background: var(--surface-control-hover) }
+.open:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
 .form select:focus, .form textarea:focus { border-color: var(--primary); outline: none }
 .actions button:hover:not(:disabled) { border-color: var(--primary) }
 .actions button:active:not(:disabled) { background: var(--surface-2) }

@@ -7,15 +7,20 @@
 }
 
 .rail {
+  /* Fractional column count: N full cards plus a deliberate peek of the next
+     one (6.7 = six cards + ~70% of the seventh). The cut edge then reads as
+     an invitation to scroll instead of a broken layout. Callers override
+     `--rail-fit`, or fall back to fixed `--rail-cols` / mobile widths. */
+  --rail-fit: 6.7;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: var(--rail-cols, clamp(148px, 12vw, 176px));
+  grid-auto-columns: var(--rail-cols, calc((100% - (var(--rail-fit) - 1) * var(--rail-gap, 18px)) / var(--rail-fit)));
   gap: var(--rail-gap, 18px);
   overflow-x: auto;
   padding: 2px 2px 12px;
   scroll-snap-type: x proximity;
-  /* The native bar adds nothing: the rails are swiped and dragged, and the
-     arrows announce the overflow on pointer devices. */
+  /* The native bar adds nothing: the peek plus the hover arrows announce the
+     overflow on pointer devices, and the rails are swiped otherwise. */
   scrollbar-width: none;
 }
 
@@ -38,15 +43,23 @@
   background: var(--surface-card-opaque);
   color: var(--text);
   cursor: pointer;
-  /* Always visible while scrollable: a hover-only affordance is invisible to
-     viewers who never move the pointer over the shelf. */
-  opacity: .92;
-  transform: translateY(-65%);
+  /* Shown only while the viewer engages with the shelf: the intentional peek
+     of the next card already communicates the overflow at rest, and resting
+     arrows sat on top of the posters. */
+  opacity: 0;
+  transform: translateY(-50%);
   transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
-.arrowPrev { left: -10px }
-.arrowNext { right: -10px }
+.shell:hover .arrowPrev:not(:disabled),
+.shell:hover .arrowNext:not(:disabled),
+.shell:focus-within .arrowPrev:not(:disabled),
+.shell:focus-within .arrowNext:not(:disabled),
+.arrowPrev:focus-visible,
+.arrowNext:focus-visible { opacity: .95 }
+
+.arrowPrev { left: -6px }
+.arrowNext { right: -6px }
 
 .arrowPrev:hover:not(:disabled),
 .arrowNext:hover:not(:disabled) {

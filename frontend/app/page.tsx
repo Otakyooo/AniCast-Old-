@@ -5,15 +5,20 @@ import type { Metadata } from "next";
 import { CatalogCard } from "../components/catalog-card";
 import { ContinueWatchingBlock } from "../components/continue-watching-block";
 import { RailScroller } from "../components/rail-scroller";
+import { RecommendationShelf } from "../components/recommendation-shelf";
 import { ScheduleStrip } from "../components/schedule-strip";
+import { AiringRail, RecentEpisodesRail } from "../components/home-release-shelves";
 import { PageShell } from "../components/page-shell";
 import {
   emptyPage,
+  getAiringTitles,
   getCatalog,
   getFranchises,
+  getRecentEpisodes,
   getSchedule,
   type CatalogItem,
   type FranchiseSummary,
+  type ScheduleItem,
   type ScheduleResponse,
 } from "../lib/api";
 import { addDays, localDayKey } from "../lib/schedule";
@@ -107,56 +112,57 @@ export default async function HomePage() {
   // Every block degrades to an empty shelf instead of a 500 when the API is
   // briefly unreachable, which also keeps the container healthcheck independent
   // from the Caddy -> API chain during cold starts.
-  const [ongoing, popular, newest, franchises, schedule, { locale, t }] = await Promise.all([
-    getCatalog({ status: "ongoing", ordering: "popular", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
+  const [airing, popular, newest, franchises, schedule, recentEpisodes, { locale, t }] = await Promise.all([
+    getAiringTitles().catch((): CatalogItem[] => []),
     getCatalog({ ordering: "popular", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
     getCatalog({ ordering: "recent", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
     getFranchises(1, "", FRANCHISE_SHELF_SIZE).catch(() => emptyPage<FranchiseSummary>()),
     getSchedule(todayKey, addDays(todayKey, 2)).catch((): ScheduleResponse => emptyPage()),
+    getRecentEpisodes(7).catch((): ScheduleItem[] => []),
     getI18n(),
   ]);
-  const hasDenseAiringShelf = ongoing.results.length >= 4;
-  const leadShelfItems = hasDenseAiringShelf ? ongoing.results : popular.results;
+  // Release shelves come first: a returning viewer's daily question is "what
+  // just came out", not "which universes exist".
+  const hasDenseAiringShelf = airing.length >= MIN_VISIBLE_SHELF;
   // The shelves are filled from independent queries, so the same title can be
-  // "ongoing" and "popular" at once. A repeated card on one screen reads as a
-  // data bug, so each follower shelf drops what an earlier shelf already took.
-  const popularShelfItems = dedupeShelf(leadShelfItems, popular.results);
+  // airing and popular at once. A repeated card on one screen reads as a data
+  // bug, so each follower shelf drops what an earlier shelf already took.
+  const popularShelfItems = dedupeShelf(hasDenseAiringShelf ? airing : [], popular.results);
   // The newest shelf prefers zero repeats, but deleting it whole left the
   // home page with nothing that pushes toward new titles. When a full dedup
   // leaves too few cards, it keeps only the lead shelf's exclusions and
-  // tolerates overlap with "Популярное" — a repeated card is the lesser evil
-  // next to an empty page.
-  const newestFullyDeduped = dedupeShelf([...leadShelfItems, ...popularShelfItems], newest.results);
+  // tolerates overlap with the popular shelf — a repeated card is the lesser
+  // evil next to an empty page.
+  const newestFullyDeduped = dedupeShelf([...(hasDenseAiringShelf ? airing : []), ...popularShelfItems], newest.results);
   const newestShelfItems = newestFullyDeduped.length >= MIN_FULL_SHELF
     ? newestFullyDeduped
-    : dedupeShelf(leadShelfItems, newest.results);
+    : dedupeShelf(popularShelfItems, newest.results);
 
   return <PageShell active="home">
     <script nonce={(await headers()).get("x-nonce") ?? undefined} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
-    <div className={styles.homeColumn}>
-      <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? ongoing.results[0]} />
+    <div>
+      <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? airing[0]} />
 
       {/* The strip owns its section: it disappears whole when nothing upcoming
           is left for the window, so the page never shows an empty heading. */}
       <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
 
-      <CatalogShelf
-        title={hasDenseAiringShelf ? t("home.airingNow") : t("home.popular")}
-        subtitle={hasDenseAiringShelf ? t("home.airingNowText") : t("home.popularText")}
-        items={leadShelfItems}
-        href={hasDenseAiringShelf ? "/catalog?status=ongoing" : "/catalog"}
-        linkLabel={t("home.showAll")}
-        emptyLabel={t("home.sectionEmpty")}
-      />
+      <RecentEpisodesRail items={recentEpisodes} serverTodayKey={todayKey} />
 
-      {hasDenseAiringShelf && <CatalogShelf
+      {hasDenseAiringShelf && <AiringRail items={airing} />}
+
+      <CatalogShelf
         title={t("home.popular")}
         subtitle={t("home.popularText")}
         items={popularShelfItems}
         href="/catalog"
         linkLabel={t("home.showAll")}
-        emptyLabel={t("home.empty")}
-      />}
+        emptyLabel={t("home.sectionEmpty")}
+      />
+
+      {/* Personal picks silently collapse for guests and cold accounts, so
+          the shelf never adds a titled empty block. */}
+      <RecommendationShelf />
 
       {/* Franchises are pure discovery: whole universes instead of single
           titles, and by construction they never duplicate the shelves above. */}

@@ -24,7 +24,7 @@
 
 .field span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .field input,
@@ -135,7 +135,7 @@
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   transition: border-color 140ms ease, background 140ms ease;
 }
 

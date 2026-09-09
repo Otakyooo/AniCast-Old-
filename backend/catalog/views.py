@@ -3,7 +3,9 @@ from datetime import timedelta
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse, HttpResponseBase, HttpResponseNotFound, HttpRequest, HttpResponseRedirect
-from django.db.models import Avg, Case, Count, F, FloatField, Prefetch, Q, Value, When
+from django.db.models import (
+    Avg, Case, Count, F, FloatField, OuterRef, Prefetch, Q, Subquery, Value, When,
+)
 from django.db.models.functions import Cast
 from django.utils import timezone
 from django.utils.cache import patch_vary_headers
@@ -56,6 +58,8 @@ from .serializers import (
     SourceReportSerializer,
     TitleDetailSerializer,
     TitleSerializer,
+    schedule_title_payload_prefetch,
+    title_payload_prefetch,
 )
 
 
@@ -159,6 +163,81 @@ class EpisodePagination(PageNumberPagination):
     page_query_param = "episodes_page"
     page_size_query_param = "episodes_page_size"
     max_page_size = 50
+
+
+class AiringTitleListView(PublicCacheMixin, ListAPIView):
+    """Ongoing titles with the freshest episode and the next release time.
+
+    One row answers both "what is airing now" and "when the next episode
+    drops" for the home shelf, so the client needs no second request and no
+    client-side stitching of schedule plus watch navigation.
+    """
+
+    serializer_class = TitleSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+    limit = 12
+
+    def get_queryset(self):
+        now = timezone.now()
+        today = timezone.localdate()
+        # Subqueries keep the two episode facts independent of the aggregate
+        # joins in annotate_rating_aggregates. "Last episode" means the newest
+        # one already aired: the Kodik sync pre-creates the next episode row,
+        # so the plain maximum number would advertise an unreleased episode.
+        last_episode = Episode.objects.filter(
+            title=OuterRef("pk"), air_date__lte=today
+        ).order_by("-number")
+        next_episode = Episode.objects.filter(title=OuterRef("pk"), air_at__gt=now).order_by("air_at")
+        return annotate_rating_aggregates(
+            Title.objects.filter(status="ongoing")
+            .annotate(
+                last_episode_number=Subquery(last_episode.values("number")[:1]),
+                next_episode_at=Subquery(next_episode.values("air_at")[:1]),
+            )
+            .annotate(popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True))
+            .select_related("franchise")
+            .prefetch_related(*title_payload_prefetch())
+            .order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")
+        )[: self.limit]
+
+
+class RecentEpisodesView(PublicCacheMixin, ListAPIView):
+    """Newest released episodes for the home "recently aired" shelf.
+
+    The window looks backwards from today; episodes whose exact air time is
+    still in the future are schedule rows (the Kodik sync pre-creates the
+    next episode with `air_at`), not releases, so they are excluded.
+    """
+
+    serializer_class = ScheduleEpisodeSerializer
+    permission_classes = [AllowAny]
+    pagination_class = None
+    default_days = 7
+    max_days = 30
+    limit = 12
+
+    def get_queryset(self):
+        raw_days = self.request.query_params.get("days")
+        days = self.default_days
+        if raw_days is not None:
+            try:
+                days = int(raw_days)
+            except (TypeError, ValueError):
+                raise ValidationError({"days": "days must be an integer."})
+            if not 1 <= days <= self.max_days:
+                raise ValidationError({"days": f"days must be between 1 and {self.max_days}."})
+        now = timezone.now()
+        today = timezone.localdate()
+        start = today - timedelta(days=days - 1)
+        return (
+            Episode.objects.filter(air_date__range=(start, today))
+            .exclude(air_at__gt=now)
+            .select_related("title")
+            .prefetch_related("translations", *schedule_title_payload_prefetch("title"))
+            .order_by(F("air_at").desc(nulls_last=True), F("air_date").desc(), "title__name", "number")
+            [: self.limit]
+        )
 
 
 class CharacterPagination(PageNumberPagination):

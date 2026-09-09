@@ -9,6 +9,7 @@ export function ViewingActivityChart({ activity }: { activity: AccountSummary["a
   const { t, locale } = useI18n();
   const max = Math.max(1, ...activity.map((item) => item.episodes));
   const formatter = new Intl.DateTimeFormat(intlLocale[locale], { month: "short", timeZone: "UTC" });
+  const total = activity.reduce((sum, item) => sum + item.episodes, 0);
 
   return (
     <section className={styles.activityCard} aria-labelledby="viewing-activity-title">
@@ -17,7 +18,8 @@ export function ViewingActivityChart({ activity }: { activity: AccountSummary["a
           <h2 id="viewing-activity-title">{t("profile.activityTitle")}</h2>
           <p>{t("profile.activitySubtitle")}</p>
         </div>
-        <strong>{activity.reduce((sum, item) => sum + item.episodes, 0)}</strong>
+        {/* The bare number said nothing about its own unit; the label does. */}
+        <strong>{t("profile.activityTotal", { count: total })}</strong>
       </div>
       <div className={styles.activityChart} role="img" aria-label={t("profile.activityLabel")}>
         {activity.map((item) => (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Play } from "@phosphor-icons/react";
+import { CaretDown, Play, Star } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import {
   deleteLibraryEntry,
@@ -22,11 +22,24 @@ interface TitleActionsProps {
   explicitEpisode?: boolean;
 }
 
-/** Primary playback link plus authenticated library and favorite actions. */
+/** Primary playback link plus the single personal-list system.
+
+ * The list state (watching / planned / completed / on hold / dropped) and the
+ * "favorite" flag are one control cluster: the status select owns membership,
+ * the star marks "Любимое" inside the same library entry. There is no second
+ * competing "add to library" button. */
 export function TitleActions(props: TitleActionsProps) {
   const { locale } = useI18n();
   return <TitleActionsContent key={`${props.slug}:${locale}`} {...props} />;
 }
+
+const STATUS_OPTIONS: Array<{ value: LibraryStatus; labelKey: string }> = [
+  { value: "planned", labelKey: "nav.planned" },
+  { value: "watching", labelKey: "nav.watching" },
+  { value: "completed", labelKey: "nav.completed" },
+  { value: "on_hold", labelKey: "library.onHold" },
+  { value: "dropped", labelKey: "library.dropped" },
+];
 
 function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: TitleActionsProps) {
   const { t } = useI18n();
@@ -93,8 +106,26 @@ function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: Title
     }
   }
 
+  /** The select owns list membership: the empty option removes the entry. */
+  async function changeStatus(value: string) {
+    if (value === "") {
+      if (entry) await remove();
+      return;
+    }
+    await update(value as LibraryStatus, entry?.is_favorite ?? false);
+  }
+
+  /** The star is part of the same list system: it can create the entry as a
+   * favorite even before a watch status was chosen. */
+  async function toggleFavorite() {
+    if (!entry) {
+      await update("planned", true);
+      return;
+    }
+    await update(entry.status, !entry.is_favorite);
+  }
+
   const isFavorite = entry?.is_favorite ?? false;
-  const inLibrary = Boolean(entry);
 
   return (
     <div className={styles.actions}>
@@ -111,45 +142,36 @@ function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: Title
           <Link className={styles.secondaryAction} href="/login">{t("common.login")}</Link>
         ) : (
           <>
+            <label className={styles.listControl}>
+              <span>{t("title.listLabel")}</span>
+              <span className={styles.listSelect}>
+                <select
+                  value={entry?.status ?? ""}
+                  disabled={pending || entry === undefined}
+                  onChange={(event) => void changeStatus(event.target.value)}
+                >
+                  <option value="">{entry === undefined ? t("common.loading") : t("title.notInList")}</option>
+                  {STATUS_OPTIONS.map((option) => (
+                    <option value={option.value} key={option.value}>{t(option.labelKey)}</option>
+                  ))}
+                </select>
+                <CaretDown aria-hidden="true" weight="bold" />
+              </span>
+            </label>
             <button
-              className={inLibrary ? styles.actionActive : styles.secondaryAction}
+              className={isFavorite ? `${styles.favoriteToggle} ${styles.favoriteActive}` : styles.favoriteToggle}
               type="button"
-              disabled={pending || entry === undefined}
-              aria-pressed={inLibrary}
-              onClick={() => (inLibrary ? remove() : update("watching", false))}
-            >
-              {inLibrary ? t("title.inLibrary") : t("title.addLibrary")}
-            </button>
-            <button
-              className={isFavorite ? styles.favoriteActive : styles.secondaryAction}
-              type="button"
-              disabled={pending || entry === undefined}
+              disabled={pending}
               aria-pressed={isFavorite}
-              onClick={() => update(entry?.status ?? "planned", !isFavorite)}
+              aria-label={isFavorite ? t("title.favoriteActive") : t("library.favorite")}
+              title={isFavorite ? t("title.favoriteActive") : t("library.favorite")}
+              onClick={() => void toggleFavorite()}
             >
-              <span aria-hidden="true">{isFavorite ? "★" : "☆"}</span>
-              {isFavorite ? t("title.favoriteActive") : t("title.favorite")}
+              <Star aria-hidden="true" weight={isFavorite ? "fill" : "regular"} size={18} />
             </button>
           </>
         )}
       </div>
-
-      {entry && (
-        <label className={styles.statusField}>
-          <span>{t("library.myStatus")}</span>
-          <select
-            value={entry.status}
-            disabled={pending}
-            onChange={(event) => update(event.target.value as LibraryStatus, entry.is_favorite)}
-          >
-            <option value="planned">{t("nav.planned")}</option>
-            <option value="watching">{t("nav.watching")}</option>
-            <option value="completed">{t("nav.completed")}</option>
-            <option value="on_hold">{t("library.onHold")}</option>
-            <option value="dropped">{t("library.dropped")}</option>
-          </select>
-        </label>
-      )}
 
       {guest && <p className={styles.actionHint}>{t("title.actionsGuest")}</p>}
       {error && <p className={styles.actionError} role="alert">{error}</p>}

@@ -103,6 +103,10 @@ export interface CatalogItem {
   duration_minutes?: number | null;
   rating_average?: number | null;
   rating_count?: number | null;
+  /** Present only on the airing view: highest already-aired episode number. */
+  last_episode_number?: number | null;
+  /** Present only on the airing view: next scheduled exact release time. */
+  next_episode_at?: string | null;
 }
 
 export interface CatalogResponse {
@@ -386,6 +390,17 @@ export async function getSimilarTitles(slug: string): Promise<CatalogItem[]> {
 export async function getSchedule(from: string, to: string): Promise<ScheduleResponse> {
   const query = new URLSearchParams({ from, to, page_size: "200" });
   return request<ScheduleResponse>(`/schedule/?${query}`, revalidated(60));
+}
+
+/** Ongoing titles with the last aired episode and the next release time. */
+export async function getAiringTitles(signal?: AbortSignal): Promise<CatalogItem[]> {
+  return request<CatalogItem[]>("/titles/airing/", { ...revalidated(60), signal });
+}
+
+/** Newest released episodes inside a bounded backwards window. */
+export async function getRecentEpisodes(days = 7, signal?: AbortSignal): Promise<ScheduleItem[]> {
+  const query = new URLSearchParams({ days: String(days) });
+  return request<ScheduleItem[]>(`/episodes/recent/?${query}`, { ...revalidated(60), signal });
 }
 
 /** Minimum length accepted by the backend search endpoint. */
