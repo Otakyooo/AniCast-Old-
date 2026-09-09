@@ -88,6 +88,13 @@ test("history exposes older pages and recovers from a failed request", async ({ 
   await page.getByRole("button", { name: "Повторить", exact: true }).click();
   await expect(page.getByText("Older fixture", { exact: true })).toBeVisible();
   await expect(page.getByText("Страница 2 из 2", { exact: true })).toBeVisible();
+  // The avatar may overlap the banner; identity text must stay on the opaque
+  // content surface in both themes, including the two-line mobile guest copy.
+  const identityHeading = page.getByRole("main").getByRole("heading", { level: 1 });
+  expect(await identityHeading.evaluate(el => {
+    const banner = el.closest("header")!.previousElementSibling!;
+    return el.getBoundingClientRect().top >= banner.getBoundingClientRect().bottom;
+  })).toBe(true);
   await captureThemes(page, info, "history");
   await page.reload();
   await expect(page.getByText("Older fixture", { exact: true })).toBeVisible();
