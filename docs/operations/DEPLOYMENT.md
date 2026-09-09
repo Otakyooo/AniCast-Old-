@@ -123,6 +123,7 @@ DJANGO_SECRET_KEY=ci-only-secret-with-more-than-fifty-characters-and-plenty-of-v
 pip-audit --strict --requirement requirements.txt
 cd ../frontend
 npm ci
+npm run audit
 npm run lint
 npm run typecheck
 npm test
@@ -130,5 +131,10 @@ npm run build
 ```
 
 `scripts/validate.sh` runs shell syntax checks, Compose config validations for all three stacks, promtool/amtool checks of the monitoring configuration with placeholder secrets, the hermetic deploy/rollback test and rejects public metrics routes in Caddy. CI additionally builds both images and validates Caddy with the official image.
+
+Frontend CI runs `npm run audit` against production and development dependencies;
+high/critical advisories fail the job. The infrastructure job also executes a
+PNG-to-WebP resize inside the final musl image with networking disabled, proving
+that the packaged sharp/libvips runtime works after dependency changes.
 
 `pip-audit` is part of the pinned requirements and gates CI. Pinned dependencies go stale silently, so a missed security release must fail the build instead of waiting to be discovered: the audit is what turns the pins into a maintained set rather than a snapshot. `DJANGO_SECRET_KEY` has no safe fallback in a non-SQLite deployment — the placeholder key signs sessions, the visit cookie and playback tokens, and the guard fires regardless of `DJANGO_DEBUG` so a stack accidentally booted with debug on cannot run on a publicly known key.
