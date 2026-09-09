@@ -159,7 +159,11 @@ on loopback, with a new temporary SQLite database and synthetic viewers. It cove
 session login/logout/expiry, CSRF rejection, playback resume/pause/completion,
 source retry/change and stale search responses on four viewports. Django auth,
 history and signed playback resolver are real; Playwright replaces only the
-external video document at its allowed origin. Email stays in memory, no workers
+external video document at its allowed origin in the auth/player scenarios.
+Additional tab-page scenarios inject a CI-only SSR outage and targeted browser
+history/library failures or pagination payloads; they verify UI recovery, not
+production database history. Successful tab screenshots are retained for seven
+days. Email stays in memory, no workers
 run, and rate limits are raised only inside the fixture process. This does not
 prove external video delivery, production PostgreSQL concurrency or rate-limit
 capacity. Existing backend and infrastructure checks cover those layers separately.

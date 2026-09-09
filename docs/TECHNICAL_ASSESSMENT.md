@@ -33,11 +33,11 @@ image cache и лимиты слабого VPS сохранены. [Решени
 ## Что уже подтверждено
 
 - Backend/frontend/infrastructure gates и публикация образов прошли в
-  [CI 34347560556](https://github.com/Otakyooo/AniCast/actions/runs/34347560556).
-  Frontend имеет 73 unit tests, lint/typecheck/build и 16 Chromium E2E проверок
-  общего каркаса: темы, storage, контраст, логотип, nonce/no-store, доступность
-  навигации и keyboard search на четырёх viewport.
-  Это не полный E2E реального входа и плеера.
+  [CI 34360453300](https://github.com/Otakyooo/AniCast/actions/runs/34360453300).
+  Frontend имеет 73 unit tests, lint/typecheck/build и 52 Chromium E2E проверки:
+  каркас, темы, поиск, реальная Django-сессия/CSRF, плеер с тестовым iframe,
+  фильтры, пагинация, пустые состояния и сбои страниц на четырёх viewport.
+  [Последний выпуск страниц](archive/releases/RELEASE-2026-09-09-tab-pages.md).
 - Broker, control и ephemeral Redis изолированы; eviction/outage проверены на
   disposable среде. Оба workers проверяются отдельно.
 - Nonce CSP, закрытые служебные порты, отдельная monitoring network, ограничение
@@ -96,8 +96,9 @@ MainServer и домашний интернет/питание находятс�
 
 Frontend strict typing включён, backend mypy — `strict=False` и
 `ignore_missing_imports=True`; считать весь backend строго типизированным нельзя.
-CI включает 73 unit и 32 Chromium E2E: каркас, поиск, реальную Django-сессию/CSRF,
-восстановление/сохранение позиции и гонки ответов плеера. Все 18 effect warnings
+CI включает 73 unit и 52 Chromium E2E: каркас, поиск, реальную Django-сессию/CSRF,
+восстановление/сохранение позиции и гонки ответов плеера, фильтры, пагинацию
+и восстановление страниц после сбоя. Все 18 effect warnings
 в 12 компонентах устранены, исключение ESLint удалено. Полный Safari/Firefox/
 screen-reader набор не подтверждён. Browser fixture использует временную SQLite DB
 и управляемый внешний iframe: это не проверка доставки настоящего видео или
@@ -107,6 +108,7 @@ Python dev/test инструменты устанавливаются в тот 
 зависимости. Разделение requirements и стадий сборки может уменьшить образ и
 поверхность зависимостей; сначала сохранить идентичность runtime-набора и CI.
 
-Приоритет: E2E/React effects/нагрузка →
+Приоритет: завершение интерфейсных сценариев, Safari/Firefox/screen reader и
+длительная смешанная нагрузка →
 внешний data host и проверенный план отказа. Полная смена Django/Next, Kubernetes
 или дробление на микросервисы сейчас не обоснованы измеренной потребностью.
