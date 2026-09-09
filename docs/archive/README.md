@@ -15,6 +15,7 @@
 | 09.09: собственный OAuth | [Проверки](releases/RELEASE-2026-09-09-oauth.md) |
 | 09.09: frontend security patch и npm gate | [Релиз](releases/RELEASE-2026-09-09-frontend-security.md) |
 | 09.09: Next 16, две темы, логотип и админка | [Релиз](releases/RELEASE-2026-09-09-next16.md) |
+| 09.09: API до workers, адаптивная шапка и мобильный hero | [Релиз](releases/RELEASE-2026-09-09-staged-design.md) |
 
 Сохранены [аудит 08.09](audits/SYSTEM_AUDIT-2026-09-08.md),
 [прежняя сводка](IMPLEMENTATION_STATUS-2026-09-07.md) и планы:
