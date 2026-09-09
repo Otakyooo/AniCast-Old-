@@ -16,7 +16,7 @@
   min-width: 180px;
 }
 
-.field:first-child {
+.searchField {
   flex: 1;
   min-width: 240px;
 }
@@ -28,7 +28,7 @@
 
 .field input,
 .field select {
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-2);
@@ -47,7 +47,7 @@
 .submit,
 .reset,
 .pageLink {
-  min-height: 40px;
+  min-height: 44px;
   padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -78,7 +78,7 @@
 .pageLink:hover,
 .reset:hover {
   border-color: var(--primary);
-  color: white;
+  color: var(--text);
 }
 
 @media (max-width: 640px) {
@@ -189,3 +189,11 @@
 .randomButton:active {
   transform: scale(.98);
 }
+
+.field { min-width: 0; max-width: 100% }
+.field input, .field select { width: 100%; min-width: 0 }
+.chip { min-height: 44px; max-width: 100%; overflow-wrap: anywhere }
+.chip span { min-width: 0 }
+.randomAction { display: grid; gap: 8px; max-width: 100% }
+.randomAction > span { color: var(--muted); font-size: 13px }
+.randomButton:disabled { opacity: .65; cursor: wait; transform: none }

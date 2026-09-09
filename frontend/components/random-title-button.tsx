@@ -2,36 +2,49 @@
 
 import { useRouter } from "next/navigation";
 import { DiceFive } from "@phosphor-icons/react";
-import type { MouseEvent } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { getCatalog, type CatalogFilters } from "../lib/api";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/catalog/catalog.module.css";
 
-/**
- * "Random title" dice: jumps to a random page of the catalog grid. The server
- * already knows the total count, so no extra request is needed — the page the
- * dice lands on does the actual picking.
- */
-export function RandomTitleButton({ count }: { count: number }) {
+/** Select one title uniformly from the applied filters; fetch only that row. */
+export function RandomTitleButton({ count, filters }: { count: number; filters: CatalogFilters }) {
   const { t } = useI18n();
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState(false);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
 
-  const roll = (event: MouseEvent<HTMLButtonElement>) => {
-    const pages = Math.max(1, Math.ceil(count / 20));
-    const page = 1 + Math.floor(Math.random() * pages);
-    event.currentTarget.blur();
-    router.push(page > 1 ? `/catalog?page=${page}` : "/catalog");
-  };
+  async function roll() {
+    if (request.current || pending || count < 1) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true);
+    setError(false);
+    try {
+      const result = await getCatalog({ ...filters, pageSize: 1, page: 1 + Math.floor(Math.random() * count) }, controller.signal);
+      if (controller.signal.aborted) return;
+      const title = result.results[0];
+      if (!title) throw new Error("No matching title");
+      startTransition(() => router.push(`/titles/${encodeURIComponent(title.slug)}`));
+    } catch {
+      if (!controller.signal.aborted) setError(true);
+    } finally {
+      if (!controller.signal.aborted) {
+        request.current = null;
+        setLoading(false);
+      }
+    }
+  }
 
-  return (
-    <button
-      className={styles.randomButton}
-      type="button"
-      onClick={roll}
-      disabled={count < 1}
-      title={t("catalog.random")}
-    >
+  return <div className={styles.randomAction}>
+    <button className={styles.randomButton} type="button" onClick={roll}
+      disabled={count < 1 || loading || pending} aria-busy={loading || pending}>
       <DiceFive aria-hidden="true" size={20} weight="bold" />
-      <span>{t("catalog.random")}</span>
+      <span>{t(loading || pending ? "common.loading" : "catalog.random")}</span>
     </button>
-  );
+    {error && <span role="alert">{t("catalog.randomFailed")}</span>}
+  </div>;
 }

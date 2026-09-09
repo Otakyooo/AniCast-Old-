@@ -1,12 +1,10 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { ScheduleBoard } from "../../components/schedule-board";
 import { PageShell } from "../../components/page-shell";
-import { emptyPage, getSchedule, type ScheduleResponse } from "../../lib/api";
+import { getSchedule } from "../../lib/api";
 import { addDays, localDayKey, weekStart } from "../../lib/schedule";
 import { getI18n } from "../../i18n/server";
 import { NO_INDEX_ROBOTS } from "../../lib/seo";
-import styles from "./schedule.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +44,7 @@ export default async function SchedulePage({
   // Neighbouring days are fetched too: a confirmed late-night `air_at` can fall
   // into the previous or next calendar day once the viewer timezone applies.
   const [schedule, { t }] = await Promise.all([
-    getSchedule(addDays(startKey, -1), addDays(endKey, 1)).catch((): ScheduleResponse => emptyPage()),
+    getSchedule(addDays(startKey, -1), addDays(endKey, 1)).catch(() => null),
     getI18n(),
   ]);
 
@@ -55,35 +53,16 @@ export default async function SchedulePage({
       active="schedule"
       heading={{ eyebrow: t("schedule.eyebrow"), title: t("schedule.title"), subtitle: t("schedule.subtitle") }}
     >
-      {schedule.results.length ? (
-        <ScheduleBoard
-          items={schedule.results}
-          weekStartKey={startKey}
-          serverTodayKey={todayKey}
-          prevWeekHref={`/schedule?week=${addDays(startKey, -7)}`}
-          nextWeekHref={`/schedule?week=${addDays(startKey, 7)}`}
-          thisWeekHref="/schedule"
-        />
-      ) : (
-        <div className={styles.emptyWeek}>
-          <nav className={styles.weekNav} aria-label={t("schedule.weekdays")}>
-            <Link rel="nofollow" className={styles.weekLink} href={`/schedule?week=${addDays(startKey, -7)}`}>
-              {t("schedule.prevWeek")}
-            </Link>
-            {startKey !== weekStart(todayKey) && (
-              <Link rel="nofollow" className={styles.weekLink} href="/schedule">{t("schedule.thisWeek")}</Link>
-            )}
-            <Link rel="nofollow" className={styles.weekLink} href={`/schedule?week=${addDays(startKey, 7)}`}>
-              {t("schedule.nextWeek")}
-            </Link>
-          </nav>
-          <div className="empty-state" role="status">
-            <strong>{t("schedule.emptyWeek")}</strong>
-            <span>{t("schedule.emptyText")}</span>
-            <Link className="secondary" href="/catalog">{t("home.openCatalog")}</Link>
-          </div>
-        </div>
-      )}
+      <ScheduleBoard
+        key={startKey}
+        items={schedule?.results ?? []}
+        unavailable={!schedule}
+        weekStartKey={startKey}
+        serverTodayKey={todayKey}
+        prevWeekHref={`/schedule?week=${addDays(startKey, -7)}`}
+        nextWeekHref={`/schedule?week=${addDays(startKey, 7)}`}
+        thisWeekHref="/schedule"
+      />
     </PageShell>
   );
 }

@@ -49,8 +49,8 @@ async function parse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function getHistory(pageSize = 20, signal?: AbortSignal) {
-  return parse<HistoryResponse>(await fetch(`/api/v1/history/?page_size=${pageSize}`, {
+export async function getHistory(pageSize = 20, signal?: AbortSignal, page = 1) {
+  return parse<HistoryResponse>(await fetch(`/api/v1/history/?page_size=${pageSize}&page=${page}`, {
     credentials: "same-origin",
     cache: "no-store",
     signal,

@@ -96,4 +96,23 @@ with TemporaryDirectory(prefix="anicast-browser-") as directory:
         connections.close_all()
         print("Fixture seed and real catalogue/playback views verified without a listener")
     else:
-        run("127.0.0.1", 8000, get_wsgi_application(), threading=True)
+        from urllib.parse import parse_qs
+
+        application = get_wsgi_application()
+
+        def fault_fixture(environ, start_response):
+            # SSR failure evidence needs a server-side fault, not a browser
+            # fetch mock. This wrapper exists only in the disposable CI process.
+            query = parse_qs(environ.get("QUERY_STRING", ""))
+            path = environ.get("PATH_INFO", "")
+            unavailable = (
+                path == "/api/v1/titles/" and query.get("q") == ["e2e-unavailable"]
+            ) or (
+                path == "/api/v1/schedule/" and query.get("from", [""])[0].startswith("2111-")
+            )
+            if unavailable:
+                start_response("503 Service Unavailable", [("Content-Type", "application/json")])
+                return [b'{"detail":"Synthetic outage"}']
+            return application(environ, start_response)
+
+        run("127.0.0.1", 8000, fault_fixture, threading=True)

@@ -95,7 +95,7 @@ export function CatalogFiltersForm({ values, genres }: { values: CatalogFilterVa
 
   return (
     <form className={styles.filters} action="/catalog">
-      <div className={styles.chipsRow}>
+      {chips.length > 0 && <div className={styles.chipsRow}>
         {chips.map((chip) => (
           <Link className={styles.chip} href={chip.href} key={chip.key} aria-label={`${t("catalog.reset")}: ${chip.label}`}>
             <b>{chip.label}:</b>
@@ -103,8 +103,8 @@ export function CatalogFiltersForm({ values, genres }: { values: CatalogFilterVa
             <span aria-hidden="true">×</span>
           </Link>
         ))}
-      </div>
-      <label className={styles.field}>
+      </div>}
+      <label className={`${styles.field} ${styles.searchField}`}>
         <span>{t("catalog.searchLabel")}</span>
         <input name="q" defaultValue={values.q} placeholder={t("catalog.searchPlaceholder")} />
       </label>

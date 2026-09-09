@@ -14,3 +14,5 @@
 @media (max-width: 640px) {
   .historyGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
 }
+
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin-top: 28px; color: var(--muted) }

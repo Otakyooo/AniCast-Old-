@@ -22,7 +22,7 @@
 .pagination a:hover { border-color: var(--primary) }
 .filters a:active,
 .pagination a:active { background: var(--surface-2) }
-.filterActive { border-color: var(--primary); background: var(--primary-soft-strong) }
+.filters .filterActive { border-color: var(--primary); background: var(--primary-soft-strong) }
 
 .grid {
   display: grid;
@@ -55,6 +55,7 @@
 
 .pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 14px;
@@ -75,7 +76,7 @@
   transition: color 140ms ease, border-color 140ms ease;
 }
 .viewSwitch a:hover { color: var(--text); border-color: var(--primary) }
-.viewActive { border-color: var(--primary); background: var(--primary-soft-strong); color: var(--text) }
+.viewSwitch .viewActive { border-color: var(--primary); background: var(--primary-soft-strong); color: var(--text) }
 
 @media (max-width: 640px) {
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }

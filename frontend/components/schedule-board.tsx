@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import type { ScheduleItem } from "../lib/api";
 import {
   addDays,
@@ -14,12 +14,14 @@ import {
 } from "../lib/schedule";
 import { titleWatchHref } from "../lib/seo";
 import { useLocalClock } from "../lib/use-local-clock";
+import { SectionUnavailable } from "./section-unavailable";
 import { useI18n } from "./i18n-provider";
 import { intlLocale } from "../i18n/config";
 import styles from "../app/schedule/schedule.module.css";
 
 interface ScheduleBoardProps {
   items: ScheduleItem[];
+  unavailable?: boolean;
   /** Monday of the rendered week, as YYYY-MM-DD. */
   weekStartKey: string;
   /** Server-rendered "today" so the first paint matches the server markup. */
@@ -62,6 +64,7 @@ const STATUS_CLASS: Record<ScheduleStatus["kind"], string> = {
 
 export function ScheduleBoard({
   items,
+  unavailable = false,
   weekStartKey,
   serverTodayKey,
   prevWeekHref,
@@ -163,19 +166,19 @@ export function ScheduleBoard({
             >
               <span className={styles.dayTabName}>{dayLabel(dayKey)}</span>
               <span className={styles.dayTabDate}>{dayNumber(dayKey)}</span>
-              <span className={styles.dayTabCount}>{count}</span>
+              <span className={styles.dayTabCount}>{unavailable ? "—" : count}</span>
             </button>
           );
         })}
       </div>
 
-      <div id={`${boardId}-panel`} role="tabpanel" aria-labelledby={`${boardId}-tab-${activeDay}`}>
+      <div id={`${boardId}-panel`} role="tabpanel" tabIndex={0} aria-labelledby={`${boardId}-tab-${activeDay}`}>
       <header className={styles.dayHeading}>
         <div>
           <h2>{fullDayFormatter.format(new Date(`${activeDay}T12:00:00Z`))}</h2>
           <p className={styles.dayMeta}>
             {relativeDayLabel(activeDay) ? `${relativeDayLabel(activeDay)} · ` : ""}
-            {t("schedule.episodesCount", { count: dayItems.length })}
+            {!unavailable && t("schedule.episodesCount", { count: dayItems.length })}
           </p>
         </div>
         <div className={styles.dayHeadingActions}>
@@ -192,7 +195,7 @@ export function ScheduleBoard({
 
       {clock.local && <p className={styles.timezoneNote}>{t("schedule.timezoneNote")}</p>}
 
-      {dayItems.length ? (
+      {unavailable ? <SectionUnavailable /> : dayItems.length ? (
         <ul className={styles.episodes}>
           {dayItems.map((item) => {
             const status = scheduleStatus(item, clock.now, todayKey, clock.local);

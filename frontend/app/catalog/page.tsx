@@ -5,13 +5,12 @@ import { CatalogCard } from "../../components/catalog-card";
 import { CatalogFiltersForm } from "../../components/catalog-filters";
 import { RandomTitleButton } from "../../components/random-title-button";
 import { PageShell } from "../../components/page-shell";
+import { SectionUnavailable } from "../../components/section-unavailable";
 import {
-  emptyPage,
   apiErrorStatus,
   getCatalog,
   getGenres,
   type CatalogFilters,
-  type CatalogItem,
   type CatalogOrdering,
 } from "../../lib/api";
 import { getI18n } from "../../i18n/server";
@@ -89,17 +88,21 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
   };
   const [catalog, genres] = await Promise.all([
-    getCatalog(filters).catch(() => emptyPage<CatalogItem>()),
+    getCatalog(filters).catch((error) => {
+      if (apiErrorStatus(error) === 404) notFound();
+      return null;
+    }),
     getGenres().catch(() => []),
   ]);
   const currentPage = filters.page ?? 1;
-  const pageCount = Math.max(1, Math.ceil(catalog.count / 20));
-  if (currentPage > pageCount) notFound();
+  const pageCount = catalog ? Math.max(1, Math.ceil(catalog.count / 20)) : 1;
+  if (catalog && currentPage > pageCount) notFound();
   const hasFilters = Boolean(filters.q || filters.type || filters.status || filters.genre || filters.ordering);
   const { t } = await getI18n();
 
   return <PageShell active="catalog" heading={{ eyebrow: t("catalog.eyebrow"), title: t("catalog.title"), subtitle: t("catalog.subtitle") }}>
     <CatalogFiltersForm
+      key={JSON.stringify(filters)}
       values={{
         q: filters.q ?? "",
         type: filters.type ?? "",
@@ -109,13 +112,13 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       }}
       genres={genres}
     />
-    {catalog.count > 0 && (
+    {catalog && catalog.count > 0 && (
       <div className={styles.toolbar}>
         <p className={styles.resultCount}>{t("catalog.found", { count: catalog.count })}</p>
-        <RandomTitleButton count={catalog.count} />
+        <RandomTitleButton key={JSON.stringify(filters)} count={catalog.count} filters={filters} />
       </div>
     )}
-    {catalog.results.length ? (
+    {!catalog ? <SectionUnavailable /> : catalog.results.length ? (
       <div className="catalog-grid">{catalog.results.map(item => <CatalogCard item={item} key={item.slug} />)}</div>
     ) : (
       <div className="empty-state" role="status">
@@ -125,7 +128,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       </div>
     )}
     {pageCount > 1 && (
-      <nav className={styles.pagination}>
+      <nav className={styles.pagination} aria-label={t("common.pagination")}>
         {currentPage > 1 && <Link className={styles.pageLink} href={catalogHref(filters, currentPage - 1)}>{t("common.back")}</Link>}
         <span>{t("catalog.page", { current: currentPage, total: pageCount })}</span>
         {currentPage < pageCount && <Link className={styles.pageLink} href={catalogHref(filters, currentPage + 1)}>{t("common.next")}</Link>}

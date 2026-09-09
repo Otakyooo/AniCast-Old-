@@ -17,10 +17,11 @@ import { useI18n } from "./i18n-provider";
 export function LibraryView() {
   const params = useSearchParams();
   const { locale } = useI18n();
-  return <LibraryResults key={`${params.toString()}:${locale}`} />;
+  const [attempt, setAttempt] = useState(0);
+  return <LibraryResults key={`${params.toString()}:${locale}:${attempt}`} retry={() => setAttempt(value => value + 1)} />;
 }
 
-function LibraryResults() {
+function LibraryResults({ retry }: { retry: () => void }) {
   const { t } = useI18n();
   const filters = [[t("library.all"), "/library"], [t("nav.watching"), "/library?status=watching"], [t("nav.planned"), "/library?status=planned"], [t("nav.completed"), "/library?status=completed"], [t("library.onHold"), "/library?status=on_hold"], [t("library.dropped"), "/library?status=dropped"], [t("nav.favorites"), "/library?favorite=true"]];
   const statusLabels: Record<string, string> = { planned: t("nav.planned"), watching: t("nav.watching"), completed: t("nav.completed"), on_hold: t("library.onHold"), dropped: t("library.dropped") };
@@ -29,16 +30,19 @@ function LibraryResults() {
   const [data, setData] = useState<LibraryResponse>();
   const [guest, setGuest] = useState(false);
   const [error, setError] = useState("");
+  const [missing, setMissing] = useState(false);
   const status = params.get("status") ?? undefined;
   const favorite = params.get("favorite") === "true";
-  const page = Math.max(1, Number(params.get("page")) || 1);
+  const requested = Number(params.get("page"));
+  const page = Number.isSafeInteger(requested) && requested > 0 ? requested : 1;
 
   useEffect(() => {
     if (collectionsView) return;
     const controller = new AbortController();
-    getLibrary({ status, favorite, page }, controller.signal).then(setData).catch((reason) => {
-      if (reason instanceof DOMException && reason.name === "AbortError") return;
+    getLibrary({ status, favorite, page }, controller.signal).then(result => { if (!controller.signal.aborted) setData(result); }).catch((reason) => {
+      if (controller.signal.aborted) return;
       if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
+      else if (reason instanceof LibraryApiError && reason.status === 404) setMissing(true);
       else setError(t("common.error"));
     });
     return () => controller.abort();
@@ -51,12 +55,17 @@ function LibraryResults() {
   let titlesBlock: React.ReactNode;
   if (guest) {
     titlesBlock = <div className="empty-state"><strong>{t("common.login")}</strong><span>{t("library.guest")}</span><Link className={styles.primary} href="/login">{t("common.login")}</Link></div>;
+  } else if (missing) {
+    titlesBlock = <div className="empty-state" role="status"><strong>{t("common.pageMissing")}</strong><Link className={styles.primary} href={activeHref}>{t("common.firstPage")}</Link></div>;
   } else if (error) {
-    titlesBlock = <div className="empty-state" role="alert"><strong>{error}</strong></div>;
+    titlesBlock = <div className="empty-state" role="alert"><strong>{error}</strong><button className={styles.primary} type="button" onClick={retry}>{t("common.retry")}</button></div>;
   } else if (!data) {
     titlesBlock = <div className="empty-state" role="status"><strong>{t("common.loading")}</strong></div>;
   } else {
-    const filterQuery = status ? `status=${status}` : favorite ? "favorite=true" : "";
+    const query = new URLSearchParams();
+    if (status) query.set("status", status);
+    if (favorite) query.set("favorite", "true");
+    const filterQuery = query.toString();
     const pageHref = (target: number) => `/library?${filterQuery}${filterQuery ? "&" : ""}page=${target}`;
     const pageCount = Math.max(1, Math.ceil(data.count / 20));
     titlesBlock = <>

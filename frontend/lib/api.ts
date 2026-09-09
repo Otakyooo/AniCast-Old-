@@ -256,7 +256,7 @@ function normalizeCatalog(payload: CatalogResponse | CatalogItem[]): CatalogResp
   return { ...payload, results: payload.results ?? [] };
 }
 
-export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogResponse> {
+export async function getCatalog(filters: CatalogFilters = {}, signal?: AbortSignal): Promise<CatalogResponse> {
   const query = new URLSearchParams();
   if (filters.q?.trim()) query.set("q", filters.q.trim());
   if (filters.type) query.set("type", filters.type);
@@ -266,7 +266,7 @@ export async function getCatalog(filters: CatalogFilters = {}): Promise<CatalogR
   if (filters.page && filters.page > 1) query.set("page", String(filters.page));
   if (filters.pageSize) query.set("page_size", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
-  const payload = await request<CatalogResponse | CatalogItem[]>(`/titles/${suffix}`, revalidated(60));
+  const payload = await request<CatalogResponse | CatalogItem[]>(`/titles/${suffix}`, { ...revalidated(60), signal });
   return normalizeCatalog(payload);
 }
 
