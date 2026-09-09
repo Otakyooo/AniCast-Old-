@@ -4,6 +4,14 @@ const password = "Browser-fixture-passphrase-2042";
 const titlePath = "/titles/browser-fixture?episode=1#watch";
 const progressPath = "/api/v1/episodes/browser-fixture/1/progress/";
 
+test.afterEach(async ({ page, context }) => {
+  // Finish intercepted resolver requests before Playwright disposes the API
+  // context. Otherwise a fast test can leak "route.fetch: Test ended" into
+  // the following test even though its browser assertions passed.
+  await page.unrouteAll({ behavior: "wait" });
+  await context.unrouteAll({ behavior: "wait" });
+});
+
 async function login(page: Page, info: TestInfo, scenario: string) {
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill(`${info.project.name}-${scenario}@example.invalid`);
@@ -129,6 +137,8 @@ test("player restores position, rejects forged messages, saves pause and complet
   // delayed watched-mark response for the same title.
   await page.locator("#watch").getByRole("button", { name: "Beta", exact: true }).click();
   await expect(page.locator("#watch").getByRole("button", { name: "Beta", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.frames().some(frame => frame.url().includes("fixture-1-Beta"))).toBe(true);
+  await expect(frame.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
