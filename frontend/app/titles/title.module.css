@@ -325,11 +325,12 @@
 
 .panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 32px;
   padding: 32px 0 12px;
 }
 
-.block { display: grid; gap: 12px }
+.block { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 12px }
 
 .block h2 {
   margin: 0;
@@ -605,7 +606,7 @@
   white-space: nowrap;
 }
 
-.watchSection { display: grid; gap: 14px; min-width: 0; scroll-margin-top: 88px }
+.watchSection { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; scroll-margin-top: 88px }
 .watchSection > h2 { margin: 0; font-size: 22px }
 
 .watchAvailability {
@@ -682,6 +683,7 @@
 
 .watchLayout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   width: 100%;
   margin: 0;
