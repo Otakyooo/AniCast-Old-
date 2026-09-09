@@ -53,7 +53,10 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     const backend = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8000";
-    return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
+    return [
+      { source: "/api/v1/media/posters/:filename", destination: `${backend}/api/v1/media/posters/:filename` },
+      { source: "/api/:path*", destination: `${backend}/api/:path*/` },
+    ];
   },
 };
 

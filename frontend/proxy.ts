@@ -3,7 +3,9 @@ import { contentSecurityPolicy } from "./lib/csp";
 
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname !== "/" && request.nextUrl.pathname.endsWith("/")) {
-    const canonical = request.nextUrl.clone();
+    // NextURL retains its incoming trailingSlash metadata when cloned; a plain
+    // URL is needed or serialization adds the removed slash back again.
+    const canonical = new URL(request.url);
     canonical.pathname = canonical.pathname.replace(/\/+$/, "");
     return NextResponse.redirect(canonical, 308);
   }

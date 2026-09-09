@@ -40,7 +40,7 @@ async function stubVideo(page: Page) {
 test("login rejects invalid credentials and CSRF; logout/expiry remove private identity", async ({ page, context }, info) => {
   const canonical = await context.request.get("/login/?from=test", { maxRedirects: 0 });
   expect(canonical.status()).toBe(308);
-  expect(canonical.headers().location).toBe("http://127.0.0.1:3100/login?from=test");
+  expect(new URL(canonical.headers().location, canonical.url()).href).toBe("http://127.0.0.1:3100/login?from=test");
   const csrf = await context.request.get("/api/v1/auth/csrf/", { maxRedirects: 0 });
   expect(csrf.status()).toBe(200);
   await page.goto("/login");
