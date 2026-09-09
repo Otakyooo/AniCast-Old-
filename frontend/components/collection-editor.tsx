@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import styles from "../app/collections/collections.module.css";
 import { deleteCollection, deleteCollectionItem, getCollection, updateCollection, updateCollectionItem, type CollectionDetail } from "../lib/collections";
 import { useI18n } from "./i18n-provider";
 
 export function CollectionEditor({ slug }: { slug: string }) {
+  const router = useRouter();
   const { t } = useI18n();
   const [collection, setCollection] = useState<CollectionDetail>();
   const [pending, setPending] = useState(false);
@@ -31,7 +33,7 @@ export function CollectionEditor({ slug }: { slug: string }) {
   async function removeCollection() {
     if (!confirm(t("collections.deleteConfirm"))) return;
     setPending(true);
-    try { await deleteCollection(slug); window.location.assign("/collections"); }
+    try { await deleteCollection(slug); router.push("/collections"); router.refresh(); }
     catch { setPending(false); setError(t("collections.deleteError")); }
   }
 

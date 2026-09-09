@@ -1,15 +1,15 @@
-export type ThemePreference = "light" | "dark" | "system";
+export type ThemePreference = "light" | "dark";
 
 // Runs in <head> before paint. Keep independent of React so theme also survives
-// slow hydration, storage restrictions, cross-tab changes and OS changes.
+// slow hydration, storage restrictions and cross-tab changes. Legacy system
+// preferences resolve to dark; the OS no longer changes the site's palette.
 export const THEME_SCRIPT = `(() => {
   const root = document.documentElement;
-  const media = window.matchMedia('(prefers-color-scheme: dark)');
-  const normalize = value => value === 'light' || value === 'dark' ? value : 'system';
-  let preference = 'system';
+  const normalize = value => value === 'light' ? 'light' : 'dark';
+  let preference = 'dark';
   try { preference = normalize(localStorage.getItem('anicast-theme')); } catch {}
   function apply() {
-    const theme = preference === 'system' ? (media.matches ? 'dark' : 'light') : preference;
+    const theme = preference;
     root.dataset.theme = theme;
     root.dataset.themePreference = preference;
     root.style.colorScheme = theme;
@@ -28,6 +28,5 @@ export const THEME_SCRIPT = `(() => {
       apply();
     }
   });
-  media.addEventListener('change', apply);
   apply();
 })();`;

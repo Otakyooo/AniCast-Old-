@@ -4,8 +4,8 @@ from common.staff_dashboard import shadowed_admin_urls
 from common.views import health_live, health_ready, record_visit, staff_login_redirect
 from common.metrics import metrics_view
 
-admin.site.site_header = "AniCast — управление контентом"
-admin.site.site_title = "AniCast Staff"
+admin.site.site_header = "Anicast — управление контентом"
+admin.site.site_title = "Anicast · Управление"
 admin.site.index_title = "Контент и аудит"
 # Editor dashboard on top of the stock index (functional concept §16).
 admin.site.index_template = "staff/index.html"

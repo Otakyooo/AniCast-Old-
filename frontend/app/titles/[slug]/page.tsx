@@ -295,7 +295,7 @@ export default async function CatalogDetailPage({
   ]);
   // Sibling seasons of one franchise must not crowd out other similar titles.
   const similarUnique = dedupeByFranchise(similarRaw);
-  let watchSpace: React.ReactNode = null;
+  let watchProps: React.ComponentProps<typeof WatchSpace> | null = null;
   let watchLoadFailed = false;
   const navigationPlayableNumbers = loadedNavigation?.playable_episode_numbers
     ?? loadedNavigation?.episode_numbers
@@ -349,23 +349,21 @@ export default async function CatalogDetailPage({
       // coverage. An airing series with one playable episode must not turn
       // into a movie and then change its layout after the next release.
       const playbackPresentation = template.playbackPresentation;
-      watchSpace = (
-        <WatchSpace
-          slug={slug}
-          titleName={item.name}
-          playableEpisodeNumbers={resolvedPlayableNumbers}
-          sourceGroups={navigation.source_groups}
-          requestedSourceKey={query.voice}
-          currentNumber={watchNumber}
-          playbackPresentation={playbackPresentation}
-          navigationDegraded={!loadedNavigation}
-          invalidEpisodeRequest={invalidEpisodeRequest}
-          episode={{
+      watchProps = {
+          slug,
+          titleName: item.name,
+          playableEpisodeNumbers: resolvedPlayableNumbers,
+          sourceGroups: navigation.source_groups,
+          requestedSourceKey: query.voice,
+          currentNumber: watchNumber,
+          playbackPresentation,
+          navigationDegraded: !loadedNavigation,
+          invalidEpisodeRequest,
+          episode: {
             synopsis: watchEpisode.synopsis,
             sources: watchEpisode.sources ?? [],
-          }}
-        />
-      );
+          },
+      };
       watchActionHref = hasCurrentPlayback
         ? "#watch"
         : resolvedPlayableNumbers.length
@@ -375,6 +373,8 @@ export default async function CatalogDetailPage({
       watchLoadFailed = true;
     }
   }
+  // The catch above handles loading only; rendering errors use the route boundary.
+  const watchSpace = watchProps ? <WatchSpace {...watchProps} /> : null;
   const rating = titleRating(item);
   const { t, locale } = await getI18n();
   const dayFormatter = new Intl.DateTimeFormat(intlLocale[locale], {

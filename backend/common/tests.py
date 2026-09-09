@@ -624,4 +624,7 @@ def test_staff_index_renders_availability_section():
     assert "Сводка редактора" in body
     # Admin theme is applied on every /staff/ page via base_site override.
     assert "anicast-theme" in body
-    assert "--primary: #7c5cff" in body
+    assert "anicast/admin." in body
+    assert "anicast/theme." in body
+    assert "data-anicast-theme" in body
+    assert "admin/js/theme." not in body

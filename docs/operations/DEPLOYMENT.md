@@ -128,6 +128,8 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
 `scripts/validate.sh` runs shell syntax checks, Compose config validations for all three stacks, promtool/amtool checks of the monitoring configuration with placeholder secrets, the hermetic deploy/rollback test and rejects public metrics routes in Caddy. CI additionally builds both images and validates Caddy with the official image.

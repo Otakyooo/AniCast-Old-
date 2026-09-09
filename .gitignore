@@ -16,6 +16,8 @@ dist/
 coverage/
 *.sqlite3
 *.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
 *.log
 .DS_Store
 .idea/

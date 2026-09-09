@@ -18,12 +18,13 @@ function browser(stored: string | null = null, dark = false, blocked = false) {
   });
   return { root, meta, saved: () => saved, os: (value: boolean) => { media.matches = value; osChange(); }, select: (detail: string) => listeners.get("anicast-theme-change")!({ detail }), storage: (newValue: string | null) => listeners.get("storage")!({ key: "anicast-theme", newValue }) };
 }
-test("first paint follows OS and reacts to subsequent OS changes", () => {
-  const b = browser(null, true);
+test("first paint defaults to dark and ignores OS changes and legacy system mode", () => {
+  const b = browser(null, false);
   assert.equal(b.root.dataset.theme, "dark");
   b.os(false);
-  assert.equal(b.root.dataset.theme, "light");
-  assert.equal(b.meta.content, "#FFFCF7");
+  assert.equal(b.root.dataset.theme, "dark");
+  assert.equal(b.meta.content, "#171311");
+  assert.equal(browser("system", false).root.dataset.themePreference, "dark");
 });
 test("explicit preference persists, overrides OS and synchronizes tabs", () => {
   const b = browser("light", true);
@@ -34,11 +35,11 @@ test("explicit preference persists, overrides OS and synchronizes tabs", () => {
   b.storage("light");
   assert.equal(b.root.dataset.theme, "light");
   b.storage(null); b.os(true);
-  assert.equal(b.root.dataset.themePreference, "system");
+  assert.equal(b.root.dataset.themePreference, "dark");
   assert.equal(b.root.dataset.theme, "dark");
 });
 test("invalid and unavailable storage do not prevent switching", () => {
-  assert.equal(browser("invalid").root.dataset.themePreference, "system");
+  assert.equal(browser("invalid").root.dataset.themePreference, "dark");
   const b = browser(null, false, true);
   b.select("dark");
   assert.equal(b.root.dataset.theme, "dark");

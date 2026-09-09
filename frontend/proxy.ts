@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { contentSecurityPolicy } from "./lib/csp";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24))));
   const policy = contentSecurityPolicy(nonce, process.env.NODE_ENV === "development");
   const headers = new Headers(request.headers);

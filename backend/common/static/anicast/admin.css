@@ -1,0 +1,129 @@
+/* Anicast semantic roles mapped to Django's existing controls and layouts. */
+:root, html[data-theme="dark"], html[data-theme="light"] {
+  color-scheme: dark;
+  --primary: #F3A51B;
+  --secondary: #352A25;
+  --accent: #F3A51B;
+  --primary-fg: #211A16;
+  --body-fg: #FFF0DA;
+  --body-bg: #171311;
+  --body-quiet-color: #CBB49A;
+  --body-medium-color: #CBB49A;
+  --body-loud-color: #FFF0DA;
+  --surface: #28201D;
+  --header-color: var(--body-fg);
+  --header-branding-color: var(--body-fg);
+  --header-bg: var(--surface);
+  --header-link-color: var(--body-fg);
+  --breadcrumbs-fg: var(--body-quiet-color);
+  --breadcrumbs-link-fg: var(--body-fg);
+  --breadcrumbs-bg: var(--surface);
+  --link-fg: #F3A51B;
+  --link-hover-color: #FFF0DA;
+  --link-selected-fg: var(--body-fg);
+  --hairline-color: #54443A;
+  --border-color: #54443A;
+  --error-fg: #F08080;
+  --success-fg: #48B889;
+  --warning-fg: #F3A51B;
+  --message-success-bg: #20372B;
+  --message-warning-bg: #44351E;
+  --message-error-bg: #442626;
+  --darkened-bg: var(--surface);
+  --selected-bg: #352A25;
+  --selected-row: #44351E;
+  --button-fg: #211A16;
+  --button-bg: #F3A51B;
+  --button-hover-bg: #E3940E;
+  --default-button-bg: #F3A51B;
+  --default-button-hover-bg: #E3940E;
+  --close-button-bg: #54443A;
+  --close-button-hover-bg: #352A25;
+  --delete-button-bg: #B32632;
+  --delete-button-hover-bg: #8E1D28;
+  --object-tools-fg: var(--button-fg);
+  --object-tools-bg: var(--button-bg);
+  --object-tools-hover-bg: var(--button-hover-bg);
+  --focus-ring: #F3A51B;
+  --brand-wordmark: #FFF0DA;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+  --secondary: #F6EFE5;
+  --body-fg: #211A16;
+  --body-bg: #FFFCF7;
+  --body-quiet-color: #746151;
+  --body-medium-color: #746151;
+  --body-loud-color: #211A16;
+  --surface: #FFFFFF;
+  --link-fg: #743047;
+  --link-hover-color: #211A16;
+  --hairline-color: #DED1C2;
+  --border-color: #DED1C2;
+  --error-fg: #B32632;
+  --success-fg: #26734D;
+  --warning-fg: #805408;
+  --message-success-bg: #EAF3ED;
+  --message-warning-bg: #FFF0DA;
+  --message-error-bg: #FBECEE;
+  --selected-bg: #F6EFE5;
+  --selected-row: #FFF0DA;
+  --close-button-bg: #746151;
+  --close-button-hover-bg: #54443A;
+  --focus-ring: #743047;
+  --brand-wordmark: #743047;
+}
+body { font-size: 14px; line-height: 1.5 }
+#header { gap: 16px; border-bottom: 1px solid var(--border-color); padding: 16px 32px }
+#branding #site-name { margin: 0 }
+#branding .anicast-brand { display: flex; align-items: center; gap: 12px; text-decoration: none }
+#branding .anicast-brand:link, #branding .anicast-brand:visited { color: var(--body-fg) }
+.anicast-brand img { flex-shrink: 0; background: transparent }
+.anicast-wordmark { font-size: 22px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15 }
+.anicast-wordmark strong { color: var(--brand-wordmark) }
+.anicast-brand-caption { display: block; font-size: 12px; color: var(--body-quiet-color); margin-top: 2px }
+#user-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; line-height: 1.5; text-transform: none; letter-spacing: 0; font-size: 13px }
+#user-tools a, #logout-form button { border-bottom-color: var(--border-color) }
+.anicast-theme-control { display: inline-flex; gap: 8px; align-items: center; font-size: 13px }
+.anicast-theme-control select { min-height: 40px; background: var(--surface); color: var(--body-fg); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 10px }
+.module, .inline-group { border: 1px solid var(--border-color); border-radius: 10px; background: var(--surface) }
+.module h2, .module caption, .inline-group h2 { background: var(--selected-bg); color: var(--body-fg) }
+.module caption a.section:link, .module caption a.section:visited { color: var(--body-fg) }
+.module caption { border-radius: 9px 9px 0 0 }
+.dashboard .module table { width: 100% }
+.dashboard #content { width: auto; max-width: 1480px; margin-right: 0 }
+.dashboard #content-main { width: calc(100% - 300px) }
+.dashboard #content-related { width: 270px; margin-right: 0 }
+#result_list tbody tr:hover { background: var(--selected-bg) }
+.button, a.button, input[type="submit"], input[type="button"], .object-tools a, .submit-row input { border-radius: 8px; min-height: 36px; box-sizing: border-box }
+.button, input, select, textarea { font-family: inherit }
+input, select, textarea { accent-color: var(--primary) }
+input:focus, textarea:focus, select:focus { border-color: var(--focus-ring) }
+:is(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px }
+a.deletelink, .submit-row a.deletelink { color: #FFFFFF }
+.staff-section-title { margin: 24px 0 12px; font-size: 16px; font-weight: 700; color: var(--body-fg) }
+.staff-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin-bottom: 20px }
+.staff-dash-card { display: grid; gap: 6px; align-content: start; padding: 18px; border: 1px solid var(--border-color); border-left: 4px solid var(--border-color); border-radius: 10px; background: var(--surface); color: var(--body-fg); text-decoration: none }
+a.staff-dash-card:link, a.staff-dash-card:visited { color: var(--body-fg) }
+a.staff-dash-card:hover { background: var(--selected-bg); color: var(--body-fg) }
+.staff-dash-value { font-size: 24px; font-weight: 700; line-height: 1.3; display: flex; align-items: center; gap: 8px }
+.staff-dash-label { font-weight: 650 }
+.staff-dash-hint { color: var(--body-quiet-color); font-size: 13px; line-height: 1.6 }
+.staff-dash-card--ok { border-left-color: var(--success-fg) }
+.staff-dash-card--warn { border-left-color: var(--warning-fg) }
+.staff-dash-card--danger { border-left-color: var(--error-fg) }
+.staff-dash-card--danger .staff-dash-value { color: var(--error-fg) }
+.staff-dash-card--warn .staff-dash-value { color: var(--warning-fg) }
+.staff-status-dot::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--success-fg); flex-shrink: 0 }
+.staff-status-dot--danger::before { background: var(--error-fg) }
+.staff-status-dot--warn::before { background: var(--warning-fg) }
+@media (max-width: 1024px) {
+  #header { padding: 16px 20px }
+  .dashboard #content-main, .dashboard #content-related { width: 100%; margin: 0 }
+}
+@media (max-width: 767px) {
+  #header { align-items: flex-start; padding: 12px 16px }
+  #user-tools { justify-content: flex-start; text-align: left }
+  .anicast-theme-control { margin-top: 4px }
+  .staff-dash { grid-template-columns: 1fr }
+}

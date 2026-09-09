@@ -541,8 +541,8 @@ summary:focus-visible {
   }
 }
 
-/* A neutral tile gives the same berry hat contrast in both themes. */
-.brand-logo { background: #FFFCF7; border-radius: 8px }
+/* The SVG is transparent: never place a rectangular tile behind the mascot. */
+.brand-logo { background: transparent }
 :root[data-theme="dark"] .brand-wordmark strong { color: var(--text) }
 .primary:disabled, button[class*="Cta"]:disabled { background: var(--surface-control); border-color: var(--border); color: var(--muted); opacity: 1 }
 html[data-theme="light"] a:hover { text-decoration-color: var(--accent-text) }

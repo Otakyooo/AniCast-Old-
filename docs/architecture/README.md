@@ -11,6 +11,7 @@ broker/results, control и disposable cache. Monitoring не подключае�
 | [003: firewall](003-vps-firewall.md) | Только owned nft table, сохранение Docker/AWG, закрытые служебные порты |
 | [004: registry/recovery](004-registry-and-recovery.md) | CI builds, immutable digests/env, независимая репетиция восстановления |
 | [005: control/offline](005-control-and-offline-recovery.md) | Третий Redis, авторитетное control state, offline credentials и RPO/RTO |
+| [006: Next 16](006-next16.md) | Node proxy с nonce, Turbopack в CI, прежние runtime-лимиты и image rollback |
 
 ADR сохраняет контекст решения на дату принятия. При изменении границы сервисов,
 владельца данных или контракта релиза добавить следующее решение и отметить,

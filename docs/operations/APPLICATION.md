@@ -223,7 +223,7 @@ What the earlier measurement actually found was crawler load: 46% of edge reques
 
 ## Response headers and CSP
 
-`frontend/middleware.ts` creates a fresh random nonce for each HTML response and
+`frontend/proxy.ts` creates a fresh random nonce for each HTML response and
 overwrites incoming nonce/CSP headers. `frontend/lib/csp.ts` is the policy source:
 scripts use `self`, nonce and `strict-dynamic`; script attributes are forbidden.
 Style elements require a nonce; numeric React style attributes remain allowed
