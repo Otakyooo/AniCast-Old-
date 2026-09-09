@@ -80,9 +80,15 @@ with TemporaryDirectory(prefix="anicast-browser-") as directory:
     print("Disposable browser API ready", flush=True)
     if seed_check:
         from django.test import Client
-        client = Client(HTTP_HOST="127.0.0.1")
+        client = Client(enforce_csrf_checks=True, HTTP_HOST="127.0.0.1:3100")
         assert client.get("/api/v1/titles/browser-fixture/").status_code == 200
         assert client.get("/api/v1/sources/1/playback/").status_code == 200
+        csrf = client.get("/api/v1/auth/csrf/").json()["csrfToken"]
+        assert client.post("/api/v1/auth/login/", {
+            "email": "desktop-player@example.invalid", "password": "Browser-fixture-passphrase-2042",
+        }, content_type="application/json", HTTP_X_CSRFTOKEN=csrf,
+            HTTP_ORIGIN="http://127.0.0.1:3100").status_code == 200
+        assert client.get("/api/v1/episodes/browser-fixture/1/progress/").json()["watched_seconds"] == 120
         from django.db import connections
         connections.close_all()
         print("Fixture seed and real catalogue/playback views verified without a listener")

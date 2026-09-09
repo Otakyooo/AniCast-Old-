@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { contentSecurityPolicy } from "./lib/csp";
 
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname !== "/" && request.nextUrl.pathname.endsWith("/")) {
+    const canonical = request.nextUrl.clone();
+    canonical.pathname = canonical.pathname.replace(/\/+$/, "");
+    return NextResponse.redirect(canonical, 308);
+  }
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24))));
   const policy = contentSecurityPolicy(nonce, process.env.NODE_ENV === "development");
   const headers = new Headers(request.headers);

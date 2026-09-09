@@ -22,11 +22,13 @@ test("clearing or replacing a query cannot show stale results or selection", asy
   await requested;
   await search.fill("new");
   await expect(page.getByRole("option").filter({ hasText: "new result" })).toBeVisible();
+  await search.fill("new ");
+  await expect(page.getByRole("option").filter({ hasText: "new result" })).toBeVisible();
   await search.press("ArrowDown");
   await expect(search).toHaveAttribute("aria-activedescendant", /.+/);
   release();
   await search.clear();
-  await expect(page.getByRole("option")).toHaveCount(0);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(0);
   await expect(search).not.toHaveAttribute("aria-activedescendant");
   await search.fill("new");
   await expect(page.getByRole("option").filter({ hasText: "new result" })).toBeVisible();

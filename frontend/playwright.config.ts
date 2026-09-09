@@ -5,6 +5,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
+  maxFailures: process.env.CI ? 3 : 0,
   reporter: "list",
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
   projects: [

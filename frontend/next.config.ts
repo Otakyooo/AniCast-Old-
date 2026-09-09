@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // Bound build-time page workers on the small maintenance builder.
   experimental: { cpus: 1 },
   poweredByHeader: false,
+  // Django owns API slash semantics. Next's global slash removal runs before
+  // rewrites and loops with Django's APPEND_SLASH when using this proxy.
+  // Page canonicalization remains in proxy.ts (its matcher excludes /api/).
+  skipTrailingSlashRedirect: true,
   async headers() {
     const noIndex = [{ key: "X-Robots-Tag", value: "noindex, follow" }];
     return [

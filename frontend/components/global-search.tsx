@@ -222,7 +222,9 @@ export function GlobalSearch() {
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
-              setResult(null);
+              // Whitespace-only edits keep the same request/result. Clearing
+              // it here would leave loading forever: `trimmed` did not change.
+              if (event.target.value.trim() !== trimmed) setResult(null);
               setActiveIndex(-1);
               setOpen(true);
             }}
