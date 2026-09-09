@@ -128,3 +128,30 @@ Safari/Firefox и скринридер по-прежнему не покрыты
   «последние 10 + удаление» частично покрыто существующей resume-полкой.
 - `staticfiles/` в операторском чекауте остаётся root-владельцем: локальные
   admin-тесты требуют `sudo chown` или свежего collectstatic; в CI не влияет.
+
+## Выпуск
+
+Source release: `092c630e1bfeb302c28a0269d2c532dd959c34d0`.
+[CI/publish 34411557135](https://github.com/Otakyooo/AniCast/actions/runs/34411557135)
+прошёл; release-артефакт скачан и сверен с release.json.
+
+Образы по digest:
+backend `ghcr.io/otakyooo/anicast-backend@sha256:b9a159cba7eab0b19431c249c7650f8a4bef5389fa2a1021fabfb4a85329fd4d`,
+frontend `ghcr.io/otakyooo/anicast-frontend@sha256:4b5776cf23cdca9bad48e4519edb9c4ef9dd4d69dca94d7831e411c78ac89e6d`.
+
+Pre-deploy: `BACKUP_NOTIFY=0 scripts/backup-db.sh` — проверенный дамп
+`anicast-20260909T225413Z.dump` (3589354 bytes), маркер last_backup обновлён.
+
+Deploy MainServer (state dir `~/anicast/backups/releases/mainserver`, runtime env
+`predeploy-20260909-hardening/runtime.env`): data-сервисы → backend →
+worker/beat → bulk, все health gates прошли, `deployment verified for mainserver`.
+Deploy VPS (`/opt/anicast`, runtime env `anicast-security-13286f9/runtime.env`):
+frontend healthy, `deployment verified for vps`.
+
+Публичные проверки: `https://anicast.online/` 200; `/api/v1/titles/?page_size=1`
+200; `/internal/metrics` не 200 снаружи. Новые эндпоинты на проде:
+`/titles/airing/` — 1 онгоинг (Ван-Пис) с `last_episode_number`/`next_episode_at`;
+`/episodes/recent/` — серия 1177. HTML главной содержит «Продолжить просмотр»,
+«Недавно вышли», «Сейчас выходит», «Чаще добавляют». Digest запущенных
+контейнеров совпадает с манифестами. Откат: `scripts/rollback.sh` на каждом
+стеке при необходимости.
