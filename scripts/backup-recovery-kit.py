@@ -29,7 +29,7 @@ def main():
     private_home = Path.home()
     files = {f"infra/{role}/runtime.env": root / f"infra/{role}/.env"}
     files[f"infra/{role}/compose.yml"] = root / f"infra/{role}/compose.yml"
-    for name in ("deploy.sh", "rollback.sh", "verify-deploy.sh"):
+    for name in ("deploy.sh", "rollback.sh", "start-release.sh", "verify-deploy.sh"):
         files["scripts/" + name] = root / "scripts" / name
     if role == "mainserver":
         files.update({
