@@ -16,6 +16,7 @@
 | 09.09: frontend security patch и npm gate | [Релиз](releases/RELEASE-2026-09-09-frontend-security.md) |
 | 09.09: Next 16, две темы, логотип и админка | [Релиз](releases/RELEASE-2026-09-09-next16.md) |
 | 09.09: API до workers, адаптивная шапка и мобильный hero | [Релиз](releases/RELEASE-2026-09-09-staged-design.md) |
+| 09.09: React state, вход/плеер E2E и ограниченная нагрузка | [Релиз](releases/RELEASE-2026-09-09-react-scenarios.md) |
 
 Сохранены [аудит 08.09](audits/SYSTEM_AUDIT-2026-09-08.md),
 [прежняя сводка](IMPLEMENTATION_STATUS-2026-09-07.md) и планы:
