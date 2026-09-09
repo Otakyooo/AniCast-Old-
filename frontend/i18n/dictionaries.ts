@@ -370,4 +370,13 @@ Object.assign(en, {
   "security.mailUnavailable":"Email delivery is not configured yet — please contact support.",
 });
 
+Object.assign(ru, {
+  "watch.reloadPlayer": "Перезапустить плеер",
+  "watch.loadingSlow": "Плеер загружается дольше обычного. Можно подождать, повторить загрузку или выбрать другую озвучку.",
+});
+Object.assign(en, {
+  "watch.reloadPlayer": "Reload player",
+  "watch.loadingSlow": "The player is taking longer than usual. Wait, retry loading or choose another voice-over.",
+});
+
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };

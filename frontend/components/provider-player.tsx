@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ArrowClockwise } from "@phosphor-icons/react";
 import { getPlayback, type PlaybackMode } from "../lib/api";
 import {
   getEpisodeProgress,
@@ -54,7 +55,25 @@ interface ProviderPlayerProps {
 }
 
 export function ProviderPlayer(props: ProviderPlayerProps) {
-  return <PlayerSession key={`${props.slug}:${props.episodeNumber}:${props.sourceId}:${props.playbackMode}`} {...props} />;
+  return <ReloadablePlayer key={`${props.slug}:${props.episodeNumber}:${props.sourceId}:${props.playbackMode}`} {...props} />;
+}
+
+function ReloadablePlayer(props: ProviderPlayerProps) {
+  const { t } = useI18n();
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => setAttempt((value) => value + 1);
+  return (
+    <div className={styles.playerShell}>
+      <div className={styles.playerToolbar}>
+        <strong>{props.title}</strong>
+        <button type="button" onClick={retry} aria-label={t("watch.reloadPlayer")} title={t("watch.reloadPlayer")}>
+          <ArrowClockwise size={18} aria-hidden="true" />
+          <span>{t("watch.reloadPlayer")}</span>
+        </button>
+      </div>
+      <PlayerSession key={attempt} {...props} onRetry={retry} />
+    </div>
+  );
 }
 
 function PlayerSession({
@@ -64,10 +83,12 @@ function PlayerSession({
   slug,
   episodeNumber,
   onProgressChange,
-}: ProviderPlayerProps) {
+  onRetry,
+}: ProviderPlayerProps & { onRetry: () => void }) {
   const { t } = useI18n();
   const [state, setState] = useState<PlayerState>({ kind: "loading" });
   const [frameLoaded, setFrameLoaded] = useState(false);
+  const [loadSlow, setLoadSlow] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const progressCallbackRef = useRef(onProgressChange);
 
@@ -77,7 +98,8 @@ function PlayerSession({
 
   useEffect(() => {
     let active = true;
-    getPlayback(sourceId).then((payload) => {
+    const controller = new AbortController();
+    getPlayback(sourceId, controller.signal).then((payload) => {
       const target = safePlaybackTarget(payload, window.location.origin);
       if (target.mode !== playbackMode || target.mode !== "iframe_embed") {
         throw new Error("Playback mode changed");
@@ -85,8 +107,16 @@ function PlayerSession({
       if (!active) return;
       setState({ kind: "ready", src: target.url });
     }).catch(() => { if (active) setState({ kind: "error" }); });
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [episodeNumber, playbackMode, sourceId]);
+
+  useEffect(() => {
+    if (frameLoaded || state.kind === "error") return;
+    // A cross-origin iframe has no reliable error event. Keep it mounted so
+    // slow loads can recover, but never leave the viewer with an endless veil.
+    const timer = window.setTimeout(() => setLoadSlow(true), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [frameLoaded, state.kind]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -212,7 +242,7 @@ function PlayerSession({
         .catch((reason) => {
           if (!active) return;
           if (reason instanceof HistoryApiError && [401, 403].includes(reason.status)) markGuest();
-          else publish("error");
+          else { lastSentPosition = -1; publish("error"); }
         })
         .finally(() => {
           syncInFlight = false;
@@ -317,31 +347,19 @@ function PlayerSession({
     };
   }, [episodeNumber, slug, sourceId]);
 
-  async function retry() {
-    setState({ kind: "loading" });
-    setFrameLoaded(false);
-    try {
-      const payload = await getPlayback(sourceId);
-      const target = safePlaybackTarget(payload, window.location.origin);
-      if (target.mode !== playbackMode || target.mode !== "iframe_embed") throw new Error("Playback mode changed");
-      setState({ kind: "ready", src: target.url });
-    } catch { setState({ kind: "error" }); }
-  }
-
   return (
     <section
-      className={styles.playerShell}
       aria-label={title}
       aria-busy={state.kind === "loading" || (state.kind === "ready" && !frameLoaded)}
     >
       <div className={styles.playerFrameWrap}>
-        {(state.kind === "loading" || (state.kind === "ready" && !frameLoaded)) && (
+        {!loadSlow && (state.kind === "loading" || (state.kind === "ready" && !frameLoaded)) && (
           <span className={styles.playerLoading} role="status">{t("common.loading")}</span>
         )}
         {state.kind === "error" && (
           <div className={styles.playerError} role="alert">
             <span>{t("watch.sourceFailed")}</span>
-            <button className="secondary inline-button" type="button" onClick={retry}>
+            <button className="secondary inline-button" type="button" onClick={onRetry}>
               {t("common.retry")}
             </button>
           </div>
@@ -360,6 +378,12 @@ function PlayerSession({
           />
         )}
       </div>
+      {loadSlow && !frameLoaded && state.kind !== "error" && (
+        <div className={styles.playerSlow} role="status">
+          <span>{t("watch.loadingSlow")}</span>
+          <button type="button" onClick={onRetry}>{t("common.retry")}</button>
+        </div>
+      )}
     </section>
   );
 }

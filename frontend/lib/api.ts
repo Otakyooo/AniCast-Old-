@@ -443,6 +443,6 @@ export async function getMedia(kind = ""): Promise<MediaResponse> {
   return request<MediaResponse>(`/media/${query}`, revalidated(300));
 }
 
-export async function getPlayback(sourceId: number): Promise<PlaybackResponse> {
-  return request<PlaybackResponse>(`/sources/${sourceId}/playback/`, { cache: "no-store" });
+export async function getPlayback(sourceId: number, signal?: AbortSignal): Promise<PlaybackResponse> {
+  return request<PlaybackResponse>(`/sources/${sourceId}/playback/`, { cache: "no-store", signal });
 }

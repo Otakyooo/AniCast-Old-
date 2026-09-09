@@ -371,6 +371,8 @@ function TitleWatchSpace({
   }, [episodeDialogMounted]);
 
   function chooseGroup(key: string) {
+    if (key === selectedGroupKey) return;
+    setEpisodeQuery("");
     setGroupChoice({ scope: selectionScope, key });
     router.replace(titleWatchHref(slug, currentNumber, key), { scroll: false });
   }
@@ -383,6 +385,7 @@ function TitleWatchSpace({
     event.preventDefault();
     if (!visibleEpisodeNumbers.length) return;
     chooseEpisode(visibleEpisodeNumbers[0]);
+    setEpisodeQuery("");
     episodeDialogRef.current?.close();
   }
 
@@ -449,7 +452,9 @@ function TitleWatchSpace({
             meta?.name ?? "",
             watched ? t("watch.watchedMark") : "",
           ].filter(Boolean).join(" · ")}
-          onClick={() => { if (closeDialog) episodeDialogRef.current?.close(); }}
+          scroll={false}
+          prefetch={false}
+          onClick={() => { setEpisodeQuery(""); if (closeDialog) episodeDialogRef.current?.close(); }}
         >
           <span className={styles.episodeRowMain}>
             <span className={styles.episodeRowNumber}>{t("episode.number", { number })}</span>
@@ -628,6 +633,7 @@ function TitleWatchSpace({
               )}
               <div className={styles.episodeRailHeading}>
                 <h3>{t("title.episodes")}</h3>
+                <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
               </div>
               {episodeRangeControl("watch-episode-range")}
               <ol className={styles.episodeRailList}>{episodeList()}</ol>

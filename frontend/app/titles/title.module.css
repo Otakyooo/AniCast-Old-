@@ -800,6 +800,43 @@
   min-height: 220px;
 }
 
+.playerToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 5px 12px 5px 16px;
+  background: var(--surface-elevated);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.playerToolbar strong { min-width: 0; font-size: 14px; overflow-wrap: anywhere }
+.playerToolbar button, .playerSlow button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-shrink: 0;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 9px;
+  background: var(--surface-control);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.playerToolbar button:hover, .playerSlow button:hover { background: var(--surface-control-hover) }
+.playerToolbar button:focus-visible, .playerSlow button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px }
+.playerSlow { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface-elevated); color: var(--text); font-size: 14px }
+@media (max-width: 640px) {
+  .playerToolbar button span { display: none }
+  .playerToolbar { padding-left: 12px }
+}
+
 .playerFrame,
 .playerLoading {
   position: absolute;
@@ -1045,7 +1082,7 @@
 }
 
 .episodeRailHeading h3 { margin: 0; color: var(--text); font-size: 14px }
-.episodeRailHeading span { color: var(--muted-2); font-size: 10px }
+.episodeRailHeading span { color: var(--muted-2); font-size: 12px }
 
 .railWarning {
   margin: 10px 10px 0;

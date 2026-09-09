@@ -19,6 +19,7 @@ import styles from "../app/titles/title.module.css";
 interface TitleActionsProps {
   slug: string;
   watchHref?: string;
+  explicitEpisode?: boolean;
 }
 
 /** Primary playback link plus authenticated library and favorite actions. */
@@ -27,7 +28,7 @@ export function TitleActions(props: TitleActionsProps) {
   return <TitleActionsContent key={`${props.slug}:${locale}`} {...props} />;
 }
 
-function TitleActionsContent({ slug, watchHref }: TitleActionsProps) {
+function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: TitleActionsProps) {
   const { t } = useI18n();
   const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
   const [guest, setGuest] = useState(false);
@@ -99,9 +100,9 @@ function TitleActionsContent({ slug, watchHref }: TitleActionsProps) {
     <div className={styles.actions}>
       <div className={styles.actionRow}>
         {watchHref && (
-          <Link className={styles.watch} href={resumeNumber !== null ? titleWatchHref(slug, resumeNumber) : watchHref}>
+          <Link className={styles.watch} href={!explicitEpisode && resumeNumber !== null ? titleWatchHref(slug, resumeNumber) : watchHref}>
             <Play aria-hidden="true" weight="fill" size={18} />
-            {resumeNumber !== null
+            {!explicitEpisode && resumeNumber !== null
               ? t("title.continueEpisode", { number: resumeNumber })
               : t("watch.title")}
           </Link>

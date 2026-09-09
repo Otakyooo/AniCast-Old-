@@ -142,11 +142,13 @@ function isoDay(value: string): Date {
 function EpisodeCard({
   episode,
   slug,
+  voice,
   dayFormatter,
   t,
 }: {
   episode: Episode;
   slug: string;
+  voice?: string;
   dayFormatter: Intl.DateTimeFormat;
   t: Translator;
 }) {
@@ -157,7 +159,8 @@ function EpisodeCard({
     <li>
       <Link
         className={styles.episodeCard}
-        href={titleWatchHref(slug, episode.number)}
+        href={titleWatchHref(slug, episode.number, voice)}
+        prefetch={false}
         aria-label={`${episodeLabel}: ${episodeName}`}
       >
         <span className={styles.episodeBody}>
@@ -301,7 +304,7 @@ export default async function CatalogDetailPage({
     ?? loadedNavigation?.episode_numbers
     ?? [];
   let watchActionHref = tab !== "overview" && navigationPlayableNumbers.length
-    ? titleWatchHref(item.slug, navigationPlayableNumbers[0])
+    ? titleWatchHref(item.slug, navigationPlayableNumbers.includes(Number(query.episode)) ? Number(query.episode) : navigationPlayableNumbers[0], query.voice)
     : undefined;
   let watchRetryNumber = firstEpisode;
   if (tab === "overview" && episodesCount > 0 && firstEpisode !== null) {
@@ -385,7 +388,16 @@ export default async function CatalogDetailPage({
   // Raw counts like "1180" read as noise in a tab; "1,2 тыс." keeps the scale.
   const compactCount = new Intl.NumberFormat(intlLocale[locale], { notation: "compact" }).format;
 
-  const tabHref = (value: Tab) => value === "overview" ? `/titles/${item.slug}` : `/titles/${item.slug}?tab=${value}`;
+  const tabHref = (value: Tab, page = 1) => {
+    const state = new URLSearchParams();
+    if (value !== "overview") state.set("tab", value);
+    const episodeNumber = Number(query.episode);
+    if (Number.isInteger(episodeNumber) && episodeNumber > 0) state.set("episode", String(episodeNumber));
+    if (query.voice?.trim()) state.set("voice", query.voice.trim());
+    if (page > 1 && value === "episodes") state.set("episodes_page", String(page));
+    if (page > 1 && value === "characters") state.set("characters_page", String(page));
+    return `/titles/${item.slug}${state.size ? `?${state}` : ""}#${value === "overview" ? "watch" : "title-tabs"}`;
+  };
   const tabLabel: Record<Tab, string> = {
     overview: t("title.tabOverview"),
     episodes: t("title.tabEpisodes"),
@@ -455,7 +467,7 @@ export default async function CatalogDetailPage({
             {rating && (
               <Link
                 className={styles.metaRating}
-                href={`/titles/${item.slug}?tab=community`}
+                href={tabHref("community")}
                 // Numeric-only tooltip keeps every locale free of plural forms.
                 title={`${rating.average} / 10 · ${rating.count}`}
               >
@@ -487,6 +499,7 @@ export default async function CatalogDetailPage({
         <TitleActions
           slug={item.slug}
           watchHref={watchActionHref}
+          explicitEpisode={Boolean(query.episode)}
         />
         {/* Library-adjacent personal actions live together under the hero
             buttons instead of scattering down the page. */}
@@ -496,11 +509,12 @@ export default async function CatalogDetailPage({
         </div>
       </article>
 
-      <nav className={styles.tabs} aria-label={t("title.tabOverview")}>
+      <nav className={styles.tabs} id="title-tabs" aria-label={t("title.tabOverview")}>
         {TABS.filter((value) => value !== "episodes" || template.showEpisodeTab).map((value) => (
           <Link
             className={`${styles.tab} ${value === tab ? styles.tabActive : ""}`}
             href={tabHref(value)}
+            prefetch={false}
             aria-current={value === tab ? "page" : undefined}
             key={value}
           >
@@ -557,7 +571,7 @@ export default async function CatalogDetailPage({
               <div className="section-heading">
                 <h2>{t("title.charactersMain")}</h2>
                 {cast.length > mainCast.length && (
-                  <Link href={`/titles/${item.slug}?tab=characters`}>{t("title.peopleAll")}</Link>
+                  <Link href={tabHref("characters")}>{t("title.peopleAll")}</Link>
                 )}
               </div>
               <div className={styles.castGrid}>
@@ -600,7 +614,7 @@ export default async function CatalogDetailPage({
         <div className={styles.panel}>
           {episodes.length ? (
             <ol className={styles.episodeList}>
-              {episodes.map((episode) => <EpisodeCard episode={episode} slug={item.slug} dayFormatter={dayFormatter} t={t} key={episode.number} />)}
+              {episodes.map((episode) => <EpisodeCard episode={episode} slug={item.slug} voice={query.voice} dayFormatter={dayFormatter} t={t} key={episode.number} />)}
             </ol>
           ) : (
             <div className="empty-state" role="status">
@@ -611,13 +625,13 @@ export default async function CatalogDetailPage({
           {pageCount > 1 && (
             <nav className="episode-pagination" aria-label={t("title.episodes")}>
               {requestedPage > 1 && (
-                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${requestedPage - 1}`}>
+                <Link className="secondary" href={tabHref("episodes", requestedPage - 1)}>
                   {t("common.back")}
                 </Link>
               )}
               <span>{t("catalog.page", { current: requestedPage, total: pageCount })}</span>
               {requestedPage < pageCount && (
-                <Link className="secondary" href={`/titles/${item.slug}?tab=episodes&episodes_page=${requestedPage + 1}`}>
+                <Link className="secondary" href={tabHref("episodes", requestedPage + 1)}>
                   {t("common.next")}
                 </Link>
               )}
@@ -637,9 +651,9 @@ export default async function CatalogDetailPage({
             ) : <p className="muted">{t("title.noCast")}</p>}
             {castPageCount > 1 && (
               <nav className="episode-pagination" aria-label={t("title.characters")}>
-                {charactersPage > 1 ? <Link className="secondary" href={`/titles/${item.slug}?tab=characters&characters_page=${charactersPage - 1}`}>{t("common.back")}</Link> : <span />}
+                {charactersPage > 1 ? <Link className="secondary" href={tabHref("characters", charactersPage - 1)}>{t("common.back")}</Link> : <span />}
                 <span>{t("catalog.page", { current: charactersPage, total: castPageCount })} · {castCount}</span>
-                {charactersPage < castPageCount ? <Link className="secondary" href={`/titles/${item.slug}?tab=characters&characters_page=${charactersPage + 1}`}>{t("common.next")}</Link> : <span />}
+                {charactersPage < castPageCount ? <Link className="secondary" href={tabHref("characters", charactersPage + 1)}>{t("common.next")}</Link> : <span />}
               </nav>
             )}
           </section>

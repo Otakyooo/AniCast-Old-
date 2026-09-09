@@ -105,9 +105,18 @@ test("player restores position, rejects forged messages, saves pause and complet
   })));
   expect((await (await context.request.get(progressPath)).json()).is_watched).toBe(false);
   await frame.getByRole("button", { name: "Play", exact: true }).click();
+  let failSave = true;
+  await page.route(`**${progressPath}`, route => {
+    if (route.request().method() !== "PATCH" || !failSave) return route.continue();
+    failSave = false;
+    return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+  await frame.getByRole("button", { name: "Pause at 180", exact: true }).click();
+  await expect(page.locator("#watch").getByText("Не удалось сохранить прогресс", { exact: true })).toBeVisible();
+  // Retrying the same position after a failed save must not be deduplicated.
   await frame.getByRole("button", { name: "Pause at 180", exact: true }).click();
   await expect.poll(async () => (await (await context.request.get(progressPath)).json()).watched_seconds).toBe(180);
-  await page.reload();
+  await page.locator("#watch").getByRole("button", { name: "Перезапустить плеер", exact: true }).click();
   await frame.getByRole("button", { name: "Duration", exact: true }).click();
   await expect(frame.locator("#seek")).toHaveText("180");
   let release!: () => void;
@@ -174,4 +183,53 @@ test("guest player retries a failed source; late response cannot replace the new
   await page.goto("/titles/browser-fixture?episode=2#watch");
   await expect.poll(() => page.frames().some(frame => frame.url().includes("fixture-2-Alpha"))).toBe(true);
   await expect(page.locator("#watch iframe")).toHaveCount(1);
+});
+
+test("title tabs preserve episode and voice; player controls fit both themes", async ({ page }, info) => {
+  await stubVideo(page);
+  await page.goto("/titles/browser-fixture?episode=2#watch");
+  await page.locator("#watch").getByRole("button", { name: "Beta", exact: true }).click();
+  await expect(page).toHaveURL(/episode=2&voice=.+#watch$/);
+  const voice = new URL(page.url()).searchParams.get("voice");
+  await page.locator("#title-tabs").getByRole("link", { name: /^Серии/ }).click();
+  await expect(page).toHaveURL(/tab=episodes&episode=2&voice=.+#title-tabs$/);
+  await expect(page.locator("main").getByRole("link", { name: "Смотреть", exact: true })).toHaveAttribute("href", `/titles/browser-fixture?episode=2&voice=${voice}#watch`);
+  await page.locator("#title-tabs").getByRole("link", { name: "Обзор", exact: true }).click();
+  await expect.poll(() => page.frames().some(frame => frame.url().includes("fixture-2-Beta"))).toBe(true);
+  await expect(page.locator("#watch").getByRole("button", { name: "Beta", exact: true })).toHaveAttribute("aria-pressed", "true");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => {
+      localStorage.setItem("anicast-theme", value);
+      document.documentElement.dataset.theme = value;
+    }, theme);
+    await page.locator("#watch").scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const button = await page.locator("#watch").getByRole("button", { name: "Перезапустить плеер", exact: true }).boundingBox();
+    expect(button!.height).toBeGreaterThanOrEqual(44);
+    expect(button!.width).toBeGreaterThanOrEqual(44);
+    await page.screenshot({ path: info.outputPath(`tab-player-${theme}.png`), animations: "disabled", fullPage: true });
+  }
+});
+
+test("a stalled iframe exposes recovery and can finish loading later", async ({ page }) => {
+  await stubVideo(page);
+  let release!: () => void;
+  let reached!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const requested = new Promise<void>(resolve => { reached = resolve; });
+  await page.context().route("https://kodikplayer.com/**", async route => {
+    reached();
+    await held;
+    await route.fallback();
+  }, { times: 1 });
+  await page.clock.install();
+  try {
+    await page.goto(titlePath, { waitUntil: "domcontentloaded" });
+    await requested;
+    await page.clock.fastForward(16_000);
+    await expect(page.locator("#watch").getByText(/Плеер загружается дольше обычного/)).toBeVisible();
+    await expect(page.locator("#watch").getByRole("button", { name: "Перезапустить плеер", exact: true })).toBeEnabled();
+  } finally { release(); }
+  await expect(page.frameLocator("#watch iframe").getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(page.locator("#watch").getByText(/Плеер загружается дольше обычного/)).toHaveCount(0);
 });
