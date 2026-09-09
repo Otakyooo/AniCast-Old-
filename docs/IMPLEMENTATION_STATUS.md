@@ -15,9 +15,12 @@
   уникальный nonce CSP и private/no-store; image cache переживает релиз.
 - CI проверяет backend/frontend/infrastructure и публикует GHCR images по digest.
   Есть immutable release env, health gates, image rollback, firewall и мониторинг.
+- На VPS развёрнут Next 15.5.25 / sharp 0.35.4; js-yaml обновлён до 4.3.2.
+  npm audit: 0 уязвимостей; high/critical блокируют CI. Native image runtime и
+  браузерная проверка прошли. [Релиз](archive/releases/RELEASE-2026-09-09-frontend-security.md).
 - Внешние зашифрованные DB/media backups и recovery kits. Собственный Google
   OAuth активен; refresh/read/write и SHA-256 новой копии проверены вне MainServer.
-  Последние kits: 20260908T234633Z, все 21/11 файлов проверены.
+  Последние kits: 20260909T094102Z, все 21/11 файлов проверены; копии из Drive сверены.
 - Полная изолированная репетиция restore/login/reset/notification sink/player
   и private proxy switch/rollback прошла за 142.16s без скачивания файлов/образов.
 
@@ -35,10 +38,9 @@ RPO-цели 6h DB / 24h media зависят от успеха offsite, RTO-ц�
 
 ## Ближайшие приоритеты
 
-1. Закрыть выявленные npm advisories и добавить frontend dependency audit в CI.
-2. Запланировать переход с Next 15 до окончания его окна поддержки.
-3. Проверить критические браузерные сценарии в воспроизводимом E2E и нагрузку.
-4. Перенести data tier на предоставленный внешний хост; RAM дома этого не заменяет.
+1. Запланировать переход с Next 15 до окончания его окна поддержки.
+2. Проверить критические браузерные сценарии в воспроизводимом E2E и нагрузку.
+3. Перенести data tier на предоставленный внешний хост; RAM дома этого не заменяет.
 
 [Оценка стека и доказательства](TECHNICAL_ASSESSMENT.md),
 [эксплуатация](OPERATIONS.md), [архитектура](architecture/README.md).

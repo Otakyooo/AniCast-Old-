@@ -5,14 +5,14 @@
 
 Стек современный и пригоден для развития. Сильнее всего продвинулись эксплуатация,
 изоляция фоновых задач и проверяемость восстановления. Главные ограничения —
-обновление зависимостей, единичные хосты и недостаточно измеренная нагрузочная
+окно поддержки Next 15, единичные хосты и недостаточно измеренная нагрузочная
 ёмкость. Количество фреймворков само по себе зрелость не повышает.
 
 ## Технологии и поддержка
 
 | Слой | Зафиксировано в проекте | Оценка |
 | --- | --- | --- |
-| Frontend | Next 15.5.23, React 19.1.1, TypeScript 5.9.2 strict, App Router | Современная основа; Next 15 уже Maintenance LTS |
+| Frontend | Next 15.5.25, React 19.1.1, TypeScript 5.9.2 strict, App Router | Современная основа; Next 15 уже Maintenance LTS |
 | Backend | Python 3.12, Django 5.2.17, DRF 3.17.2, Gunicorn | Поддерживаемая LTS-основа, модульный монолит соответствует размеру системы |
 | Данные | PostgreSQL 17, Redis 7 в трёх ролях | Зрелые инструменты; изоляция есть, репликации/автоматического failover нет |
 | Фоновые задачи | Celery 5.5.3, два workers по одному процессу | Нагрузка ограничена; рост очереди требует измерений перед увеличением concurrency |
@@ -34,7 +34,7 @@ Next 16 — Active LTS, Next 15 — Maintenance LTS. По опубликован
 ## Что уже подтверждено
 
 - Backend/frontend/infrastructure gates и публикация образов прошли в
-  [CI 34291367680](https://github.com/Otakyooo/AniCast/actions/runs/34291367680).
+  [CI 34334672751](https://github.com/Otakyooo/AniCast/actions/runs/34334672751).
   Frontend имеет 73 unit tests для логики, lint/typecheck/build; это не браузерный E2E.
 - Broker, control и ephemeral Redis изолированы; eviction/outage проверены на
   disposable среде. Оба workers проверяются отдельно.
@@ -48,30 +48,18 @@ Next 16 — Active LTS, Next 15 — Maintenance LTS. По опубликован
 
 ## Обнаруженный долг
 
-### Обновления безопасности — первый приоритет
+### Обновления безопасности — исправлено 09.09.2026
 
-Во время этой проверки `npm audit --json` для текущего lockfile сообщил о трёх
-пакетах: Next — critical, sharp и js-yaml — high. Это число затронутых пакетов,
-не число независимых эксплуатируемых уязвимостей сайта. `js-yaml` относится к
-dev dependencies; Next/sharp входят в production dependency graph.
+Выявленные advisories закрыты обновлением Next и eslint-config-next до 15.5.25,
+sharp до 0.35.4, js-yaml до 4.3.2. `npm audit` текущего lockfile сообщил о нуле
+уязвимостей, включая dev dependencies. CI теперь блокирует high/critical через
+`npm run audit`; это проверка известных advisories на дату запуска.
 
-- Next 15.5.23 входит в диапазоны двух advisories. Один касается Windows hosting,
-  тогда как production использует Linux/Alpine.
-  [Advisory Windows](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36).
-- Другой относится к AVIF input в image optimizer и библиотеке libheif/sharp.
-  Формат ответа WebP не доказывает недостижимость обработки AVIF input. Эксплуатация
-  именно на текущем musl-контейнере этим аудитом не проверена.
-  [Advisory image optimizer](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
-- В проекте принудительно закреплён sharp 0.35.0; исправленная ветка начинается
-  с 0.35.4. Одного обновления Next недостаточно, если оставить старый override.
-  [Advisory sharp](https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c).
-- npm предлагает Next 15.5.25 без смены major; требуется также исправить sharp
-  override и обновить js-yaml, проверить lockfile, сборку musl image и реальные постеры.
-  `eslint-config-next` 15.4.6 расходится с Next 15.5.23 — инструменты стоит согласовать.
-
-CI запускает `pip-audit`, но явного npm audit gate в workflow нет. Dependabot и
-успешный build не заменяют такой gate. Обновление runtime-зависимостей и его
-выкладка не выполнялись в этой уборке документации; проблема остаётся открытой.
+Новый frontend развёрнут по digest. Проверены native sharp/libvips в Alpine image,
+настоящий постер через production optimizer, главная, каталог и смена темы.
+Первый холодный запрос постера был медленным; результаты и границы проверки
+сохранены в [отчёте релиза](archive/releases/RELEASE-2026-09-09-frontend-security.md).
+Переход с Next 15 до завершения поддержки остаётся отдельной задачей.
 
 ### Отказоустойчивость и ёмкость
 
@@ -98,6 +86,6 @@ Python dev/test инструменты устанавливаются в тот 
 зависимости. Разделение requirements и стадий сборки может уменьшить образ и
 поверхность зависимостей; сначала сохранить идентичность runtime-набора и CI.
 
-Приоритет: security patch и npm gate → поддерживаемая ветка Next → E2E/нагрузка →
+Приоритет: поддерживаемая ветка Next → E2E/нагрузка →
 внешний data host и проверенный план отказа. Полная смена Django/Next, Kubernetes
 или дробление на микросервисы сейчас не обоснованы измеренной потребностью.
