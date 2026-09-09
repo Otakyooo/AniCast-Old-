@@ -21,6 +21,8 @@ test("catalog filter chips synchronize fields; random title preserves selection 
   await expect(page).toHaveURL(/\/catalog\?status=finished$/);
   await expect(page.getByLabel("Поиск по каталогу", { exact: true })).toHaveValue("");
   await expect(page.getByRole("combobox", { name: "Статус", exact: true })).toHaveValue("finished");
+  // A non-overflowing form can still squeeze its search input into a sliver.
+  expect((await page.getByRole("textbox", { name: "Поиск по каталогу", exact: true }).boundingBox())!.width).toBeGreaterThanOrEqual(230);
   await captureThemes(page, info, "catalog");
 
   let calls = 0;

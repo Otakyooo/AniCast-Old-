@@ -13,12 +13,13 @@
 .field {
   display: grid;
   gap: 7px;
-  min-width: 180px;
+  min-width: min(180px, 100%);
+  max-width: 100%;
 }
 
 .searchField {
-  flex: 1;
-  min-width: 240px;
+  flex: 1 1 240px;
+  min-width: min(240px, 100%);
 }
 
 .field span {
@@ -190,7 +191,6 @@
   transform: scale(.98);
 }
 
-.field { min-width: 0; max-width: 100% }
 .field input, .field select { width: 100%; min-width: 0 }
 .chip { min-height: 44px; max-width: 100%; overflow-wrap: anywhere }
 .chip span { min-width: 0 }
