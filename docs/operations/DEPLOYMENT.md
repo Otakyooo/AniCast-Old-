@@ -45,6 +45,15 @@ sudo scripts/deploy.sh vps /tmp/vps-release.env
 
 MainServer verification requires PostgreSQL, all three Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
 
+Known limitation observed on 09.09.2026: Compose may leave newly recreated API,
+default worker and beat containers in `Created` while it waits for the old bulk
+worker. The current script does not guarantee uninterrupted API availability.
+Inspect container states during rollout; start the verified new API if it is
+waiting in `Created`, then let worker shutdown finish and run all health gates.
+Do not force-stop a bulk task merely to shorten deployment. Separating API startup
+from worker drain and reconciling 600s grace with longer task limits remain
+follow-up work. [Incident evidence](../archive/releases/RELEASE-2026-09-09-next16.md).
+
 ```bash
 curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null
 curl --fail --silent --show-error --max-time 15 \
