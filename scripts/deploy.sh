@@ -70,7 +70,7 @@ if [ "$stack" = mainserver ]; then
     compose run --rm backend python manage.py check --deploy --fail-level WARNING
     compose run --rm backend python manage.py migrate --noinput
 fi
-compose up -d --no-build --remove-orphans
+sh "$root/scripts/start-release.sh" "$stack" "$candidate"
 "$root/scripts/verify-deploy.sh" "$stack" "$candidate"
 mv "$candidate" "$state_dir/current.env"
 trap cleanup EXIT INT TERM

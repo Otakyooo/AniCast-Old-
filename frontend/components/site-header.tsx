@@ -33,7 +33,7 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("collections")} href="/collections">{t("nav.collections")}</Link>
           <Link className={linkClass("community")} href="/community">{t("nav.community")}</Link>
         </nav>
-        <GlobalSearch />
+        <div className="header-search"><GlobalSearch /></div>
         <div className="global-actions">
           <ThemeSwitcher />
           <UserMenu initialSignedIn={hasSessionCookie} />

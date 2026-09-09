@@ -118,6 +118,8 @@ services:
   celery-bulk:
     <<: *celery-worker
     mem_limit: 512m
+    # refresh_title_posters has a hard task limit of 1800s; leave shutdown margin.
+    stop_grace_period: 1900s
     command: ["celery", "-A", "config", "worker", "-l", "INFO", "-Q", "providers,posters,maintenance,analytics", "--concurrency", "1"]
   celery-beat:
     image: ${BACKEND_IMAGE:-anicast-backend:local}

@@ -36,23 +36,28 @@ Restrict `/etc/anicast/*.env` to root and the deployment account. Never place to
 
 ## Deploy
 
-Deploy MainServer first and VPS second. The script acquires a per-stack lock, validates an immutable digest, rotates `current.env` to `previous.env`, pulls, runs checks and migrations on MainServer, starts without rebuilding, waits for every healthcheck and runs smoke probes.
+Deploy MainServer first and VPS second when both applications change. The script acquires a per-stack lock, validates an immutable digest, rotates `current.env` to `previous.env`, pulls, runs checks and migrations on MainServer, starts without rebuilding, waits for every healthcheck and runs smoke probes.
 
 ```bash
 sudo scripts/deploy.sh mainserver /tmp/mainserver-release.env
 sudo scripts/deploy.sh vps /tmp/vps-release.env
 ```
 
-MainServer verification requires PostgreSQL, all three Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1; allow up to 600 seconds for warm shutdown of running tasks. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
+MainServer verification requires PostgreSQL, all three Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1. Warm shutdown allows 600s for default and 1900s for bulk, whose longest task hard limit is 1800s. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
 
-Known limitation observed on 09.09.2026: Compose may leave newly recreated API,
-default worker and beat containers in `Created` while it waits for the old bulk
-worker. The current script does not guarantee uninterrupted API availability.
-Inspect container states during rollout; start the verified new API if it is
-waiting in `Created`, then let worker shutdown finish and run all health gates.
-Do not force-stop a bulk task merely to shorten deployment. Separating API startup
-from worker drain and reconciling 600s grace with longer task limits remain
-follow-up work. [Incident evidence](../archive/releases/RELEASE-2026-09-09-next16.md).
+Deployment and rollback use the same staged `scripts/start-release.sh`:
+data services + backend with a 120s readiness gate, then default worker + beat,
+then bulk. Worker phases use `--no-deps` so they cannot recreate the already
+healthy API. Bulk receives an explicit 1900s stop timeout, including when the old
+container still has the previous 600s setting. A failed phase triggers rollback;
+rollback restores and verifies the old API before waiting for workers.
+
+This fixes API startup being delayed by bulk drain in the
+[previous rollout](../archive/releases/RELEASE-2026-09-09-next16.md). Recreating the
+single API container still causes a short availability gap; this is not blue/green.
+Old workers may overlap the new API, so task payloads and schema changes must stay
+backward compatible. MainServer starts only named services; orphan removal belongs
+to an explicit topology migration. Do not force-stop a bulk task to shorten a release.
 
 ```bash
 curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null

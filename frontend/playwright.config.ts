@@ -9,6 +9,7 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    { name: "laptop", use: { viewport: { width: 1280, height: 900 } } },
     { name: "tablet", use: { viewport: { width: 820, height: 1180 } } },
     { name: "mobile", use: { viewport: { width: 390, height: 844 } } },
   ],

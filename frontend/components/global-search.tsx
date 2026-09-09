@@ -100,7 +100,7 @@ export function GlobalSearch() {
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        const collapsedHeader = window.matchMedia("(max-width: 1199px)").matches;
+        const collapsedHeader = window.matchMedia("(max-width: 767px)").matches;
         close();
         window.requestAnimationFrame(() => {
           if (collapsedHeader) triggerRef.current?.focus();
@@ -149,7 +149,7 @@ export function GlobalSearch() {
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      const collapsedHeader = window.matchMedia("(max-width: 1199px)").matches;
+      const collapsedHeader = window.matchMedia("(max-width: 767px)").matches;
       close();
       window.requestAnimationFrame(() => {
         if (collapsedHeader) triggerRef.current?.focus();

@@ -30,7 +30,7 @@ case "$image" in
         fi ;;
     *) echo "invalid rollback image" >&2; exit 2 ;;
 esac
-docker compose --project-name "$project" --env-file "$state_dir/rollback.env" -f "$root/infra/$stack/compose.yml" up -d --no-build --remove-orphans
+sh "$root/scripts/start-release.sh" "$stack" "$state_dir/rollback.env"
 "$root/scripts/verify-deploy.sh" "$stack" "$state_dir/rollback.env"
 if [ ! -f "$state_dir/failed.env" ] && [ -f "$current" ]; then cp "$current" "$state_dir/failed.env"; fi
 mv "$state_dir/rollback.env" "$current"

@@ -90,6 +90,8 @@ jobs:
       - run: docker compose -f infra/vps/compose.yml config -q
       - run: docker build -t anicast-backend:ci backend
       - run: sh scripts/tests/redis_isolation_test.sh anicast-backend:ci
+      - name: Verify API availability during slow worker rollout
+        run: python3 scripts/tests/mainserver_rollout_test.py anicast-backend:ci redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
       - run: sudo apt-get update && sudo apt-get install -y nftables iproute2
       - run: sudo python3 scripts/tests/vps_firewall_test.py infra/vps/firewall.nft
       - run: python3 -m unittest discover -s scripts/tests -p "test_release*.py"

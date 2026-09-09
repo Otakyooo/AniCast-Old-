@@ -126,3 +126,76 @@ if grep -q ' pull' "$tmp/rollback-local.log"; then
     echo "local rollback unexpectedly attempted registry pull" >&2; exit 1
 fi
 echo "registry-to-local rollback passed"
+
+# MainServer state machine: a bulk drain is allowed only after the candidate API
+# has passed its readiness gate. Failures exercise the real rollback entry point.
+mkdir -p "$tmp/bin-main"
+cat >"$tmp/bin-main/docker" <<'EOF'
+#!/bin/sh
+set -eu
+command=$*
+env_file=
+last=
+for arg in "$@"; do
+    [ "$last" != --env-file ] || env_file=$arg
+    last=$arg
+done
+release=$(basename "$env_file")
+case "$command" in
+    *' up '*backend) phase=api ;;
+    *' up '*celery-beat) phase=default ;;
+    *' up '*celery-bulk) phase=bulk ;;
+    *' up '*--remove-orphans) echo 'unphased MainServer rollout' >&2; exit 91 ;;
+    *' ps -q '*) echo "container-$last"; exit ;;
+    *'inspect --format '*) echo healthy; exit ;;
+    *' exec '*) echo pong; exit ;;
+    *) exit 0 ;;
+esac
+printf '%s %s begin\n' "$release" "$phase" >> "$ANICAST_PHASE_LOG"
+if [ "$phase" != api ]; then
+    [ "$(cat "$ANICAST_API_READY")" = "$release" ] || exit 92
+    case "$command" in *' --no-deps '*) ;; *) exit 93 ;; esac
+fi
+if [ "$phase" = bulk ]; then
+    case "$command" in *' --timeout 1900 '*) ;; *) exit 94 ;; esac
+fi
+if [ "$release" = candidate.env ] && [ "$phase" = "${ANICAST_FAIL_PHASE:-none}" ]; then
+    exit 95
+fi
+if [ "$phase" = api ]; then
+    case "$command" in *' --wait --wait-timeout 120 '*) ;; *) exit 96 ;; esac
+    printf '%s\n' "$release" > "$ANICAST_API_READY"
+fi
+printf '%s %s healthy\n' "$release" "$phase" >> "$ANICAST_PHASE_LOG"
+EOF
+chmod +x "$tmp/bin-main/docker"
+for failure in none api default bulk; do
+    main_state="$tmp/main-$failure"
+    mkdir -p "$main_state"
+    printf 'BACKEND_IMAGE=registry.example/backend@sha256:%s\n' \
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > "$main_state/current.env"
+    printf 'BACKEND_IMAGE=registry.example/backend@sha256:%s\n' \
+        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb > "$main_state/release.env"
+    if PATH="$tmp/bin-main:$PATH" VERIFY_ATTEMPTS=1 ANICAST_FAIL_PHASE="$failure" \
+        ANICAST_PHASE_LOG="$main_state/phases" ANICAST_API_READY="$main_state/api-ready" \
+        "$root/scripts/deploy.sh" mainserver "$main_state/release.env" "$main_state"; then
+        [ "$failure" = none ] || { echo 'failed phase was promoted' >&2; exit 1; }
+        grep -q bbbbbbbb "$main_state/current.env"
+    else
+        [ "$failure" != none ] || exit 1
+        grep -q aaaaaaaa "$main_state/current.env"
+        grep -q bbbbbbbb "$main_state/failed.env"
+        grep -q 'rollback.env api healthy' "$main_state/phases"
+        grep -q 'rollback.env bulk healthy' "$main_state/phases"
+    fi
+    grep -q 'candidate.env api begin' "$main_state/phases"
+    if [ "$failure" = api ]; then
+        ! grep -Eq 'candidate.env (default|bulk)' "$main_state/phases"
+    elif [ "$failure" = default ]; then
+        ! grep -q 'candidate.env bulk' "$main_state/phases"
+    else
+        grep -q 'candidate.env bulk begin' "$main_state/phases"
+    fi
+    [ ! -d "$main_state/deploy.lock" ]
+done
+echo 'MainServer API-first rollout, phase failures and phased rollback passed'

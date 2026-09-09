@@ -71,3 +71,35 @@ test("switching still works when browser storage is unavailable", async ({ page 
   await switcher.selectOption("light");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
+
+test("header links remain reachable and search fits the viewport", async ({ page }) => {
+  await page.goto("/backup-privacy");
+  const mobile = page.viewportSize()!.width < 768;
+  if (mobile) {
+    await page.getByRole("button", { name: "Открыть поиск", exact: true }).click();
+  } else {
+    const links = page.locator(".primary-nav > a");
+    await expect(links).toHaveCount(6);
+    for (const link of await links.all()) {
+      await expect(link).toBeVisible();
+      expect(await link.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("a") === el;
+      })).toBe(true);
+    }
+  }
+  const input = page.getByRole("combobox", { name: "Поиск", exact: true });
+  await expect(input).toBeVisible();
+  await input.focus();
+  await expect(input).toBeFocused();
+  const bounds = await input.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await input.press("Escape");
+  if (mobile) {
+    await expect(page.getByRole("button", { name: "Открыть поиск", exact: true })).toBeFocused();
+  } else {
+    await expect(input).toBeFocused();
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

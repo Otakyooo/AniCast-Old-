@@ -25,7 +25,10 @@ Image rollback changes neither Compose topology nor production database contents
 MainServer has three Redis roles: broker/results, control and ephemeral. Former
 broker DB 2 is stale migration evidence, not an automatic control rollback target.
 Check both Celery workers separately; one pong does not prove two workers work.
-Preserve queues and allow warm shutdown up to the configured 600 seconds.
+Preserve queues and allow warm shutdown: 600s default worker, 1900s bulk (longest
+task hard limit 1800s). Deploy and rollback share `scripts/start-release.sh`: API
+readiness must pass before default/beat and then bulk are updated. Never replace
+this with one full-stack `compose up` that delays API startup behind worker drain.
 
 Check readiness, every configured healthcheck, public home/titles API and public
 404 for `/internal/metrics`. UI changes need real browser verification. Firewall

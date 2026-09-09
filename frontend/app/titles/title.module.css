@@ -606,7 +606,7 @@
   white-space: nowrap;
 }
 
-.watchSection { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; scroll-margin-top: 88px }
+.watchSection { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; scroll-margin-top: calc(var(--nav-height) + 24px) }
 .watchSection > h2 { margin: 0; font-size: 22px }
 
 .watchAvailability {
@@ -637,14 +637,21 @@
       "poster copy"
       "actions actions"
       "subscribe subscribe";
-    grid-template-columns: minmax(120px, 40vw) minmax(0, 1fr);
+    grid-template-columns: clamp(88px, 25vw, 132px) minmax(0, 1fr);
     grid-template-rows: auto auto auto;
     gap: 16px;
     padding: 18px 0 24px;
   }
   .heroPoster { border-radius: 12px }
-  .heroTitle { font-size: 24px }
+  .heroCopy { gap: 10px }
+  .heroTitle { font-size: clamp(20px, 5.6vw, 26px); line-height: 1.18 }
   .heroOriginal { font-size: 13px }
+  .titleNamePrimary, .titleNameSecondary { grid-template-columns: 20px minmax(0, 1fr); gap: 6px }
+  .heroMeta { gap: 6px 10px }
+  .heroMeta span { padding: 0; border: 0; font-size: 11px }
+  .heroGenres { gap: 6px }
+  .heroGenres a { padding: 5px 8px; font-size: 11px }
+  .heroFranchise { font-size: 10px; letter-spacing: .06em; line-height: 1.5 }
   /* Actions span the full row so each button gets a usable tap target. */
   .actionRow > * { flex: 1 1 140px }
   .statusField { max-width: none }
@@ -666,11 +673,6 @@
 }
 
 @media (max-width: 420px) {
-  .hero {
-    grid-template-areas: "poster" "copy" "actions" "subscribe";
-    grid-template-columns: 1fr;
-  }
-  .heroPoster { max-width: 200px }
   .detailsList { grid-template-columns: 1fr }
   .detailsList div,
   .detailsList div:nth-child(2n),
@@ -1264,6 +1266,7 @@
 .voiceChip,
 .voiceChipSelected {
   display: inline-flex;
+  min-height: 44px;
   max-width: 220px;
   overflow: hidden;
   align-items: center;
@@ -1272,7 +1275,7 @@
   border: 1px solid var(--border-control);
   border-radius: 999px;
   background: var(--surface-control);
-  color: var(--muted);
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
   text-overflow: ellipsis;
