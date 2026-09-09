@@ -22,7 +22,12 @@ interface TitleActionsProps {
 }
 
 /** Primary playback link plus authenticated library and favorite actions. */
-export function TitleActions({ slug, watchHref }: TitleActionsProps) {
+export function TitleActions(props: TitleActionsProps) {
+  const { locale } = useI18n();
+  return <TitleActionsContent key={`${props.slug}:${locale}`} {...props} />;
+}
+
+function TitleActionsContent({ slug, watchHref }: TitleActionsProps) {
   const { t } = useI18n();
   const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
   const [guest, setGuest] = useState(false);
@@ -32,9 +37,6 @@ export function TitleActions({ slug, watchHref }: TitleActionsProps) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setEntry(undefined);
-    setGuest(false);
-    setError("");
 
     getLibraryEntry(slug, controller.signal)
       .then(setEntry)
@@ -52,7 +54,6 @@ export function TitleActions({ slug, watchHref }: TitleActionsProps) {
     // button must offer the next unwatched episode, not episode one. Guests
     // and API failures simply keep the server-provided fallback.
     const controller = new AbortController();
-    setResumeNumber(null);
     getContinueWatching(controller.signal)
       .then((entries) => {
         const own = entries?.find((item) => item.title.slug === slug);

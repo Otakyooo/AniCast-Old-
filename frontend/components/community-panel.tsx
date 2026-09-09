@@ -7,6 +7,11 @@ import { useI18n } from "./i18n-provider";
 import styles from "../app/community/community.module.css";
 
 export function CommunityPanel({ slug }: { slug: string }) {
+  const { locale } = useI18n();
+  return <CommunityContent key={`${slug}:${locale}`} slug={slug} />;
+}
+
+function CommunityContent({ slug }: { slug: string }) {
   const { t } = useI18n();
   const [data, setData] = useState<CommunitySummary>();
   const [error, setError] = useState("");
@@ -20,8 +25,12 @@ export function CommunityPanel({ slug }: { slug: string }) {
   }, [slug]);
 
   useEffect(() => {
-    load().catch(() => setError(t("common.error")));
-  }, [load, t]);
+    let active = true;
+    getCommunitySummary(slug)
+      .then((next) => { if (active) setData(next); })
+      .catch(() => { if (active) setError(t("common.error")); });
+    return () => { active = false; };
+  }, [slug, t]);
 
   async function rate(value: number) {
     setPendingRating(value);

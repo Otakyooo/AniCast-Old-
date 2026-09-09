@@ -126,7 +126,6 @@ function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapsh
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    setDismissed(false);
     if (!idle) return;
     const timer = window.setTimeout(() => setDismissed(true), 5000);
     return () => window.clearTimeout(timer);
@@ -158,18 +157,7 @@ function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapsh
   );
 }
 
-export function WatchSpace({
-  slug,
-  titleName,
-  playableEpisodeNumbers,
-  sourceGroups,
-  requestedSourceKey,
-  currentNumber,
-  playbackPresentation,
-  navigationDegraded = false,
-  invalidEpisodeRequest = false,
-  episode,
-}: {
+interface WatchSpaceProps {
   slug: string;
   titleName: string;
   playableEpisodeNumbers: number[];
@@ -180,7 +168,24 @@ export function WatchSpace({
   navigationDegraded?: boolean;
   invalidEpisodeRequest?: boolean;
   episode: WatchEpisode;
-}) {
+}
+
+export function WatchSpace(props: WatchSpaceProps) {
+  return <TitleWatchSpace key={props.slug} {...props} />;
+}
+
+function TitleWatchSpace({
+  slug,
+  titleName,
+  playableEpisodeNumbers,
+  sourceGroups,
+  requestedSourceKey,
+  currentNumber,
+  playbackPresentation,
+  navigationDegraded = false,
+  invalidEpisodeRequest = false,
+  episode,
+}: WatchSpaceProps) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const singlePlayback = playbackPresentation === "single";
@@ -208,13 +213,16 @@ export function WatchSpace({
       playableSourceKeys,
       currentNumber,
     );
-  const [selectedGroupKey, setSelectedGroupKey] = useState(preferredKey);
+  const selectionScope = `${currentNumber}:${preferredKey}`;
+  const [groupChoice, setGroupChoice] = useState<{ scope: string; key: string } | null>(null);
+  const selectedGroupKey = groupChoice?.scope === selectionScope ? groupChoice.key : preferredKey;
   const [episodeQuery, setEpisodeQuery] = useState("");
-  const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
+  const [rangeChoice, setRangeChoice] = useState<{ scope: string; index: number } | null>(null);
   const [episodeDialogMounted, setEpisodeDialogMounted] = useState(false);
-  const [playbackProgress, setPlaybackProgress] = useState<PlaybackProgressSnapshot | null>(null);
+  const [progressResult, setProgressResult] = useState<{ scope: string; progress: PlaybackProgressSnapshot } | null>(null);
   const [episodeMeta, setEpisodeMeta] = useState<Map<number, EpisodeRailMeta>>(new Map());
   const [watchedNumbers, setWatchedNumbers] = useState<Set<number> | null>(null);
+  const [completedNumbers, setCompletedNumbers] = useState<Set<number>>(new Set());
   const episodeDialogRef = useRef<HTMLDialogElement>(null);
   const episodeTriggerRef = useRef<HTMLButtonElement>(null);
   const episodeRailSearchRef = useRef<HTMLInputElement>(null);
@@ -222,15 +230,13 @@ export function WatchSpace({
   const episodeRailContentRef = useRef<HTMLDivElement>(null);
   const currentEpisodeRef = useRef<HTMLAnchorElement>(null);
 
-  useEffect(() => {
-    setSelectedGroupKey(preferredKey);
-  }, [currentNumber, preferredKey]);
-
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey) ?? null;
   const selectedSources = playableSources.filter(
     (source) => source.selection_key === selectedGroupKey,
   );
   const chosen = selectedSources[0] ?? null;
+  const progressScope = `${currentNumber}:${chosen?.id}`;
+  const playbackProgress = progressResult?.scope === progressScope ? progressResult.progress : null;
   const playableNumbers = useMemo(
     () => normalizeEpisodeNumbers(playableEpisodeNumbers),
     [playableEpisodeNumbers],
@@ -250,6 +256,8 @@ export function WatchSpace({
     [availableEpisodeNumbers],
   );
   const currentRangeIndex = episodeRangeIndex(episodeRanges, currentNumber);
+  const rangeScope = `${currentNumber}:${selectedGroupKey}:${currentRangeIndex}`;
+  const selectedRangeIndex = rangeChoice?.scope === rangeScope ? rangeChoice.index : currentRangeIndex;
   const searchedEpisodeNumbers = useMemo(
     () => filterEpisodeNumbers(availableEpisodeNumbers, episodeQuery),
     [availableEpisodeNumbers, episodeQuery],
@@ -267,22 +275,19 @@ export function WatchSpace({
     : "";
   const invalidVoiceRequest = Boolean(requestedSourceKey && !requestedGroup);
   const handleProgressChange = useCallback((progress: PlaybackProgressSnapshot) => {
-    setPlaybackProgress(progress);
-  }, []);
-
-  useEffect(() => {
-    setPlaybackProgress(null);
-  }, [chosen?.id, currentNumber]);
-
-  useEffect(() => {
-    setSelectedRangeIndex(currentRangeIndex);
-  }, [currentRangeIndex, selectedGroupKey]);
+    setProgressResult({ scope: progressScope, progress });
+    if (progress.isWatched) {
+      setCompletedNumbers((current) => {
+        if (current.has(currentNumber)) return current;
+        return new Set([...current, currentNumber]);
+      });
+    }
+  }, [currentNumber, progressScope]);
 
   // Watched marks come from the viewer's own history; guests and API failures
   // keep `null`, which renders the rail without marks instead of guessing.
   useEffect(() => {
     const controller = new AbortController();
-    setWatchedNumbers(null);
     getTitleWatchedMarks(slug, controller.signal)
       .then((marks) => {
         if (marks) setWatchedNumbers(new Set(marks.watched_episode_numbers));
@@ -292,18 +297,6 @@ export function WatchSpace({
       });
     return () => controller.abort();
   }, [slug]);
-
-  // The player itself confirms the current episode, so its mark appears the
-  // moment playback reports completion instead of waiting for a refetch.
-  useEffect(() => {
-    if (!playbackProgress?.isWatched) return;
-    setWatchedNumbers((current) => {
-      if (!current || current.has(currentNumber)) return current;
-      const next = new Set(current);
-      next.add(currentNumber);
-      return next;
-    });
-  }, [playbackProgress?.isWatched, currentNumber]);
 
   // Lazily enrich the visible range with names and air dates. Search results
   // stay number-only: a numeric query matches scattered numbers whose span
@@ -378,7 +371,7 @@ export function WatchSpace({
   }, [episodeDialogMounted]);
 
   function chooseGroup(key: string) {
-    setSelectedGroupKey(key);
+    setGroupChoice({ scope: selectionScope, key });
     router.replace(titleWatchHref(slug, currentNumber, key), { scroll: false });
   }
 
@@ -441,7 +434,7 @@ export function WatchSpace({
   const episodeList = (closeDialog = false) => visibleEpisodeNumbers.map((number) => {
     const current = number === currentNumber;
     const meta = episodeMeta.get(number);
-    const watched = watchedNumbers?.has(number) ?? false;
+    const watched = completedNumbers.has(number) || (watchedNumbers?.has(number) ?? false);
     const airDay = meta?.airDate && !Number.isNaN(Date.parse(`${meta.airDate}T12:00:00Z`))
       ? shortDayFormatter.format(isoDay(meta.airDate))
       : null;
@@ -485,7 +478,7 @@ export function WatchSpace({
         <select
           id={id}
           value={selectedRangeIndex}
-          onChange={(event) => setSelectedRangeIndex(Number(event.target.value))}
+          onChange={(event) => setRangeChoice({ scope: rangeScope, index: Number(event.target.value) })}
         >
           {episodeRanges.map((range, index) => (
             <option value={index} key={`${range.first}-${range.last}`}>
@@ -720,7 +713,7 @@ export function WatchSpace({
 
       <div className={styles.watchUtilityBar} aria-label={t(singlePlayback ? "watch.titleActions" : "watch.episodeActions")}>
         {chosen?.playback_mode === "iframe_embed" && playbackProgress && (
-          <PlaybackProgressStatus progress={playbackProgress} />
+          <PlaybackProgressStatus key={`${playbackProgress.phase}:${playbackProgress.isWatched}`} progress={playbackProgress} />
         )}
         {chosen && <SourceReportControl sourceId={chosen.id} key={chosen.id} />}
       </div>

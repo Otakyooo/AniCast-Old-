@@ -13,10 +13,17 @@ export default defineConfig({
     { name: "tablet", use: { viewport: { width: 820, height: 1180 } } },
     { name: "mobile", use: { viewport: { width: 390, height: 844 } } },
   ],
-  webServer: {
+  webServer: [{
+    command: "python tests/e2e/backend.py",
+    url: "http://127.0.0.1:8000/health/live",
+    env: { ANICAST_E2E: "1" },
+    reuseExistingServer: false,
+    timeout: 60_000,
+  }, {
     command: "npm run start -- --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100/backup-privacy",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-  },
+    env: { INTERNAL_API_BASE_URL: "http://127.0.0.1:8000/api/v1" },
+  }],
 });

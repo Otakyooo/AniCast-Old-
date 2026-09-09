@@ -40,29 +40,28 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [state, setState] = useState<SearchState>({ kind: "idle" });
+  const [result, setResult] = useState<{ query: string; state: SearchState } | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const trimmed = query.trim();
+  const state = useMemo<SearchState>(() => trimmed.length < SEARCH_MIN_LENGTH
+    ? { kind: "idle" }
+    : result?.query === trimmed ? result.state : { kind: "loading" }, [result, trimmed]);
 
   useEffect(() => {
-    if (trimmed.length < SEARCH_MIN_LENGTH) {
-      setState({ kind: "idle" });
-      setActiveIndex(-1);
-      return;
-    }
+    if (trimmed.length < SEARCH_MIN_LENGTH) return;
     const controller = new AbortController();
-    setState({ kind: "loading" });
-    setActiveIndex(-1);
     const timer = window.setTimeout(() => {
       globalSearch(trimmed, controller.signal)
-        .then((data) => setState({ kind: "ready", data }))
+        .then((data) => {
+          if (!controller.signal.aborted) setResult({ query: trimmed, state: { kind: "ready", data } });
+        })
         .catch((reason) => {
-          if (reason instanceof DOMException && reason.name === "AbortError") return;
-          setState({ kind: "error" });
+          if (controller.signal.aborted || reason instanceof DOMException && reason.name === "AbortError") return;
+          setResult({ query: trimmed, state: { kind: "error" } });
         });
     }, DEBOUNCE_MS);
     return () => {
@@ -223,6 +222,8 @@ export function GlobalSearch() {
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
+              setResult(null);
+              setActiveIndex(-1);
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}

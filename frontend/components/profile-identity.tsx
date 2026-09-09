@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { cachedSessionUser, getSessionUser, signOut, type SessionUser } from "../lib/auth";
+import { getSessionUser, signOut, type SessionUser } from "../lib/auth";
 import { useI18n } from "./i18n-provider";
 import authStyles from "../app/auth.module.css";
 import styles from "../app/profile.module.css";
@@ -27,12 +27,12 @@ export function ProfileIdentity({ initialSignedIn }: { initialSignedIn: boolean 
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    const cached = cachedSessionUser();
-    if (cached !== undefined) setUser(cached);
+    let active = true;
     getSessionUser()
-      .then((value) => setUser(value))
+      .then((value) => { if (active) setUser(value); })
       // A failed probe must not break the profile frame: treat it as a guest.
-      .catch(() => setUser(null));
+      .catch(() => { if (active) setUser(null); });
+    return () => { active = false; };
   }, []);
 
   async function logout() {

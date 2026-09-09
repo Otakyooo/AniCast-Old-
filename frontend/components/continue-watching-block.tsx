@@ -38,19 +38,21 @@ function useContinueWatching(): State {
   return state;
 }
 
-function HeroLibraryAction({ slug, initialStatus }: { slug: string; initialStatus: LibraryStatus }) {
+function HeroLibraryAction(props: { slug: string; initialStatus: LibraryStatus }) {
+  const { locale } = useI18n();
+  const [attempt, setAttempt] = useState(0);
+  return <HeroLibraryRequest key={`${props.slug}:${locale}:${attempt}`} {...props} retry={() => setAttempt((value) => value + 1)} />;
+}
+
+function HeroLibraryRequest({ slug, initialStatus, retry }: { slug: string; initialStatus: LibraryStatus; retry: () => void }) {
   const { t } = useI18n();
   const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
   const [guest, setGuest] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    setEntry(undefined);
-    setGuest(false);
-    setError("");
 
     getLibraryEntry(slug, controller.signal)
       .then(setEntry)
@@ -61,7 +63,7 @@ function HeroLibraryAction({ slug, initialStatus }: { slug: string; initialStatu
       });
 
     return () => controller.abort();
-  }, [retryKey, slug, t]);
+  }, [slug, t]);
 
   async function addToLibrary() {
     setPending(true);
@@ -87,7 +89,7 @@ function HeroLibraryAction({ slug, initialStatus }: { slug: string; initialStatu
   if (entry === undefined && error) {
     return (
       <span className={styles.heroLibraryState}>
-        <button className={`secondary inline-button ${styles.resumeHeroSecondary}`} type="button" onClick={() => setRetryKey((value) => value + 1)}>{t("common.retry")}</button>
+        <button className={`secondary inline-button ${styles.resumeHeroSecondary}`} type="button" onClick={retry}>{t("common.retry")}</button>
         <span className={styles.heroActionError} role="alert">{error}</span>
       </span>
     );

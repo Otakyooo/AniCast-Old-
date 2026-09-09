@@ -143,7 +143,8 @@ npm run typecheck
 npm test
 npm run build
 npx playwright install chromium
-npm run test:e2e
+# Full browser suite runs in isolated CI (see below).
+python tests/e2e/backend.py --seed-check
 ```
 
 `scripts/validate.sh` runs shell syntax checks, Compose config validations for all three stacks, promtool/amtool checks of the monitoring configuration with placeholder secrets, the hermetic deploy/rollback test and rejects public metrics routes in Caddy. CI additionally builds both images and validates Caddy with the official image.
@@ -152,5 +153,17 @@ Frontend CI runs `npm run audit` against production and development dependencies
 high/critical advisories fail the job. The infrastructure job also executes a
 PNG-to-WebP resize inside the final musl image with networking disabled, proving
 that the packaged sharp/libvips runtime works after dependency changes.
+
+The Chromium suite starts a production Next build and a CI-only Django fixture
+on loopback, with a new temporary SQLite database and synthetic viewers. It covers
+session login/logout/expiry, CSRF rejection, playback resume/pause/completion,
+source retry/change and stale search responses on four viewports. Django auth,
+history and signed playback resolver are real; Playwright replaces only the
+external video document at its allowed origin. Email stays in memory, no workers
+run, and rate limits are raised only inside the fixture process. This does not
+prove external video delivery, production PostgreSQL concurrency or rate-limit
+capacity. Existing backend and infrastructure checks cover those layers separately.
+Failed browser runs retain traces for seven days. The local `--seed-check` validates
+fixture data/API views without starting a listener or touching an existing DB.
 
 `pip-audit` is part of the pinned requirements and gates CI. Pinned dependencies go stale silently, so a missed security release must fail the build instead of waiting to be discovered: the audit is what turns the pins into a maintained set rather than a snapshot. `DJANGO_SECRET_KEY` has no safe fallback in a non-SQLite deployment — the placeholder key signs sessions, the visit cookie and playback tokens, and the guard fires regardless of `DJANGO_DEBUG` so a stack accidentally booted with debug on cannot run on a publicly known key.

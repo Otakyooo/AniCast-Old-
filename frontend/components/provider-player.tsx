@@ -44,21 +44,27 @@ function validSeconds(value: unknown) {
     : null;
 }
 
-export function ProviderPlayer({
-  sourceId,
-  playbackMode,
-  title,
-  slug,
-  episodeNumber,
-  onProgressChange,
-}: {
+interface ProviderPlayerProps {
   sourceId: number;
   playbackMode: PlaybackMode;
   title: string;
   slug: string;
   episodeNumber: number;
   onProgressChange?: (progress: PlaybackProgressSnapshot) => void;
-}) {
+}
+
+export function ProviderPlayer(props: ProviderPlayerProps) {
+  return <PlayerSession key={`${props.slug}:${props.episodeNumber}:${props.sourceId}:${props.playbackMode}`} {...props} />;
+}
+
+function PlayerSession({
+  sourceId,
+  playbackMode,
+  title,
+  slug,
+  episodeNumber,
+  onProgressChange,
+}: ProviderPlayerProps) {
   const { t } = useI18n();
   const [state, setState] = useState<PlayerState>({ kind: "loading" });
   const [frameLoaded, setFrameLoaded] = useState(false);
@@ -71,8 +77,6 @@ export function ProviderPlayer({
 
   useEffect(() => {
     let active = true;
-    setState({ kind: "loading" });
-    setFrameLoaded(false);
     getPlayback(sourceId).then((payload) => {
       const target = safePlaybackTarget(payload, window.location.origin);
       if (target.mode !== playbackMode || target.mode !== "iframe_embed") {

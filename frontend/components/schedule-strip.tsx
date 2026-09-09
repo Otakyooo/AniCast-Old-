@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ScheduleItem } from "../lib/api";
-import { itemDayKey, localDayKey, MINUTE_MS, scheduleStatus } from "../lib/schedule";
+import { itemDayKey, localDayKey, scheduleStatus } from "../lib/schedule";
 import { titleWatchHref } from "../lib/seo";
 import { RailScroller } from "./rail-scroller";
+import { useLocalClock } from "../lib/use-local-clock";
 import { useI18n } from "./i18n-provider";
 import { intlLocale } from "../i18n/config";
 import styles from "../app/home.module.css";
@@ -25,16 +26,7 @@ export function ScheduleStrip({
   serverTodayKey,
 }: { items: ScheduleItem[]; serverTodayKey: string }) {
   const { t, locale } = useI18n();
-  const [clock, setClock] = useState<{ now: number; local: boolean }>({
-    now: Date.parse(`${serverTodayKey}T00:00:00Z`),
-    local: false,
-  });
-
-  useEffect(() => {
-    setClock({ now: Date.now(), local: true });
-    const timer = window.setInterval(() => setClock({ now: Date.now(), local: true }), MINUTE_MS);
-    return () => window.clearInterval(timer);
-  }, []);
+  const clock = useLocalClock(serverTodayKey);
 
   const todayKey = clock.local ? localDayKey(new Date(clock.now)) : serverTodayKey;
   const timeFormatter = useMemo(

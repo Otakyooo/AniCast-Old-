@@ -1,18 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import styles from "../app/language.module.css";
 import { useI18n } from "./i18n-provider";
 import { setLanguageCookie, setPreferredLanguage } from "../lib/auth";
 
 export function LanguageSwitcher() {
+  const { locale } = useI18n();
+  return <LanguageSelection key={locale} />;
+}
+
+function LanguageSelection() {
   const router = useRouter();
-  const { t } = useI18n();
-  const [language, setLanguage] = useState("ru");
-  useEffect(() => {
-    setLanguage(document.cookie.match(/(?:^|; )anicast_lang=([^;]+)/)?.[1] ?? "ru");
-  }, []);
+  const { t, locale } = useI18n();
+  const [language, setLanguage] = useState(locale);
   function select(value: "ru" | "en") {
     setLanguageCookie(value);
     setLanguage(value);

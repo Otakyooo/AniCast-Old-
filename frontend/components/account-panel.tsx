@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { cachedSessionUser, fetchAccountSummary, getSessionUser, type AccountSummary, type SessionUser } from "../lib/auth";
+import { fetchAccountSummary, getSessionUser, type AccountSummary, type SessionUser } from "../lib/auth";
 import { ResumeShelf } from "./continue-watching-block";
 import { CollectionPreviews } from "./collection-previews";
 import { RecommendationShelf } from "./recommendation-shelf";
@@ -14,16 +14,17 @@ import styles from "../app/profile.module.css";
 
 export function AccountPanel() {
   const { t } = useI18n();
-  // First client render must match the server (loading state); the cached
-  // identity is applied post-mount, before the network revalidation lands.
+  // Match SSR and show private data only after the session is revalidated.
   const [user, setUser] = useState<SessionUser | null | undefined>();
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const cached = cachedSessionUser();
-    if (cached !== undefined) setUser(cached);
-    getSessionUser().then(setUser).catch((reason) => setError(reason instanceof Error ? reason.message : t("common.error")));
+    let active = true;
+    getSessionUser()
+      .then((value) => { if (active) setUser(value); })
+      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : t("common.error")); });
+    return () => { active = false; };
   }, [t]);
 
   useEffect(() => {

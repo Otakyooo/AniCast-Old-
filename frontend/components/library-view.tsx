@@ -15,6 +15,12 @@ import { useI18n } from "./i18n-provider";
  * lists live inside the library instead of a separate global section.
  */
 export function LibraryView() {
+  const params = useSearchParams();
+  const { locale } = useI18n();
+  return <LibraryResults key={`${params.toString()}:${locale}`} />;
+}
+
+function LibraryResults() {
   const { t } = useI18n();
   const filters = [[t("library.all"), "/library"], [t("nav.watching"), "/library?status=watching"], [t("nav.planned"), "/library?status=planned"], [t("nav.completed"), "/library?status=completed"], [t("library.onHold"), "/library?status=on_hold"], [t("library.dropped"), "/library?status=dropped"], [t("nav.favorites"), "/library?favorite=true"]];
   const statusLabels: Record<string, string> = { planned: t("nav.planned"), watching: t("nav.watching"), completed: t("nav.completed"), on_hold: t("library.onHold"), dropped: t("library.dropped") };
@@ -30,7 +36,6 @@ export function LibraryView() {
   useEffect(() => {
     if (collectionsView) return;
     const controller = new AbortController();
-    setData(undefined); setError(""); setGuest(false);
     getLibrary({ status, favorite, page }, controller.signal).then(setData).catch((reason) => {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
       if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
