@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+    tags-ignore: ['v*']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/constraints.txt
+      - run: pip install -r requirements.txt
+      - run: python manage.py collectstatic --noinput
+        env:
+          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
+      - run: python -m pytest
+        env:
+          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
+      - run: ruff check .
+      - run: mypy .
+        env:
+          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
+      - run: python manage.py makemigrations --check --dry-run
+        env:
+          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
+      - run: python manage.py check
+        env:
+          DJANGO_DATABASE_URL: sqlite:///db.sqlite3
+      # Run the deploy audit against production-shaped settings and let it fail
+      # the build. On SQLite, SECURE_SSL_REDIRECT is off by design, so the check
+      # used to emit warnings nobody could act on and nothing could enforce.
+      - run: python manage.py check --deploy --fail-level WARNING
+        env:
+          DJANGO_SECRET_KEY: ci-only-secret-with-more-than-fifty-characters-and-plenty-of-variety-9182736450
+          DJANGO_DEBUG: "0"
+          DJANGO_ALLOWED_HOSTS: anicast.online
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://anicast.online
+      # Pinned application dependencies go stale silently; the audit turns a
+      # missed security release into a failing build instead of a discovery.
+      # It resolves the whole graph, not just the named pins, so it covers
+      # transitive packages too — constraints.txt exists for reproducibility.
+      - run: pip-audit --strict --requirement requirements.txt
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run audit
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/constraints.txt
+      - run: pip install -r ../backend/requirements.txt
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: tab-page-screenshots
+          path: frontend/test-results/**/tab-*.png
+          retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: browser-failures
+          path: frontend/test-results/
+          retention-days: 7
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cp infra/mainserver/env.example infra/mainserver/.env
+      - run: cp infra/vps/env.example infra/vps/.env
+      - run: sh scripts/validate.sh
+      - run: sh scripts/tests/backup_failure_test.sh
+      - run: docker compose -f infra/mainserver/compose.yml config -q
+      - run: docker compose -f infra/vps/compose.yml config -q
+      - run: docker build -t anicast-backend:ci backend
+      - run: sh scripts/tests/redis_isolation_test.sh anicast-backend:ci
+      - name: Verify API availability during slow worker rollout
+        run: python3 scripts/tests/mainserver_rollout_test.py anicast-backend:ci redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+      - run: sudo apt-get update && sudo apt-get install -y nftables iproute2
+      - run: sudo python3 scripts/tests/vps_firewall_test.py infra/vps/firewall.nft
+      - run: python3 -m unittest discover -s scripts/tests -p "test_release*.py"
+      - run: python3 -m py_compile scripts/create-release-manifests.py scripts/restore-isolated.py scripts/recovery-smoke.py scripts/recovery-media.py
+      - run: docker build -t anicast-frontend:ci frontend
+      - name: Verify image processing in the production musl image
+        run: >-
+          docker run --rm --network none --memory 128m
+          -v "$PWD/scripts/tests/frontend_image_test.cjs:/app/check-image-runtime.cjs:ro"
+          --entrypoint node anicast-frontend:ci /app/check-image-runtime.cjs
+      - run: docker run --rm -v "$PWD/infra/vps/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 caddy validate --config /etc/caddy/Caddyfile
+      - run: git diff --check
