@@ -167,6 +167,15 @@ separate translations; the English name is the safe fallback when no Russian
 episode title exists. Existing editorial names are never overwritten. Jikan's
 date-only value never replaces a more precise Kodik `air_at` timestamp.
 
+Localization falls back per field, not per row. An import creates a translation
+row to carry the localized *name*, so a Russian row normally has an empty
+`synopsis`; serving that empty string hid the imported description from every
+Russian reader, including `meta description` and JSON-LD. `translated_value`
+therefore skips empty localized values and continues through the remaining
+languages to the base field, while a filled Russian text still wins. An English
+request keeps reading the base fields, which hold the original spelling rather
+than a Russian fallback.
+
 ```bash
 docker exec mainserver-backend-1 python manage.py sync_episode_metadata --all
 docker exec mainserver-backend-1 python manage.py sync_episode_metadata --all --apply

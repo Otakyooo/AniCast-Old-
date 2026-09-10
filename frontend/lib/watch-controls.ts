@@ -94,10 +94,35 @@ export function filterEpisodeNumbers(numbers: number[], query: string) {
   return [exact, ...matches.filter((number) => number !== exact)];
 }
 
+/** Below this many episodes the list is scrollable on its own and a range
+ * selector would only add a control the viewer has to think about. */
+const RANGE_THRESHOLD = 40;
+/** Round range bounds viewers can recognize ("Серии 1–25"), widest last. */
+const RANGE_SIZES = [25, 50, 100, 250, 500];
+/** More options than this turns the selector itself into a long list. */
+const MAX_RANGES = 12;
+
+/**
+ * Range size for one title's episode list.
+ *
+ * Long series are not only the thousand-episode ones: a 60-episode title is
+ * already unusable through a numeric search alone, so anything above the
+ * threshold gets ranges. The size grows with the episode count so the
+ * selector keeps a readable number of options at both 60 and 3000 episodes.
+ */
+export function episodeRangeSize(count: number): number {
+  if (count <= RANGE_THRESHOLD) return count || 1;
+  const fitting = RANGE_SIZES.find((size) => Math.ceil(count / size) <= MAX_RANGES);
+  return fitting ?? Math.ceil(count / MAX_RANGES);
+}
+
 /** Keep long-running series usable without rendering a thousand links at once. */
-export function episodeNumberRanges(numbers: number[], size = 100): EpisodeNumberRange[] {
+export function episodeNumberRanges(numbers: number[], size?: number): EpisodeNumberRange[] {
   const normalized = normalizeEpisodeNumbers(numbers);
-  const pageSize = Number.isInteger(size) && size > 0 ? size : 100;
+  const requested = size ?? episodeRangeSize(normalized.length);
+  const pageSize = Number.isInteger(requested) && requested > 0
+    ? requested
+    : episodeRangeSize(normalized.length);
   const ranges: EpisodeNumberRange[] = [];
   for (let index = 0; index < normalized.length; index += pageSize) {
     const slice = normalized.slice(index, index + pageSize);

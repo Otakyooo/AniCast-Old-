@@ -411,6 +411,7 @@ export default async function CatalogDetailPage({
       watchProps = {
           slug,
           titleName: item.name,
+          totalEpisodeCount: episodesCount,
           playableEpisodeNumbers: resolvedPlayableNumbers,
           sourceGroups: navigation.source_groups,
           requestedSourceKey: query.voice,
@@ -603,7 +604,7 @@ export default async function CatalogDetailPage({
         <span className={styles.tabsSecondary}>
           {secondaryTabs.map((value) => (
             <Link
-              className={`${styles.tab} ${styles.tabSecondary} ${value === tab ? styles.tabActive : ""}`}
+              className={`${styles.tab} ${value === tab ? styles.tabActive : ""}`}
               href={tabHref(value)}
               prefetch={false}
               aria-current={value === tab ? "page" : undefined}

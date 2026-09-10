@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
 import type { CatalogItem, ScheduleItem } from "../lib/api";
+import { planRecentEpisodeShelf } from "../lib/home-shelves";
 import { localDayKey } from "../lib/schedule";
 import { titleWatchHref } from "../lib/seo";
 import { RailScroller } from "./rail-scroller";
@@ -19,6 +20,11 @@ import styles from "../app/home.module.css";
  * out" and "what is airing now with the next episode date" — ahead of
  * franchise discovery. Times stay hidden until the browser timezone is known
  * so the first paint matches the server markup.
+ *
+ * The release shelf is fed a wider window than one week and picks how much of
+ * it to show: a thin week is filled with older releases, and a window that
+ * cannot fill a rail row at all becomes a compact block instead of a
+ * poster-height gap.
  */
 export function RecentEpisodesRail({
   items,
@@ -41,31 +47,77 @@ export function RecentEpisodesRail({
 
   if (items.length === 0) return null;
   const todayKey = clock.local ? localDayKey(new Date(clock.now)) : serverTodayKey;
+  const plan = planRecentEpisodeShelf(items, todayKey);
+  if (plan.items.length === 0) return null;
+
+  /** "Сегодня" / "20 окт." plus the exact time once the timezone is known. */
+  const releaseWhen = (item: ScheduleItem) => {
+    const moment = item.air_at ? new Date(item.air_at) : null;
+    const hasTime = moment !== null && !Number.isNaN(moment.getTime());
+    // Day-only rows fall back to their date; the exact time is never
+    // invented for them.
+    const dayKey = (item.air_date ?? "").slice(0, 10);
+    const day = dayKey === todayKey
+      ? t("home.today")
+      : dayKey
+        ? dayFormatter.format(new Date(`${dayKey}T12:00:00Z`))
+        : "";
+    const time = clock.local && hasTime && moment ? timeFormatter.format(moment) : "";
+    return [day, time].filter(Boolean).join(" · ");
+  };
 
   return (
     <section className="section" aria-label={t("home.recentEpisodes")}>
       <div className="section-heading">
         <div className={styles.shelfHeading}>
           <h2>{t("home.recentEpisodes")}</h2>
-          <p>{t("home.recentEpisodesText")}</p>
+          {/* The subtitle states the window actually shown: claiming "last
+              week" over month-old releases would be a lie. */}
+          <p>{t(plan.widened ? "home.recentEpisodesTextWide" : "home.recentEpisodesText")}</p>
         </div>
         <Link href="/schedule">{t("home.showAll")}</Link>
       </div>
-      <RailScroller railClassName={styles.posterRail}>
-        <ul className={styles.railList}>
-          {items.map((item) => {
-            const moment = item.air_at ? new Date(item.air_at) : null;
-            const hasTime = moment !== null && !Number.isNaN(moment.getTime());
-            // Day-only rows fall back to their date; the exact time is never
-            // invented for them.
-            const dayKey = (item.air_date ?? "").slice(0, 10);
-            const when = dayKey === todayKey
-              ? t("home.today")
-              : dayKey
-                ? dayFormatter.format(new Date(`${dayKey}T12:00:00Z`))
-                : "";
-            const time = clock.local && hasTime && moment ? timeFormatter.format(moment) : "";
-            return (
+      {/* Too few releases to fill a rail row: compact rows keep the block as
+          small as its data instead of reserving poster height. */}
+      {plan.compact ? (
+        <ul className={styles.releaseCompactList}>
+          {plan.items.map((item) => (
+            <li key={item.id}>
+              <Link
+                className={styles.releaseCompactCard}
+                href={titleWatchHref(item.title.slug, item.number)}
+              >
+                <span className={styles.releaseCompactPoster}>
+                  {item.title.poster_url ? (
+                    <Image
+                      className={styles.releasePosterArt}
+                      src={item.title.poster_url}
+                      alt=""
+                      fill
+                      sizes="44px"
+                      quality={92}
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span aria-hidden="true">{item.title.name.slice(0, 1).toUpperCase()}</span>
+                  )}
+                </span>
+                <span className={styles.releaseCompactBody}>
+                  <strong>{item.title.name}</strong>
+                  <small>
+                    {[t("episode.number", { number: item.number }), releaseWhen(item)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </small>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <RailScroller railClassName={styles.posterRail}>
+          <ul className={styles.railList}>
+            {plan.items.map((item) => (
               <li key={item.id}>
                 <Link
                   className={styles.releaseCard}
@@ -94,14 +146,14 @@ export function RecentEpisodesRail({
                   </span>
                   <span className={styles.releaseBody}>
                     <strong>{item.title.name}</strong>
-                    <small>{[when, time].filter(Boolean).join(" · ")}</small>
+                    <small>{releaseWhen(item)}</small>
                   </span>
                 </Link>
               </li>
-            );
-          })}
-        </ul>
-      </RailScroller>
+            ))}
+          </ul>
+        </RailScroller>
+      )}
     </section>
   );
 }

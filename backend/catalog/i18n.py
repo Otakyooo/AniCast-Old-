@@ -18,15 +18,27 @@ def translated_value(instance, field: str, context) -> str:
 
 
 def translated_value_for_language(instance, field: str, requested: str) -> str:
-    translations = list(instance.translations.all())
-    by_language = {translation.language: translation for translation in translations}
-    requested_translation = by_language.get(requested)
-    if requested_translation is not None:
-        return getattr(requested_translation, field)
-    if requested == "en":
-        return getattr(instance, field)
-    for language in [DEFAULT_LANGUAGE, "en"]:
+    """Localized field value with a non-empty fallback chain.
+
+    A translation row is not a promise that every field of it is filled: the
+    imports create rows to carry the localized *name*, which left titles with
+    a Russian row whose ``synopsis`` is empty. Returning that empty string hid
+    the imported description from every Russian reader, so an empty localized
+    value now falls through to the remaining languages and finally to the base
+    instance field. The English request keeps its shortcut to the base fields:
+    they hold the original English spelling, not a Russian fallback.
+    """
+    by_language = {translation.language: translation for translation in instance.translations.all()}
+
+    def localized(language: str) -> str:
         translation = by_language.get(language)
-        if translation is not None:
-            return getattr(translation, field)
+        return getattr(translation, field) if translation is not None else ""
+
+    candidates = [localized(requested)]
+    if requested == "en":
+        candidates.append(getattr(instance, field))
+    candidates += [localized(DEFAULT_LANGUAGE), localized("en")]
+    for value in candidates:
+        if value:
+            return value
     return getattr(instance, field)

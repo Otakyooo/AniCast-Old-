@@ -1067,6 +1067,36 @@ def test_catalog_localizes_content_and_searches_translations(catalog_data):
 
 
 @pytest.mark.django_db
+def test_partial_translation_row_does_not_hide_imported_synopsis(catalog_data):
+    """A localized row filled with the name only must not blank the synopsis.
+
+    The imports create translations to carry the localized title, so the
+    Russian rows keep an empty ``synopsis``. Serving that empty string left
+    every title page and its metadata without a description.
+    """
+    catalog_data.synopsis = "Imported English synopsis"
+    catalog_data.save(update_fields=["synopsis"])
+    TitleTranslation.objects.create(title=catalog_data, language="ru", name="Небесный тест")
+    episode = catalog_data.episodes.get(number=1)
+    episode.synopsis = "Imported episode synopsis"
+    episode.save(update_fields=["synopsis"])
+    EpisodeTranslation.objects.create(episode=episode, language="ru", name="Начало")
+
+    russian = APIClient().get("/api/v1/titles/sky-test/").json()
+    assert russian["name"] == "Небесный тест"
+    assert russian["synopsis"] == "Imported English synopsis"
+    assert russian["episodes"][0]["synopsis"] == "Imported episode synopsis"
+
+    # A filled Russian synopsis still wins over the base text.
+    TitleTranslation.objects.filter(title=catalog_data, language="ru").update(synopsis="Русское описание")
+    assert APIClient().get("/api/v1/titles/sky-test/").json()["synopsis"] == "Русское описание"
+    # The English request keeps reading the base fields, not the Russian row.
+    english = APIClient().get("/api/v1/titles/sky-test/?lang=en").json()
+    assert english["name"] == "Sky Test"
+    assert english["synopsis"] == "Imported English synopsis"
+
+
+@pytest.mark.django_db
 def test_title_detail_bounds_large_character_payload(catalog_data):
     for index in range(61):
         character = Character.objects.create(name=f"Cast {index}", slug=f"cast-{index}")

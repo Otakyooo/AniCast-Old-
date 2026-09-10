@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   episodeNumberRanges,
   episodeRangeIndex,
+  episodeRangeSize,
   filterEpisodeNumbers,
   firstRankedPlayableGroupKey,
   mergeCurrentWatchSourceGroups,
@@ -39,6 +40,27 @@ test("episode ranges preserve gaps and reject invalid range sizes", () => {
   assert.deepEqual(ranges, [{ first: 1, last: 7, numbers: [1, 3, 7] }]);
   assert.equal(episodeRangeIndex(ranges, 2), 0);
   assert.equal(episodeRangeIndex([], 1), 0);
+});
+
+test("range size follows the title length so long series get real ranges", () => {
+  // Short and mid-length titles stay one scrollable list.
+  assert.equal(episodeRangeSize(0), 1);
+  assert.equal(episodeRangeSize(24), 24);
+  assert.equal(episodeRangeSize(40), 40);
+  // Above the threshold the list is split into recognizable blocks.
+  assert.equal(episodeRangeSize(41), 25);
+  assert.equal(episodeRangeSize(300), 25);
+  assert.equal(episodeRangeSize(600), 50);
+  assert.equal(episodeRangeSize(1180), 100);
+  assert.equal(episodeRangeSize(9000), 750);
+
+  const long = Array.from({ length: 60 }, (_, index) => index + 1);
+  assert.deepEqual(
+    episodeNumberRanges(long).map(({ first, last }) => [first, last]),
+    [[1, 25], [26, 50], [51, 60]],
+  );
+  // A 24-episode season keeps a single range, so no selector is rendered.
+  assert.equal(episodeNumberRanges(long.slice(0, 24)).length, 1);
 });
 
 test("current episode sources repair a stale cached voice matrix", () => {

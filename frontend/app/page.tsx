@@ -35,6 +35,9 @@ const FRANCHISE_SHELF_SIZE = 8;
 const MIN_FULL_SHELF = 6;
 /** A shelf with fewer cards is dropped: a titled one-card strip looks broken. */
 const MIN_VISIBLE_SHELF = 4;
+/** Release window handed to the shelf: it shows the last week when that week
+ * is dense enough and reaches back only to avoid a one-card rail. */
+const RECENT_EPISODE_DAYS = 30;
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -118,7 +121,7 @@ export default async function HomePage() {
     getCatalog({ ordering: "recent", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
     getFranchises(1, "", FRANCHISE_SHELF_SIZE).catch(() => emptyPage<FranchiseSummary>()),
     getSchedule(todayKey, addDays(todayKey, 2)).catch((): ScheduleResponse => emptyPage()),
-    getRecentEpisodes(7).catch((): ScheduleItem[] => []),
+    getRecentEpisodes(RECENT_EPISODE_DAYS).catch((): ScheduleItem[] => []),
     getI18n(),
   ]);
   // Release shelves come first: a returning viewer's daily question is "what

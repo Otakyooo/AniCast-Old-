@@ -152,6 +152,9 @@ function PlaybackProgressStatus({ progress }: { progress: PlaybackProgressSnapsh
 interface WatchSpaceProps {
   slug: string;
   titleName: string;
+  /** Episodes the title has in the catalog, i.e. the number the page header
+   * shows. Playback counts are a subset of it and must say so. */
+  totalEpisodeCount?: number;
   playableEpisodeNumbers: number[];
   sourceGroups: WatchSourceGroup[];
   requestedSourceKey?: string;
@@ -171,6 +174,7 @@ const AUTOPLAY_COUNTDOWN_SECONDS = 10;
 function TitleWatchSpace({
   slug,
   titleName,
+  totalEpisodeCount,
   playableEpisodeNumbers,
   sourceGroups,
   requestedSourceKey,
@@ -271,6 +275,23 @@ function TitleWatchSpace({
       : episodeRanges[selectedRangeIndex]?.numbers ?? [],
     [episodeQuery, episodeRanges, searchedEpisodeNumbers, selectedRangeIndex],
   );
+  // "24 серии" in the page header and "12" here are different facts: the
+  // catalog total and what the selected voice-over actually offers. Naming
+  // both in one line stops the two numbers from reading as a contradiction.
+  const availableCount = availableEpisodeNumbers.length;
+  const knownTotal = typeof totalEpisodeCount === "number" && totalEpisodeCount > availableCount
+    ? totalEpisodeCount
+    : null;
+  const coverageLine = knownTotal !== null
+    ? t(availableCount === 1 ? "watch.episodeCoverageLineOne" : "watch.episodeCoverageLine", {
+      total: episodeCountLabel(t, locale, knownTotal),
+      available: availableCount,
+    })
+    : t("watch.availableEpisodeCount", { count: availableCount });
+  // The control bar under the player has no room for the full sentence.
+  const coverageShort = knownTotal !== null
+    ? t("watch.availableOfTotal", { available: availableCount, total: knownTotal })
+    : t("watch.availableEpisodeCount", { count: availableCount });
   const previousNumber = availableEpisodeNumbers.filter((number) => number < currentNumber).at(-1);
   const nextNumber = availableEpisodeNumbers.find((number) => number > currentNumber);
   const selectedName = selectedGroup
@@ -602,7 +623,7 @@ function TitleWatchSpace({
               onClick={openEpisodeChooser}
             >
               <strong>{t("episode.number", { number: currentNumber })}</strong>
-              <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
+              <span>{coverageShort}</span>
             </button>
 
             {nextNumber !== undefined ? (
@@ -660,7 +681,7 @@ function TitleWatchSpace({
               )}
               <div className={styles.episodeRailHeading}>
                 <h3>{t("title.episodes")}</h3>
-                <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
+                <span>{coverageLine}</span>
               </div>
               {episodeRangeControl("watch-episode-range")}
               <ol className={styles.episodeRailList}>{episodeList()}</ol>
@@ -687,7 +708,7 @@ function TitleWatchSpace({
             <header className={styles.dialogHeader}>
               <div>
                 <h3 id="watch-episode-dialog-title">{t("watch.episodeDialogTitle")}</h3>
-                <span>{t("watch.availableEpisodeCount", { count: availableEpisodeNumbers.length })}</span>
+                <span>{coverageLine}</span>
               </div>
               <button type="button" onClick={() => episodeDialogRef.current?.close()} aria-label={t("watch.closeChooser")}>
                 <X aria-hidden="true" weight="bold" />

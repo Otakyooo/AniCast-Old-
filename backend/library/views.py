@@ -576,9 +576,11 @@ class RecommendationListView(ListAPIView):
     watched_genre_weight = 0.5
     franchise_boost_per_entry = 1.5
     franchise_engagement_cap = 4
-    # Recommendations must widen the choice, not replay one franchise: at most
-    # this many titles per franchise survive, regardless of boost.
-    per_franchise_cap = 2
+    # Recommendations must widen the choice, not replay one franchise: only
+    # this many titles per franchise survive, regardless of boost. One
+    # representative is enough — the franchise page and the title's own watch
+    # order already answer "what else is in this story".
+    per_franchise_cap = 1
     reason_genre_limit = 3
     _signals_cache: tuple[dict[int, float], dict[int, int]] | None = None
 
@@ -652,7 +654,8 @@ class RecommendationListView(ListAPIView):
         """Keep at most `per_franchise_cap` titles of any one franchise.
 
         The boost makes engaged franchises dominate the top of the list; a
-        viewer who just watched one part does not need a shelf of its sequels.
+        viewer who just watched one part does not need a row of its sequels,
+        so a franchise gets a single representative in the recommendations.
         Titles without a franchise pass through untouched. The id list is
         evaluated once in score order; the catalog is small, so this stays
         cheaper than a window-function reimplementation of the same cap.

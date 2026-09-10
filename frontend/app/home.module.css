@@ -348,6 +348,67 @@
   white-space: nowrap;
 }
 
+/* Compact release rows for a shelf the data cannot fill. The rail reserves a
+   poster-height row sized for six cards, so a lone release left the block
+   mostly empty; these rows are as tall as their content and stop at a
+   readable width instead of stretching across the container. */
+.releaseCompactList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 400px));
+  gap: 10px;
+  justify-content: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.releaseCompactCard {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px 10px 10px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  transition: background 140ms ease;
+}
+
+.releaseCompactCard:hover { background: var(--surface-2) }
+.releaseCompactCard:hover strong { text-decoration: underline; text-underline-offset: 3px }
+
+.releaseCompactPoster {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  aspect-ratio: 2 / 3;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--poster-gradient);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.releaseCompactBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.releaseCompactBody strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.releaseCompactBody small {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Franchise shelf ---------- */
 
 .franchiseCard {

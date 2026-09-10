@@ -274,20 +274,23 @@
 }
 
 /* The single list control: the status select owns library membership, the
-   star toggles "Любимое" inside the same entry. No competing add buttons. */
+   star toggles "Любимое" inside the same entry. No competing add buttons.
+   Label and select share one surface so the cluster reads as one dropdown
+   ("Статус: Не в списке ▾"), not as a caption next to a second action. */
 .listControl {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 4px;
   min-height: 46px;
-  padding-left: 14px;
-  border: 1px solid var(--border);
+  padding-left: 13px;
+  border: 1px solid var(--border-control);
   border-radius: 10px;
-  background: transparent;
-  transition: border-color 140ms ease;
+  background: var(--surface-control);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
 }
 
-.listControl:hover { border-color: var(--border-emphasis) }
+.listControl:hover { border-color: var(--border-emphasis); background: var(--surface-control-hover) }
 
 .listControl > span:first-child {
   color: var(--muted);
@@ -299,10 +302,10 @@
 
 .listSelect select {
   min-height: 44px;
-  padding: 0 34px 0 10px;
+  padding: 0 30px 0 2px;
   border: 0;
   border-radius: 0 9px 9px 0;
-  background: var(--surface-control);
+  background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 14px;
@@ -385,14 +388,16 @@
   color: var(--text);
 }
 
-/* Watching is the core task: people/community/notes step back visually and
-   move to the right side of the bar. */
+/* Watching is the core task: people/community/notes step back visually while
+   staying in the same group. Pushing them to the far right split one tab bar
+   into two clusters at opposite screen edges, so they follow the primary
+   tabs directly, separated only by a divider. */
 .tabsSecondary {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
-  padding-left: 12px;
+  margin-left: 8px;
+  padding-left: 10px;
   border-left: 1px solid var(--border);
 }
 
@@ -1306,16 +1311,16 @@
   scrollbar-width: thin;
 }
 
+/* The coverage line names both the catalog total and what this voice-over
+   offers, so it needs a full row instead of a right-aligned number. */
 .episodeRailHeading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 2px;
   padding: 13px 14px 5px;
 }
 
 .episodeRailHeading h3 { margin: 0; color: var(--text); font-size: 14px }
-.episodeRailHeading span { color: var(--muted-2); font-size: 12px }
+.episodeRailHeading span { color: var(--muted-2); font-size: 12px; line-height: 1.35 }
 
 .railWarning {
   margin: 10px 10px 0;
@@ -1641,6 +1646,11 @@
 }
 
 .dialogHeader button svg { width: 19px; height: 19px }
+
+/* The coverage sentence names two numbers, so it wraps inside the header
+   instead of pushing the close button off the panel. */
+.dialogHeader > div { display: grid; gap: 2px; min-width: 0 }
+.dialogHeader > div span { color: var(--muted-2); font-size: 12px; line-height: 1.35 }
 .dialogPanel > .episodeSearch { margin: 14px 14px 6px }
 .dialogPanel > .episodeRangeField { margin-inline: 14px }
 .dialogEpisodeList { gap: 2px; flex: 1; padding: 8px 14px 14px }

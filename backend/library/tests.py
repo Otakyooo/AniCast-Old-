@@ -673,7 +673,7 @@ def test_recommendations_franchise_boost_scales_with_engagement(users):
 
 @pytest.mark.django_db
 def test_recommendations_cap_titles_per_franchise(users):
-    """One engaged franchise must not fill the whole shelf with its sequels."""
+    """A franchise gets one representative, not a row of its own sequels."""
     franchise = Franchise.objects.create(name="Big Saga", slug="big-saga")
     genre = Genre.objects.create(name="Drama", slug="drama")
     source = Title.objects.create(name="Source", slug="source")
@@ -698,7 +698,7 @@ def test_recommendations_cap_titles_per_franchise(users):
     client.force_login(users[0])
     slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
     franchise_slugs = [slug for slug in slugs if slug.startswith("sequel-")]
-    assert len(franchise_slugs) == 2
+    assert len(franchise_slugs) == 1
     # The standalone candidates are not crowded out by the cap.
     assert set(standalone.slug for standalone in standalones) <= set(slugs)
 

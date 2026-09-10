@@ -412,4 +412,22 @@ Object.assign(en, {
   "profile.activityTotal":"{count} episodes in 12 months","profile.statsSeparator":"·",
 });
 
+Object.assign(ru, {
+  // Полка релизов сообщает фактическое окно, если за неделю серий почти нет.
+  "home.recentEpisodesTextWide":"Последние вышедшие серии за месяц.",
+  // Статус списка — один контрол: «Статус: Не в списке».
+  "title.listLabel":"Статус:",
+  // Серии в каталоге и серии в выбранной озвучке — разные числа, и это сказано прямо.
+  "watch.episodeCoverageLine":"{total} всего · {available} доступны в выбранной озвучке",
+  "watch.episodeCoverageLineOne":"{total} всего · {available} доступна в выбранной озвучке",
+  "watch.availableOfTotal":"Доступно {available} из {total}",
+});
+Object.assign(en, {
+  "home.recentEpisodesTextWide":"Latest released episodes from the past month.",
+  "title.listLabel":"Status:",
+  "watch.episodeCoverageLine":"{total} total · {available} available in the selected voice-over",
+  "watch.episodeCoverageLineOne":"{total} total · {available} available in the selected voice-over",
+  "watch.availableOfTotal":"{available} of {total} available",
+});
+
 export const dictionaries: Record<Locale, Record<string, string>> = { ru, en };
