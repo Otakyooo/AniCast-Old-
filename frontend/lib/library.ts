@@ -30,9 +30,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function getLibrary(filters: { status?: string; favorite?: boolean; page?: number } = {}, signal?: AbortSignal) {
+export async function getLibrary(
+  filters: { status?: string; favorite?: boolean; page?: number; page_size?: number } = {},
+  signal?: AbortSignal,
+) {
   const query = new URLSearchParams();
   if (filters.status) query.set("status", filters.status);
+  if (filters.page_size) query.set("page_size", String(filters.page_size));
   if (filters.favorite) query.set("favorite", "true");
   if (filters.page && filters.page > 1) query.set("page", String(filters.page));
   return parseResponse<LibraryResponse>(await fetch(`/api/v1/library/?${query}`, { credentials: "same-origin", cache: "no-store", signal }));

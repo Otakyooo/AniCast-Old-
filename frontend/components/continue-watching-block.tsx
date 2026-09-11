@@ -2,18 +2,22 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Play, Plus, X } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { DotsThree, Play } from "@phosphor-icons/react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { CatalogItem } from "../lib/api";
-import { getContinueWatching, resumeEpisode, resumeProgressPercent, type ContinueWatchingEntry } from "../lib/continue-watching";
-import { deleteTitleHistory } from "../lib/history";
-import { episodeCountLabel } from "../lib/episode-count";
-import { getLibraryEntry, LibraryApiError, putLibraryEntry, type LibraryEntry, type LibraryStatus } from "../lib/library";
+import {
+  ContinueWatchingApiError,
+  getContinueWatching,
+  hideFromContinueWatching,
+  resumeEpisode,
+  resumeProgressPercent,
+  unhideFromContinueWatching,
+  type ContinueWatchingEntry,
+} from "../lib/continue-watching";
 import { formatPlaybackTime } from "../lib/playback";
-import { titleRating } from "../lib/rating";
 import { titleWatchHref } from "../lib/seo";
-import { informativeTitleType, titleTemplateState } from "../lib/title-template";
-import { RailScroller } from "./rail-scroller";
+import { episodeCountLabel } from "../lib/episode-count";
+import type { Locale } from "../i18n/config";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
@@ -38,317 +42,363 @@ function useContinueWatching(): State {
   return state;
 }
 
-function HeroLibraryAction(props: { slug: string; initialStatus: LibraryStatus }) {
-  const { locale } = useI18n();
-  const [attempt, setAttempt] = useState(0);
-  return <HeroLibraryRequest key={`${props.slug}:${locale}:${attempt}`} {...props} retry={() => setAttempt((value) => value + 1)} />;
+/** The playable voice variant the viewer actually used last (`dub/sub/raw`). */
+function voiceLabel(entry: ContinueWatchingEntry, t: (key: string, values?: Record<string, string | number>) => string): string {
+  if (!entry.source_name) return "";
+  const kindLabel = entry.source_kind === "dub"
+    ? t("watch.voiceGroup.dub")
+    : entry.source_kind === "sub"
+      ? t("watch.voiceGroup.sub")
+      : t("watch.voiceGroup.raw");
+  return `${kindLabel}: ${entry.source_name}`;
 }
 
-function HeroLibraryRequest({ slug, initialStatus, retry }: { slug: string; initialStatus: LibraryStatus; retry: () => void }) {
+/** Single line describing the resume state ("Серия 4 · 08:32 / 24:10" etc). */
+function resumeFactLine(
+  entry: ContinueWatchingEntry,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  const target = resumeEpisode(entry);
+  if (!target) return "";
+  if (entry.is_watched) return t("home.nextEpisodeResume", { number: target.number });
+  const position = entry.resume_at_seconds ?? 0;
+  if (position > 0) {
+    const duration = typeof entry.duration_seconds === "number" && entry.duration_seconds > 0
+      ? entry.duration_seconds
+      : null;
+    // "Серия 4 · 08:32 / 24:10" — the position inside the episode that
+    // actually resumes, not a share of the whole series.
+    const time = duration !== null
+      ? `${formatPlaybackTime(position)} / ${formatPlaybackTime(duration)}`
+      : formatPlaybackTime(position);
+    return t("home.episodeProgressLine", { number: target.number, time });
+  }
+  return t("home.startEpisode", { number: target.number });
+}
+
+/** Secondary line with the count of watched episodes when it says something new. */
+function resumeCountLine(
+  entry: ContinueWatchingEntry,
+  locale: Locale,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  const total = entry.title.episodes_count;
+  if (typeof total !== "number" || total <= 0 || entry.watched_count <= 0) return "";
+  return t("home.episodesWatched", { count: episodeCountLabel(t, locale, entry.watched_count), total });
+}
+
+/** Small ⋯ menu: hide from this shelf with an undo window; never touches history. */
+function ContinueMenu({
+  entry,
+  onRemoved,
+}: {
+  entry: ContinueWatchingEntry;
+  onRemoved: (slug: string) => void;
+}) {
   const { t } = useI18n();
-  const [entry, setEntry] = useState<LibraryEntry | null | undefined>();
-  const [guest, setGuest] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const menuId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) close();
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        close();
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, close]);
 
-    getLibraryEntry(slug, controller.signal)
-      .then(setEntry)
-      .catch((reason) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") return;
-        if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
-        else setError(t("common.error"));
-      });
+  useEffect(() => () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+  }, []);
 
-    return () => controller.abort();
-  }, [slug, t]);
-
-  async function addToLibrary() {
+  async function hide() {
     setPending(true);
     setError("");
     try {
-      setEntry(await putLibraryEntry(slug, { status: initialStatus, is_favorite: false }));
+      await hideFromContinueWatching(entry.title.slug);
+      setHidden(true);
+      timerRef.current = window.setTimeout(() => onRemoved(entry.title.slug), 8000);
     } catch (reason) {
-      if (reason instanceof LibraryApiError && [401, 403].includes(reason.status)) setGuest(true);
-      else setError(t("common.error"));
+      setError(reason instanceof ContinueWatchingApiError && [401, 403].includes(reason.status)
+        ? t("common.login")
+        : t("home.removeHistoryFailed"));
     } finally {
       setPending(false);
     }
   }
 
-  if (guest) {
-    return <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href="/login"><Plus aria-hidden="true" size={20} />{t("home.signInToSave")}</Link>;
+  async function undo() {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    setPending(true);
+    try {
+      await unhideFromContinueWatching(entry.title.slug);
+      setHidden(false);
+    } catch {
+      setError(t("common.error"));
+    } finally {
+      setPending(false);
+    }
   }
 
-  if (entry) {
-    return <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href="/library"><Check aria-hidden="true" weight="bold" size={20} />{t("title.inLibrary")}</Link>;
-  }
-
-  if (entry === undefined && error) {
+  if (hidden) {
     return (
-      <span className={styles.heroLibraryState}>
-        <button className={`secondary inline-button ${styles.resumeHeroSecondary}`} type="button" onClick={retry}>{t("common.retry")}</button>
-        <span className={styles.heroActionError} role="alert">{error}</span>
-      </span>
+      <div className={styles.continueUndo} role="status">
+        <span>{t("home.continueRemoved")}</span>
+        <button type="button" disabled={pending} onClick={undo}>{t("home.undo")}</button>
+      </div>
     );
   }
 
   return (
-    <span className={styles.heroLibraryState}>
+    <div className={styles.continueMenuWrap} ref={containerRef}>
       <button
-        className={`secondary inline-button ${styles.resumeHeroSecondary}`}
+        ref={triggerRef}
+        className={styles.continueMenuButton}
         type="button"
-        disabled={pending || entry === undefined}
-        onClick={addToLibrary}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={t("home.continueMenu")}
+        onClick={() => setOpen((value) => !value)}
       >
-        <Plus aria-hidden="true" size={20} />
-        {pending ? t("home.addingLibrary") : entry === undefined ? t("common.loading") : t("title.addLibrary")}
+        <DotsThree aria-hidden="true" size={18} weight="bold" />
       </button>
-      {error && <span className={styles.heroActionError} role="alert">{error}</span>}
-    </span>
+      {open && (
+        <div className={styles.continueMenu} id={menuId} role="menu">
+          <button type="button" disabled={pending} onClick={() => { close(); void hide(); }}>
+            {t("home.removeFromContinue")}
+          </button>
+        </div>
+      )}
+      {error && <span className={styles.continueMenuError} role="alert">{error}</span>}
+    </div>
+  );
+}
+
+/** One compact resume row: thumb, name, fact, voice, explicit play, ⋯ menu. */
+export function ResumeCard({
+  entry,
+  onRemoved,
+  variant = "row",
+}: {
+  entry: ContinueWatchingEntry;
+  onRemoved?: (slug: string) => void;
+  variant?: "row" | "feature";
+}) {
+  const { t, locale } = useI18n();
+  const target = resumeEpisode(entry);
+  if (!target) return null;
+
+  const title = entry.title;
+  const playHref = titleWatchHref(title.slug, target.number, entry.source_selection_key || undefined);
+  // The play button must name what actually starts: the next episode or the
+  // currently watched one at its real position, in the played voice variant.
+  const playLabel = target.number === 1
+    ? t("home.startEpisode", { number: 1 })
+    : entry.is_watched
+      ? t("home.nextEpisodeResume", { number: target.number })
+      : t("home.continueEpisode", { number: target.number });
+  const factLine = resumeFactLine(entry, t);
+  const countLine = resumeCountLine(entry, locale, t);
+  const voiceLine = voiceLabel(entry, t);
+  const isFeature = variant === "feature";
+
+  return (
+    <li className={isFeature ? styles.resumeItemFeature : styles.resumeItem}>
+      {/* The thumbnail is a link only to the title page; the launch action is
+          the explicit play button, per the resume audit, not a poster hover. */}
+      <Link
+        className={styles.continueThumb}
+        href={`/titles/${title.slug}`}
+        title={title.name}
+      >
+        {title.poster_url ? (
+          <Image
+            className={styles.continueThumbArt}
+            src={title.poster_url}
+            alt=""
+            fill
+            sizes={isFeature ? "(max-width: 767px) 128px, 176px" : "(max-width: 767px) 88px, 128px"}
+            quality={92}
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <span className={styles.continueFallback} aria-hidden="true">
+            {title.name.slice(0, 1).toUpperCase()}
+          </span>
+        )}
+      </Link>
+      <div className={styles.continueBody}>
+        <Link className={styles.continueTitle} href={`/titles/${title.slug}`}>{title.name}</Link>
+        <span className={styles.continueFact}>{factLine}</span>
+        {countLine !== "" && <span className={styles.continueMeta}>{countLine}</span>}
+        {voiceLine !== "" && <span className={styles.continueVoice}>{voiceLine}</span>}
+        <span className={styles.continueProgressTrack} aria-hidden="true">
+          <span className={styles.continueProgressBar} style={{ width: `${resumeProgressPercent(entry)}%` }} />
+        </span>
+      </div>
+      <div className={styles.continueActions}>
+        <Link className={`primary ${styles.continuePlay}`} href={playHref}>
+          <Play aria-hidden="true" weight="fill" size={16} />
+          {playLabel}
+        </Link>
+        {onRemoved && <ContinueMenu entry={entry} onRemoved={onRemoved} />}
+      </div>
+    </li>
+  );
+}
+
+/** Guest hero: one welcome card, no progress data, points at the catalog. */
+function GuestHero({ featured }: { featured?: CatalogItem }) {
+  const { t } = useI18n();
+  const href = featured?.episodes_count ? titleWatchHref(featured.slug) : "/catalog";
+  return (
+    <section className={styles.resumeHero} aria-label={t("home.heroEyebrow")}>
+      {featured?.poster_url ? (
+        <div className={styles.resumeHeroBackdrop} aria-hidden="true">
+          <Image
+            className={styles.resumeHeroBackdropArt}
+            src={featured.poster_url}
+            alt=""
+            fill
+            sizes="(max-width: 520px) 100vw, (max-width: 1199px) 72vw, 66vw"
+            quality={92}
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      ) : null}
+      <div className={styles.resumeHeroArtFrame} aria-hidden="true">
+        {featured?.poster_url ? (
+          <Image
+            className={styles.resumeHeroArt}
+            src={featured.poster_url}
+            alt=""
+            fill
+            sizes="(max-width: 520px) 92px, 176px"
+            quality={92}
+            referrerPolicy="no-referrer"
+          />
+        ) : null}
+      </div>
+      <div className={styles.resumeHeroBody}>
+        <p className={styles.resumeHeroEyebrow}>{t("home.heroEyebrow")}</p>
+        <h1 className={styles.resumeHeroTitle}>{t("home.title")}</h1>
+        <p className={styles.heroSynopsis}>{featured?.synopsis ?? t("home.subtitle")}</p>
+        <div className={styles.resumeHeroActions}>
+          <Link className={`primary inline-button ${styles.resumeHeroCta}`} href={href}>
+            <Play aria-hidden="true" weight="fill" size={19} />
+            {t("home.openCatalog")}
+          </Link>
+          <Link className={`secondary inline-button ${styles.resumeHeroSecondary}`} href="/register">
+            {t("nav.register")}
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }
 
 /**
- * Home opening block per the design spec: a photo-first resume hero for the
- * freshest unfinished title, then up to five 16:9 resume cards. Guests and
- * viewers without progress see the static welcome hero instead; the real
- * catalog size grounds it with a fact instead of decoration.
+ * Home opening block: one shelf, the freshest entry featured as a compact
+ * horizontal card (small cover, name, fact, voice, explicit launch, ⋯ menu),
+ * the rest as rows below it. No duplicated giant banner, no synopsis in the
+ * continuation — those live on the title page.
  */
 export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount?: number; featured?: CatalogItem }) {
-  const { t, locale } = useI18n();
-  const state = useContinueWatching();
-  const entries = state.kind === "ready" ? state.entries : [];
-  const [heroEntry] = entries;
-  // The hero already shows the freshest unfinished title; repeating it as the
-  // first shelf card is a duplicate in two adjacent blocks, so the shelf
-  // starts from the second entry.
-  const shelfEntries = entries.slice(1, 9);
-  const displayTitle = heroEntry?.title ?? featured;
-  const heroTarget = heroEntry ? resumeEpisode(heroEntry) ?? undefined : undefined;
-  const heroResumeSeconds = heroEntry?.resume_at_seconds ?? 0;
-  const heroResumeCopy = heroResumeSeconds > 0
-    ? t("home.watchedFor", { watched: formatPlaybackTime(heroResumeSeconds) })
-    : "";
-  const total = displayTitle?.episodes_count;
-  const heroTemplate = titleTemplateState(displayTitle?.title_type, total);
-  const primaryHref = heroEntry && heroTarget
-    ? titleWatchHref(heroEntry.title.slug, heroTarget.number)
-    : displayTitle?.episodes_count
-      ? titleWatchHref(displayTitle.slug)
-      : displayTitle ? `/titles/${displayTitle.slug}` : "/catalog";
-  const heroRating = displayTitle ? titleRating(displayTitle) : null;
-  const metadata = displayTitle
-    ? [
-        displayTitle.year,
-        informativeTitleType(displayTitle.title_type) ? t(`type.${displayTitle.title_type}`) : null,
-        heroTemplate.showEpisodeCount && typeof total === "number" ? episodeCountLabel(t, locale, total) : null,
-        displayTitle.status ? t(`status.${displayTitle.status}`) : null,
-        heroRating ? `★ ${heroRating.average}` : null,
-      ].filter(Boolean)
-    : [];
-
-  return (
-    <>
-      <section className={styles.resumeHero} aria-label={t("home.continueWatching")}>
-        {displayTitle?.poster_url ? (
-          <>
-            <div className={styles.resumeHeroBackdrop} aria-hidden="true">
-              <Image
-                className={styles.resumeHeroBackdropArt}
-                src={displayTitle.poster_url}
-                alt=""
-                fill
-                sizes="(max-width: 520px) 100vw, (max-width: 1199px) 72vw, 66vw"
-                quality={92}
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className={styles.resumeHeroArtFrame} aria-hidden="true">
-              <Image
-                className={styles.resumeHeroArt}
-                src={displayTitle.poster_url}
-                alt=""
-                fill
-                priority
-                sizes="(max-width: 520px) 92px, 164px"
-                quality={92}
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          </>
-        ) : null}
-        <div className={styles.resumeHeroBody}>
-          <p className={styles.resumeHeroEyebrow}>{heroEntry ? t("home.heroEyebrow") : t("home.featuredEyebrow")}</p>
-          <h1 className={styles.resumeHeroTitle}>{displayTitle?.name ?? t("home.title")}</h1>
-          {metadata.length > 0 && <p className={styles.resumeHeroMeta}>{metadata.join(" · ")}</p>}
-          {displayTitle?.genres?.length ? (
-            <ul className={styles.heroGenres} aria-label={t("catalog.genre")}>
-              {displayTitle.genres.slice(0, 3).map((genre) => (
-                <li key={genre.slug}>
-                  {/* Genre chips navigate to the filtered catalog, same as on
-                      the title page — a chip that looks like a button must be
-                      one. */}
-                  <Link href={`/catalog?genre=${encodeURIComponent(genre.slug)}`}>{genre.name}</Link>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {displayTitle?.synopsis && <p className={styles.heroSynopsis}>{displayTitle.synopsis}</p>}
-          <div className={styles.resumeHeroActions}>
-            <Link className={`primary inline-button ${styles.resumeHeroCta}`} href={primaryHref}>
-              <Play aria-hidden="true" weight="fill" size={19} />
-              {heroEntry && heroTarget ? t("home.continueEpisode", { number: heroTarget.number }) : t("home.watchFeatured")}
-            </Link>
-            {displayTitle && <HeroLibraryAction slug={displayTitle.slug} initialStatus={heroEntry ? "watching" : "planned"} />}
-          </div>
-          {heroEntry && heroTarget ? (
-            <div className={styles.heroProgress}>
-              <strong className={styles.heroProgressText}>
-                {heroTemplate.showEpisodeCount && typeof total === "number" && total > 0
-                  ? t("home.episodeOf", { number: heroTarget.number, total })
-                  : t("episode.number", { number: heroTarget.number })}
-                {heroResumeCopy ? ` · ${heroResumeCopy}` : ""}
-              </strong>
-              <span aria-hidden="true"><i style={{ width: `${resumeProgressPercent(heroEntry)}%` }} /></span>
-            </div>
-          ) : !heroEntry && typeof catalogCount === "number" && catalogCount > 0 ? (
-            <small className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</small>
-          ) : null}
-        </div>
-      </section>
-
-      {shelfEntries.length > 0 && <section className="section" aria-label={t("home.continueWatching")}>
-        <div className="section-heading">
-          <div className={styles.shelfHeading}>
-            <h2>{t("home.continueWatching")}</h2>
-          </div>
-          <Link href="/history">{t("history.all")}</Link>
-        </div>
-        <ResumeRow entries={shelfEntries} />
-      </section>}
-    </>
-  );
-}
-
-/** One resume shelf card. The card is a list item wrapper, not a single link:
- * the remove action is a real button sibling of the card link, so no interactive
- * element nests inside another and both hit areas stay keyboard reachable. */
-export function ResumeCard({ entry, onRemoved }: { entry: ContinueWatchingEntry; onRemoved?: (slug: string) => void }) {
   const { t } = useI18n();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
-  const target = resumeEpisode(entry);
-  if (!target) return null;
-  // Episode totals stay hidden for movies and single-part formats: a movie
-  // resume card must not claim "Серия 1 из 1".
-  const total = titleTemplateState(entry.title.title_type, entry.title.episodes_count).showEpisodeCount
-    && typeof entry.title.episodes_count === "number"
-    ? entry.title.episodes_count
-    : null;
-  const fact = [
-    total ? t("home.episodeOf", { number: target.number, total }) : t("episode.number", { number: target.number }),
-    entry.resume_at_seconds ? t("home.resumePosition", { watched: formatPlaybackTime(entry.resume_at_seconds) }) : "",
-  ].filter(Boolean).join(" · ");
+  const state = useContinueWatching();
+  const [removed, setRemoved] = useState<string[]>([]);
 
-  async function removeFromHistory() {
-    setPending(true);
-    setError(false);
-    try {
-      await deleteTitleHistory(entry.title.slug);
-      onRemoved?.(entry.title.slug);
-    } catch {
-      setError(true);
-    } finally {
-      setPending(false);
-    }
+  if (state.kind === "loading") return null;
+  if (state.kind === "guest") {
+    return (
+      <>
+        <GuestHero featured={featured} />
+        {typeof catalogCount === "number" && catalogCount > 0 && (
+          <p className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</p>
+        )}
+      </>
+    );
+  }
+  if (state.kind === "error") return null;
+
+  const entries = state.entries.filter((entry) => !removed.includes(entry.title.slug));
+  if (entries.length === 0) {
+    return (
+      <>
+        <GuestHero featured={featured} />
+        {typeof catalogCount === "number" && catalogCount > 0 && (
+          <p className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</p>
+        )}
+      </>
+    );
   }
 
+  const [first, ...rest] = entries;
   return (
-    <span className={styles.resumeItem}>
-      <Link
-        className={styles.resumeCard}
-        href={titleWatchHref(entry.title.slug, target.number)}
-        title={fact ? `${entry.title.name} · ${fact}` : entry.title.name}
-      >
-        <span className={styles.resumeFrame}>
-          {entry.title.poster_url ? (
-            <Image
-              className={styles.resumeFrameArt}
-              src={entry.title.poster_url}
-              alt=""
-              fill
-              sizes="(max-width: 767px) 45vw, 260px"
-              quality={92}
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <span className={styles.resumeFallback}>{entry.title.name.charAt(0)}</span>
-          )}
-          <span className={styles.resumePlay} aria-hidden="true">
-            <Play weight="fill" size={30} />
-            <small>{t("home.continueEpisode", { number: target.number })}</small>
-          </span>
-        </span>
-        <span className={styles.resumeBody}>
-          <strong>{entry.title.name}</strong>
-          <small>{fact}</small>
-          <span className={styles.resumeProgressTrack} aria-hidden="true">
-            <span
-              className={styles.resumeProgressBar}
-              style={{ width: `${resumeProgressPercent(entry)}%` }}
-            />
-          </span>
-        </span>
-      </Link>
-      <button
-        className={styles.resumeRemove}
-        type="button"
-        disabled={pending}
-        aria-label={t("home.removeHistory")}
-        title={error ? t("home.removeHistoryFailed") : t("home.removeHistory")}
-        onClick={() => void removeFromHistory()}
-      >
-        <X aria-hidden="true" size={14} weight="bold" />
-      </button>
-      {error && <span className={styles.resumeRemoveError} role="alert">{t("home.removeHistoryFailed")}</span>}
-    </span>
-  );
-}
-
-export function ResumeRow({ entries }: { entries: ContinueWatchingEntry[] }) {
-  const [removed, setRemoved] = useState<string[]>([]);
-  const visible = entries.filter((entry) => !removed.includes(entry.title.slug));
-  if (visible.length === 0) return null;
-  return (
-    <RailScroller railClassName={styles.resumeRow}>
-      <ul className={styles.railList}>
-        {visible.map((entry) => (
-          <li key={entry.title.slug}>
-            <ResumeCard entry={entry} onRemoved={(slug) => setRemoved((current) => [...current, slug])} />
-          </li>
+    <section className={styles.continueSection} aria-label={t("home.continueWatching")}>
+      <div className="section-heading">
+        <div className={styles.shelfHeading}>
+          <h2>{t("home.continueWatching")}</h2>
+          <p>{t("home.continueWatchingText")}</p>
+        </div>
+        <Link href="/history">{t("home.allStarted")}</Link>
+      </div>
+      <ul className={styles.continueList}>
+        <ResumeCard entry={first} variant="feature" onRemoved={(slug) => setRemoved((value) => [...value, slug])} />
+        {rest.map((entry) => (
+          <ResumeCard entry={entry} key={entry.title.slug} onRemoved={(slug) => setRemoved((value) => [...value, slug])} />
         ))}
       </ul>
-    </RailScroller>
+    </section>
   );
 }
 
-/** Account-hub variant: just the resume row, silent when there is nothing. */
+/** Account-hub variant: rows-only, silent when there is nothing. */
 export function ResumeShelf() {
   const { t } = useI18n();
   const state = useContinueWatching();
+  const [removed, setRemoved] = useState<string[]>([]);
   if (state.kind !== "ready" || state.entries.length === 0) return null;
+  const entries = state.entries.filter((entry) => !removed.includes(entry.title.slug));
+  if (entries.length === 0) return null;
   return (
-    <section className="section" aria-label={t("home.continueWatching")}>
+    <section className={styles.continueSection} aria-label={t("home.continueWatching")}>
       <div className="section-heading">
         <div className={styles.shelfHeading}>
           <h2>{t("home.continueWatching")}</h2>
         </div>
-        <Link href="/history">{t("history.all")}</Link>
+        <Link href="/history">{t("home.allStarted")}</Link>
       </div>
-      <ResumeRow entries={state.entries.slice(0, 5)} />
+      <ul className={styles.continueList}>
+        {entries.map((entry, index) => (
+          <ResumeCard
+            entry={entry}
+            key={entry.title.slug}
+            variant={index === 0 ? "feature" : "row"}
+            onRemoved={(slug) => setRemoved((value) => [...value, slug])}
+          />
+        ))}
+      </ul>
     </section>
   );
 }

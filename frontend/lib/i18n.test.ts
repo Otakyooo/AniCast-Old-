@@ -16,6 +16,12 @@ test("every ru key has an en translation", () => {
   assert.deepEqual(missing, []);
 });
 
+test("every en key has a ru translation", () => {
+  const enKeys = extractKeys(dictionaries.en);
+  const missing = enKeys.filter((key) => !(key in dictionaries.ru));
+  assert.deepEqual(missing, []);
+});
+
 test("account hub keys stay bilingual and interpolated", () => {
   for (const dictionary of [dictionaries.ru, dictionaries.en]) {
     assert.ok(dictionary["account.title"]);

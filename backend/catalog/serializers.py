@@ -147,6 +147,7 @@ class TitleSerializer(serializers.ModelSerializer):
     poster_url = serializers.SerializerMethodField()
     last_episode_number = serializers.SerializerMethodField()
     next_episode_at = serializers.SerializerMethodField()
+    playable_episodes_count = serializers.SerializerMethodField()
 
     def get_poster_url(self, obj):
         return posters.public_poster_reference(obj.poster_url)
@@ -180,6 +181,14 @@ class TitleSerializer(serializers.ModelSerializer):
         """Next scheduled exact release time; only airing views annotate it."""
         return getattr(obj, "next_episode_at", None)
 
+    def get_playable_episodes_count(self, obj):
+        """Episodes with an authorized source right now; annotated lists only.
+
+        Unannotated callers serialize null, and the card then falls back to
+        the release status instead of guessing a number.
+        """
+        return getattr(obj, "playable_episodes_count", None)
+
     def get_localized_names(self, obj):
         """Stable RU/EN/JA names independent from the request locale.
 
@@ -202,7 +211,7 @@ class TitleSerializer(serializers.ModelSerializer):
             "name", "slug", "original_name", "synopsis", "title_type", "status",
             "year", "poster_url", "genres", "franchise", "episodes_count",
             "rating_average", "rating_count", "localized_names",
-            "last_episode_number", "next_episode_at",
+            "last_episode_number", "next_episode_at", "playable_episodes_count",
         ]
 
 

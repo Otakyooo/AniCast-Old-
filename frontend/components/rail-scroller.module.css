@@ -34,8 +34,10 @@
   top: 50%;
   z-index: 3;
   display: grid;
-  width: 40px;
-  height: 40px;
+  /* Always visible while scrollable: a cut card alone only hints at the rail;
+     the buttons say how to get there. 46px of hit area for pointer use. */
+  width: 46px;
+  height: 46px;
   place-items: center;
   padding: 0;
   border: 1px solid var(--border-emphasis);
@@ -43,20 +45,10 @@
   background: var(--surface-card-opaque);
   color: var(--text);
   cursor: pointer;
-  /* Shown only while the viewer engages with the shelf: the intentional peek
-     of the next card already communicates the overflow at rest, and resting
-     arrows sat on top of the posters. */
-  opacity: 0;
+  opacity: .96;
   transform: translateY(-50%);
   transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease;
 }
-
-.shell:hover .arrowPrev:not(:disabled),
-.shell:hover .arrowNext:not(:disabled),
-.shell:focus-within .arrowPrev:not(:disabled),
-.shell:focus-within .arrowNext:not(:disabled),
-.arrowPrev:focus-visible,
-.arrowNext:focus-visible { opacity: .95 }
 
 .arrowPrev { left: -6px }
 .arrowNext { right: -6px }

@@ -353,6 +353,20 @@
 }
 
 .actionHint { color: var(--muted) }
+
+.actionHintLink {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.actionHintLink:hover { color: var(--text) }
 .actionError { color: var(--danger) }
 
 /* ---------- Tabs ---------- */

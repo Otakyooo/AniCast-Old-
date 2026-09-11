@@ -15,10 +15,14 @@ import {
 test("catalog base and pagination remain self-canonical and indexable", () => {
   assert.deepEqual(catalogSeoState({}), { canonical: "/catalog", index: true });
   assert.deepEqual(catalogSeoState({ page: 3 }), { canonical: "/catalog?page=3", index: true });
+  assert.deepEqual(
+    catalogSeoState({ seasons: "grouped", page: 2 }),
+    { canonical: "/catalog?page=2", index: true },
+  );
 });
 
 test("catalog search, facets and sorting consolidate into the base catalog", () => {
-  for (const filters of [{ q: "anime" }, { genre: "action", page: 2 }, { ordering: "popular" as const }]) {
+  for (const filters of [{ q: "anime" }, { genre: "action", page: 2 }, { ordering: "popular" as const }, { seasons: "separate" as const }]) {
     assert.deepEqual(catalogSeoState(filters), { canonical: "/catalog", index: false });
   }
 });

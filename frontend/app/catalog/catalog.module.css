@@ -69,12 +69,51 @@
 
 .pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 8px;
   margin-top: 32px;
   color: var(--muted);
 }
+
+.pageLink,
+.pageDisabled {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.pageLink {
+  font-variant-numeric: tabular-nums;
+}
+
+.pageLinkCurrent,
+.pageDisabled {
+  border-color: transparent;
+  cursor: default;
+}
+
+.pageLinkCurrent {
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+}
+
+.pageDisabled { color: var(--muted-2) }
+
+.pageGap { padding: 0 2px; color: var(--muted-2) }
+
+.seasonsToggle {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.seasonsToggle:hover { color: var(--text) }
 
 .pageLink:hover,
 .reset:hover {

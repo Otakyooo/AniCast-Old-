@@ -4,6 +4,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { CatalogCard } from "../components/catalog-card";
 import { ContinueWatchingBlock } from "../components/continue-watching-block";
+import { NextPartShelf } from "../components/next-part-shelf";
 import { RailScroller } from "../components/rail-scroller";
 import { RecommendationShelf } from "../components/recommendation-shelf";
 import { ScheduleStrip } from "../components/schedule-strip";
@@ -35,9 +36,8 @@ const FRANCHISE_SHELF_SIZE = 8;
 const MIN_FULL_SHELF = 6;
 /** A shelf with fewer cards is dropped: a titled one-card strip looks broken. */
 const MIN_VISIBLE_SHELF = 4;
-/** Release window handed to the shelf: it shows the last week when that week
- * is dense enough and reaches back only to avoid a one-card rail. */
-const RECENT_EPISODE_DAYS = 30;
+/** The home release shelf promises exactly one week of aired episodes. */
+const RECENT_EPISODE_DAYS = 7;
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();
@@ -143,12 +143,17 @@ export default async function HomePage() {
 
   return <PageShell active="home">
     <script nonce={(await headers()).get("x-nonce") ?? undefined} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd(locale)) }} />
-    <div>
-      <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? airing[0]} />
+      <div>
+        <ContinueWatchingBlock catalogCount={popular.count} featured={popular.results[0] ?? airing[0]} />
 
-      {/* The strip owns its section: it disappears whole when nothing upcoming
-          is left for the window, so the page never shows an empty heading. */}
-      <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
+        {/* Next franchise part sits right under the resume block: it is the
+            same personal context, one step ahead. Silent for guests and when
+            no started title has a franchise successor. */}
+        <NextPartShelf />
+
+        {/* The strip owns its section: it disappears whole when nothing upcoming
+            is left for the window, so the page never shows an empty heading. */}
+        <ScheduleStrip items={schedule.results} serverTodayKey={todayKey} />
 
       <RecentEpisodesRail items={recentEpisodes} serverTodayKey={todayKey} />
 

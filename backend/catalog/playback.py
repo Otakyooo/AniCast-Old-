@@ -8,12 +8,12 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core import signing
-from django.db.models import Prefetch
-from django.db.models.functions import Now
+from django.db.models import Count, Expression, IntegerField, OuterRef, Prefetch, Q, Subquery, Value
+from django.db.models.functions import Coalesce, Now
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import RightsGrant, Source
+from .models import Provider, RightsGrant, Source
 
 PLAYBACK_TOKEN_SALT = "catalog.playback.v1"
 MAX_PLAYBACK_TTL_SECONDS = 300
@@ -311,3 +311,54 @@ def resolve_playback(token: str) -> tuple[int, str] | None:
         return None
     target = adapter.target_url(source)
     return (source.pk, target) if source_url_allowed(source) and target == source.url else None
+
+
+def playable_episode_count_annotation() -> Expression:
+    """Correlated count of episodes with an authorized available source.
+
+    Used by catalog lists to answer "how many episodes can I actually watch
+    here" on every card. The rights logic mirrors :func:`playback_available`:
+    an enabled, configured provider that is either itself entitled or has an
+    active approved source-level grant. Per-source URL host validation stays
+    a playback-time check — providers with an invalid configuration are
+    excluded wholesale, and a source whose URL violates its provider's hosts
+    is a data error the health checks catch; the player remains the source of
+    truth for what finally plays.
+    """
+    now = timezone.now()
+    validated_providers: list[int] = []
+    entitled_providers: list[int] = []
+    for provider in Provider.objects.filter(is_enabled=True):
+        try:
+            validate_provider_configuration(
+                provider.playback_adapter, provider.playback_config, provider.allowed_hosts
+            )
+        except (TypeError, ValueError):
+            continue
+        validated_providers.append(provider.id)
+        if (
+            provider.rights_reference
+            and provider.rights_verified_at
+            and (provider.rights_valid_until is None or provider.rights_valid_until > now)
+        ):
+            entitled_providers.append(provider.id)
+
+    rights_filter = Q(provider_id__in=entitled_providers) | Q(
+        rights_grants__status=RightsGrant.Status.ACTIVE,
+        rights_grants__valid_from__lte=now,
+        rights_grants__valid_until__gt=now,
+        rights_grants__approved_by__isnull=False,
+        rights_grants__approved_at__isnull=False,
+    )
+    playable = (
+        Source.objects.filter(
+            episode__title=OuterRef("pk"),
+            availability="available",
+            provider_id__in=validated_providers,
+        )
+        .filter(rights_filter)
+        .values("episode__title_id")
+        .annotate(total=Count("episode_id", distinct=True))
+        .values("total")[:1]
+    )
+    return Coalesce(Subquery(playable, output_field=IntegerField()), Value(0), output_field=IntegerField())

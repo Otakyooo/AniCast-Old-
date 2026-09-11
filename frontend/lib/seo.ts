@@ -30,7 +30,8 @@ export function catalogSeoState(filters: CatalogFilters, pageExists = true) {
     || filters.type
     || filters.status
     || filters.genre
-    || filters.ordering,
+    || filters.ordering
+    || (filters.seasons && filters.seasons !== "grouped"),
   );
   const page = Number.isInteger(filters.page) && (filters.page ?? 1) > 1
     ? filters.page ?? 1

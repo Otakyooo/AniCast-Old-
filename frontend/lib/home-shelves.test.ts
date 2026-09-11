@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dedupeShelf, planRecentEpisodeShelf } from "./home-shelves.ts";
+import { dedupeShelf, groupRecentEpisodesByTitle, planRecentEpisodeShelf } from "./home-shelves.ts";
 
 
 function item(slug: string) {
@@ -19,8 +19,13 @@ test("dedupeShelf keeps the follower order and tolerates empty shelves", () => {
   assert.deepEqual(dedupeShelf([item("x")], []), []);
 });
 
-function release(air_date: string) {
-  return { air_date };
+interface RawRelease {
+  air_date: string;
+  title: { slug: string };
+}
+
+function release(air_date: string, slug = "x"): RawRelease {
+  return { air_date, title: { slug } };
 }
 
 test("a dense release week fills the rail from the week alone", () => {
@@ -41,39 +46,46 @@ test("a dense release week fills the rail from the week alone", () => {
       release("2026-09-07"),
       release("2026-09-04"),
     ],
-    widened: false,
     compact: false,
   });
 });
 
-test("a thin week is filled from older releases instead of leaving a hole", () => {
-  const items = [
-    release("2026-09-10"),
-    release("2026-08-30"),
-    release("2026-08-21"),
-    release("2026-08-14"),
-  ];
-  const plan = planRecentEpisodeShelf(items, "2026-09-10");
-  assert.deepEqual(plan, { items, widened: true, compact: false });
+test("a thin week never shows releases older than the promised window", () => {
+  const plan = planRecentEpisodeShelf(
+    [
+      release("2026-09-10"),
+      release("2026-08-30"),
+      release("2026-08-21"),
+      release("2026-08-14"),
+    ],
+    "2026-09-10",
+  );
+  // Only the in-window row remains; older dates are never dishonestly composite.
+  assert.deepEqual(plan, {
+    items: [release("2026-09-10")],
+    compact: true,
+  });
 });
 
-test("too few releases switch the shelf to its compact layout", () => {
-  const single = [release("2026-09-10")];
-  assert.deepEqual(planRecentEpisodeShelf(single, "2026-09-10"), {
-    items: single,
-    widened: false,
-    compact: true,
-  });
-  assert.deepEqual(planRecentEpisodeShelf([], "2026-09-10"), {
-    items: [],
-    widened: false,
-    compact: true,
-  });
-  // Missing air dates never count as "this week", but still fill the shelf.
-  const undated = [{ air_date: null }, release("2026-09-10")];
+test("empty or dateless weeks collapse into the compact layout", () => {
+  assert.deepEqual(planRecentEpisodeShelf([], "2026-09-10"), { items: [], compact: true });
+  const undated = [{ air_date: null, title: { slug: "u" } }, release("2026-09-10")];
   assert.deepEqual(planRecentEpisodeShelf(undated, "2026-09-10", 2), {
-    items: undated,
-    widened: true,
-    compact: false,
+    items: [release("2026-09-10")],
+    compact: true,
   });
+});
+
+test("groupRecentEpisodesByTitle merges a title's episodes to one card", () => {
+  const items = [
+    release("2026-09-10", "one-piece"),
+    release("2026-09-09", "one-piece"),
+    release("2026-09-08", "other"),
+  ];
+  const grouped = groupRecentEpisodesByTitle(items);
+  assert.equal(grouped.length, 2);
+  assert.equal(grouped[0].slug, "one-piece");
+  assert.equal(grouped[0].extraCount, 1);
+  // First row is the newest air date in the group.
+  assert.equal(grouped[0].latestAirDate, "2026-09-10");
 });

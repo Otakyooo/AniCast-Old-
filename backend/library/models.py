@@ -46,6 +46,12 @@ class EpisodeProgress(models.Model):
     is_watched = models.BooleanField(default=False)
     watched_seconds = models.PositiveIntegerField(default=0)
     duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    # Voice-over/subtitle variant the viewer actually played, so "continue"
+    # can restore the same version instead of the default ranked one. The key
+    # is the stable selection key, the name/kind are display-only snapshots.
+    source_selection_key = models.CharField(max_length=64, blank=True, default="")
+    source_name = models.CharField(max_length=160, blank=True, default="")
+    source_kind = models.CharField(max_length=10, blank=True, default="")
     last_opened_at = models.DateTimeField()
     watched_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -70,6 +76,25 @@ class EpisodeProgress(models.Model):
         if self.duration_seconds:
             return min(100, self.watched_seconds * 100 // self.duration_seconds)
         return 100 if self.is_watched else 0
+
+
+class ContinueWatchingHidden(models.Model):
+    """Titles the viewer removed from the resume shelf.
+
+    Hiding is a shelf preference only: it deletes no history rows and changes
+    no library status, and the DELETE action restores the card immediately.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="hidden_continue_titles", on_delete=models.CASCADE)
+    title = models.ForeignKey(Title, related_name="hidden_continue_entries", on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "title"], name="unique_user_hidden_continue_title")]
+
+    def __str__(self) -> str:
+        return f"{self.user} / {self.title}"
 
 
 class TitleNote(models.Model):

@@ -253,18 +253,11 @@
   font-size: 14px;
 }
 
-/* Poster shelves scroll inside RailScroller; the fractional --rail-fit keeps
-   a deliberate peek of the next card instead of a random cut. */
+/* Release rows and airing cards share the compact poster rail settings. */
+
 .posterRail {
   --rail-fit: 6.7;
   --rail-gap: 18px;
-}
-
-/* Resume shelf columns for RailScroller (16:9 frames per spec §4.3: the
-   frame is the artwork, not the library poster). */
-.resumeRow {
-  --rail-fit: 5.6;
-  --rail-gap: 14px;
 }
 
 /* Schedule cards are wider reading rows: a lone upcoming entry must occupy a
@@ -278,6 +271,13 @@
    a single-poster shelf card. */
 .franchiseRail {
   --rail-fit: 4.7;
+  --rail-gap: 18px;
+}
+
+/* Next-part cards pair a single poster with a text body, so they sit between
+   the poster and franchise widths. */
+.nextPartRail {
+  --rail-fit: 5.6;
   --rail-gap: 18px;
 }
 
@@ -376,6 +376,32 @@
 .releaseCompactCard:hover { background: var(--surface-2) }
 .releaseCompactCard:hover strong { text-decoration: underline; text-underline-offset: 3px }
 
+.releaseCompactExtra {
+  color: var(--muted-2);
+  font-weight: 500;
+}
+
+.releaseBadgeExtra {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: rgba(9, 11, 16, .82);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.releaseAvailability {
+  color: var(--muted-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .releaseCompactPoster {
   position: relative;
   display: grid;
@@ -468,114 +494,107 @@
    grid of RailScroller. */
 .railList { display: contents; margin: 0; padding: 0; list-style: none }
 
-.resumeItem { position: relative; display: grid; height: 100% }
+/* ---------- Next part of your story: franchise successor cards ---------- */
 
-.resumeRemove {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
+/* Same card anatomy as a franchise card (poster + text body), so the two
+   discovery shelves read as one family; the label under the name carries
+   the current part context («После …») instead of counts. */
+.nextPartItem { min-width: 0 }
+
+.nextPartLink {
   display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: var(--surface-card-opaque);
-  color: var(--muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 140ms ease, color 140ms ease;
-}
-
-.resumeItem:hover .resumeRemove,
-.resumeRemove:focus-visible { opacity: 1 }
-
-.resumeRemove:hover { color: var(--danger) }
-
-.resumeRemove:disabled { cursor: wait; opacity: .6 }
-
-.resumeRemoveError {
-  position: absolute;
-  top: 38px;
-  right: 6px;
-  z-index: 2;
-  max-width: 200px;
-  padding: 6px 9px;
-  border-radius: 7px;
-  background: var(--surface-card-opaque);
-  color: var(--danger);
-  font-size: 13px;
-  line-height: 1.35;
-  text-align: left;
-}
-
-/* The hover overlay answers "continue with what exactly": the episode
-   number rides along with the play icon instead of hiding in a tooltip. */
-.resumePlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: grid;
-  gap: 8px;
-  place-content: center;
-  justify-items: center;
-  color: #fff;
-  opacity: 0;
-  transition: opacity 140ms ease;
-}
-
-.resumeCard:hover .resumePlay,
-.resumeCard:focus-visible .resumePlay { opacity: 1 }
-
-.resumePlay:before {
-  position: absolute;
-  inset: 0;
-  background: rgba(8, 11, 18, .5);
-  content: "";
-}
-
-.resumePlay svg { position: relative; filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .5)) }
-
-.resumePlay small {
-  position: relative;
-  max-width: 90%;
   overflow: hidden;
-  padding: 4px 10px;
-  border-radius: 7px;
-  background: var(--primary);
-  color: var(--on-primary);
-  font-size: 13px;
-  font-weight: 700;
+  border-radius: 10px;
+  background: var(--surface-1);
+  transition: background 140ms ease;
+}
+
+.nextPartLink:hover { background: var(--surface-2) }
+.nextPartLink:active { transform: none }
+
+.nextPartPoster {
+  position: relative;
+  display: grid;
+  aspect-ratio: 2 / 3;
+  background: var(--poster-gradient);
+  place-items: center;
+  color: var(--text);
+  font-size: 40px;
+  font-weight: 800;
+}
+
+.nextPartBody {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 13px 13px;
+}
+
+.nextPartBody strong {
+  overflow: hidden;
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.resumeCard {
-  display: grid;
-  overflow: hidden;
-  height: 100%;
-  border-radius: 8px;
-  background: transparent;
-  transition: background 140ms ease, transform 140ms ease;
+.nextPartBody small {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* The remove button is a sibling of this link inside .resumeItem, so the card
-   itself must fill the wrapper and keep its own hover surface. */
-.resumeCard:hover,
-.resumeItem:focus-within .resumeCard { background: var(--surface-1) }
-.resumeCard:active { transform: none }
+/* ---------- Continue watching: compact resume cards ---------- */
 
-.resumeFrame {
+/* One merged block: the featured card is the newest entry, further cards are
+   compact rows of the same shape — no giant hero duplicating the shelf. */
+.continueSection { margin-top: 26px }
+
+.continueList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.resumeItem,
+.resumeItemFeature {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-1);
+  transition: background 140ms ease;
+}
+
+.resumeItemFeature {
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  padding: 16px 18px;
+}
+
+.resumeItem:hover,
+.resumeItemFeature:hover { background: var(--surface-2) }
+.resumeItem:active, .resumeItemFeature:active { transform: none }
+
+.continueThumb {
   position: relative;
   display: grid;
+  overflow: hidden;
+  width: 100%;
   aspect-ratio: 2 / 3;
+  border-radius: 9px;
   place-items: center;
   background: var(--poster-gradient);
+  color: var(--text);
+  font-weight: 800;
 }
 
-.resumeFrameArt { object-fit: cover; object-position: 50% 18% }
+.resumeItem .continueThumb { width: 64px }
+.resumeItemFeature .continueThumb { width: 112px }
+
+.continueThumbArt { object-fit: cover; object-position: 50% 18% }
 
 .resumeFallback {
   color: var(--text);
@@ -583,45 +602,163 @@
   font-weight: 800;
 }
 
-.resumeBody {
+.continueBody {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
-  padding: 11px 13px 13px;
 }
 
-.resumeBody strong {
-  display: -webkit-box;
+.continueTitle {
   overflow: hidden;
-  /* Two reserved lines keep the fact row aligned across one- and two-line
-     titles instead of letting the metadata jump between cards. */
-  min-height: 2.7em;
-  font-size: 15px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.resumeBody small {
-  color: var(--muted);
+.resumeItemFeature .continueTitle { font-size: 16px; font-weight: 700 }
+
+.continueFact {
+  color: var(--accent-text);
   font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.resumeProgressTrack {
+.continueMeta,
+.continueVoice {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resumeItemFeature .continueFact { font-size: 15px }
+.resumeItemFeature .continueMeta, .resumeItemFeature .continueVoice { font-size: 13px }
+
+.continueProgressTrack {
   display: block;
   height: 3px;
+  margin-top: 4px;
   border-radius: 2px;
   background: var(--surface-progress);
 }
 
-.resumeProgressBar {
+.continueProgressBar {
   display: block;
   height: 100%;
   border-radius: 2px;
   background: var(--primary);
-  box-shadow: inset 0 0 0 1px var(--progress-edge);
+}
+
+.continueActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.continuePlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  margin-top: 0;
+  padding: 9px 13px;
+  border-radius: 9px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.continueMenuWrap { position: relative }
+
+.continueMenuButton {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.continueMenuButton:hover { background: var(--surface-2); color: var(--text) }
+
+.continueMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-card-opaque);
+  box-shadow: var(--shadow-overlay);
+}
+
+.continueMenu button {
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.continueMenu button:hover { background: var(--surface-control) }
+
+.continueMenuError {
+  position: absolute;
+  top: 6px;
+  right: calc(100% + 8px);
+  z-index: 4;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--surface-card-opaque);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.continueUndo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.continueUndo button {
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  .resumeItem, .resumeItemFeature { grid-template-columns: 56px minmax(0, 1fr) }
+  .resumeItem .continueThumb, .resumeItemFeature .continueThumb { width: 56px }
+  .resumeItem .continueActions, .resumeItemFeature .continueActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }
 
 .scheduleCard {
@@ -717,7 +854,6 @@
   .resumeHeroActions { width: 100% }
   .resumeHeroCta, .resumeHeroSecondary { justify-content: center; flex: 1 1 180px }
   .posterRail { --rail-cols: minmax(148px, 44vw); --rail-gap: 12px }
-  .resumeRow { --rail-cols: minmax(160px, 46vw); --rail-gap: 10px }
   .scheduleStrip { --rail-cols: 300px; --rail-gap: 10px }
   .franchiseRail { --rail-cols: minmax(220px, 62vw); --rail-gap: 12px }
   .resumeFallback { font-size: 30px }

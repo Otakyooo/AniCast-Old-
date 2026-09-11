@@ -515,9 +515,10 @@ def test_continue_watching_cost_follows_the_shelf_cap_not_the_history_size(
     client = APIClient()
     client.force_login(users[0])
 
-    # One extra constant COUNT delivers episodes_count for the "N of M" shelf
-    # labels, so the budget grows by exactly one over the previous 38.
-    with django_assert_max_num_queries(39):
+    # Three extra constant queries joined the shelf payload: the hidden-titles
+    # filter, the franchise siblings (next-part payload) and their localized
+    # names — none of them scale with history size or shelf width.
+    with django_assert_max_num_queries(42):
         response = client.get("/api/v1/continue-watching/", HTTP_ACCEPT_LANGUAGE="ru")
 
     assert response.status_code == 200
@@ -614,7 +615,7 @@ def test_recommendations_ignore_dropped_genres_and_weight_signals(users, titles)
 
 
 @pytest.mark.django_db
-def test_recommendations_use_ratings_history_and_franchise_boost(users, titles):
+def test_recommendations_use_rating_history_and_exclude_engaged_franchises(users, titles):
     from community.models import TitleRating
 
     franchise = Franchise.objects.create(name="Saga", slug="saga")
@@ -623,10 +624,12 @@ def test_recommendations_use_ratings_history_and_franchise_boost(users, titles):
     titles[0].save()
     titles[0].genres.add(genre)
     titles[1].genres.add(genre)
-    sequel = Title.objects.create(name="Sequel", slug="sequel", year=2026)
-    sequel.franchise = franchise
-    sequel.save()
+    # A sequel of the franchise the viewer already started: it is their own
+    # unfinished story, not a recommendation, and must not appear at all.
+    sequel = Title.objects.create(name="Sequel", slug="sequel", year=2026, franchise=franchise)
     sequel.genres.add(genre)
+    unrelated = Title.objects.create(name="Unrelated", slug="unrelated-hit")
+    unrelated.genres.add(genre)
     LibraryEntry.objects.create(user=users[0], title=titles[0], status="completed")
     TitleRating.objects.create(user=users[0], title=titles[1], value=9)
     episode = Episode.objects.create(title=titles[1], number=1)
@@ -637,54 +640,49 @@ def test_recommendations_use_ratings_history_and_franchise_boost(users, titles):
     assert response.status_code == 200
     results = response.json()["results"]
     scores = {item["title"]["slug"]: item["score"] for item in results}
-    # drama weight: completed library entry (1.0) + rating 9 (0.5) + watched history (0.5);
-    # franchise boost scales with engagement: one non-dropped entry -> 1 * 1.5
-    assert scores["sequel"] == 2.0 + 1.5
-    assert results[0]["title"]["slug"] == "sequel"
+    assert "sequel" not in scores
+    # drama weight for an unrelated story: completed entry (1.0) + rating 9 (0.5) + watched (0.5)
+    assert scores["unrelated-hit"] == 2.0
 
 
 @pytest.mark.django_db
-def test_recommendations_franchise_boost_scales_with_engagement(users):
-    franchise = Franchise.objects.create(name="Saga", slug="saga")
+def test_recommendations_prefer_franchise_entry_points(users):
+    """Within one new franchise the first part is the representative."""
+    franchise = Franchise.objects.create(name="New Saga", slug="new-saga")
     genre = Genre.objects.create(name="Drama", slug="drama")
-    entries = [
-        Title.objects.create(name=f"Entry{index}", slug=f"entry{index}", franchise=franchise)
-        for index in range(3)
-    ]
-    candidate = Title.objects.create(name="Candidate", slug="candidate")
-    candidate.franchise = franchise
-    candidate.save()
-    candidate.genres.add(genre)
-    unrelated = Title.objects.create(name="Unrelated", slug="unrelated")
-    unrelated.genres.add(genre)
-    for entry in entries:
-        entry.genres.add(genre)
-        LibraryEntry.objects.create(user=users[0], title=entry, status="completed")
+    source = Title.objects.create(name="Source", slug="source")
+    source.genres.add(genre)
+    LibraryEntry.objects.create(user=users[0], title=source, status="completed")
+    first = Title.objects.create(name="First Part", slug="first-part", year=2012, franchise=franchise)
+    later = Title.objects.create(name="Later Part", slug="later-part", year=2020, franchise=franchise)
+    standalone = Title.objects.create(name="Standalone", slug="standalone")
+    for title in (first, later, standalone):
+        title.genres.add(genre)
     client = APIClient()
     client.force_login(users[0])
-    scores = {
-        item["title"]["slug"]: item["score"]
-        for item in client.get("/api/v1/recommendations/").json()["results"]
-    }
-    # candidate absorbs the shared drama weight (3 x 1.0) plus the scaled boost (3 x 1.5)
-    assert scores["candidate"] == 3 * 1.0 + 3 * 1.5
-    assert scores["candidate"] > scores["unrelated"]
+    results = client.get("/api/v1/recommendations/").json()["results"]
+    slugs = [item["title"]["slug"] for item in results]
+    # The franchise contributes exactly one representative — its entry point.
+    # A later season never becomes the recommendation for a story the viewer
+    # has not opened.
+    assert "first-part" in slugs
+    assert "later-part" not in slugs
+    assert "standalone" in slugs
 
 
 @pytest.mark.django_db
 def test_recommendations_cap_titles_per_franchise(users):
-    """A franchise gets one representative, not a row of its own sequels."""
-    franchise = Franchise.objects.create(name="Big Saga", slug="big-saga")
+    """A franchise gets one representative, not a row of its own seasons."""
     genre = Genre.objects.create(name="Drama", slug="drama")
-    source = Title.objects.create(name="Source", slug="source")
-    source.franchise = franchise
-    source.save()
+    source = Title.objects.create(name="Source", slug="cap-source")
     source.genres.add(genre)
     LibraryEntry.objects.create(user=users[0], title=source, status="completed")
-    # Four same-franchise candidates plus two standalone ones, all sharing drama.
-    sequels = [
+    # Four seasons of one unengaged franchise plus two standalone titles, all
+    # sharing drama.
+    franchise = Franchise.objects.create(name="Big Saga", slug="big-saga")
+    seasons = [
         Title.objects.create(
-            name=f"Sequel {index}", slug=f"sequel-{index}", year=2020 + index, franchise=franchise
+            name=f"Season {index}", slug=f"season-{index}", year=2020 + index, franchise=franchise
         )
         for index in range(4)
     ]
@@ -692,13 +690,15 @@ def test_recommendations_cap_titles_per_franchise(users):
         Title.objects.create(name=f"Other {index}", slug=f"other-{index}", year=2000 + index)
         for index in range(2)
     ]
-    for title in [*sequels, *standalones]:
+    for title in [*seasons, *standalones]:
         title.genres.add(genre)
     client = APIClient()
     client.force_login(users[0])
     slugs = [item["title"]["slug"] for item in client.get("/api/v1/recommendations/").json()["results"]]
-    franchise_slugs = [slug for slug in slugs if slug.startswith("sequel-")]
+    franchise_slugs = [slug for slug in slugs if slug.startswith("season-")]
     assert len(franchise_slugs) == 1
+    # The franchise representative is the entry point, not a later season.
+    assert franchise_slugs == ["season-0"]
     # The standalone candidates are not crowded out by the cap.
     assert set(standalone.slug for standalone in standalones) <= set(slugs)
 
@@ -848,7 +848,8 @@ def test_recommendation_dismissal_hides_until_undone_and_requires_auth_csrf(user
 def test_recommendations_expose_localized_reasons_with_franchise_flag(users):
     from catalog.models import GenreTranslation
 
-    franchise = Franchise.objects.create(name="Saga", slug="saga")
+    saga = Franchise.objects.create(name="Saga", slug="saga")
+    other = Franchise.objects.create(name="Other", slug="other")
     drama = Genre.objects.create(name="Drama", slug="drama")
     comedy = Genre.objects.create(name="Comedy", slug="comedy")
     thriller = Genre.objects.create(name="Thriller", slug="thriller")
@@ -856,14 +857,15 @@ def test_recommendations_expose_localized_reasons_with_franchise_flag(users):
     GenreTranslation.objects.create(genre=comedy, language="ru", name="Комедия")
     GenreTranslation.objects.create(genre=thriller, language="ru", name="Триллер")
 
-    source = Title.objects.create(name="Source", slug="source", franchise=franchise)
+    source = Title.objects.create(name="Source", slug="source", franchise=saga)
     source.genres.add(drama)
     source.genres.add(comedy)
     LibraryEntry.objects.create(user=users[0], title=source, status="watching")
 
-    candidate = Title.objects.create(name="Candidate", slug="candidate", year=2026)
-    candidate.franchise = franchise
-    candidate.save()
+    # A candidate from a different, unengaged franchise: reasons list only the
+    # genres that actually matched; the franchise flag stays false because the
+    # viewer's own franchises are excluded from recommendations entirely.
+    candidate = Title.objects.create(name="Candidate", slug="candidate", year=2026, franchise=other)
     candidate.genres.add(comedy)
     candidate.genres.add(thriller)
 
@@ -874,7 +876,7 @@ def test_recommendations_expose_localized_reasons_with_franchise_flag(users):
     client.force_login(users[0])
     results = client.get("/api/v1/recommendations/", {"lang": "ru"}).json()["results"]
     by_slug = {item["title"]["slug"]: item["reasons"] for item in results}
-    assert by_slug["candidate"] == {"genres": ["Комедия"], "franchise": True}
+    assert by_slug["candidate"] == {"genres": ["Комедия"], "franchise": False}
     assert by_slug["plain"] == {"genres": ["Комедия"], "franchise": False}
     assert "source" not in by_slug
 
@@ -982,7 +984,7 @@ def test_public_collection_visibility_cache_and_payload_safety(users, titles):
     assert set(payload["items"][0]["title"]) == {
         "name", "slug", "original_name", "synopsis", "title_type", "status", "year", "poster_url", "genres", "franchise",
         "episodes_count", "rating_average", "rating_count", "localized_names",
-        "last_episode_number", "next_episode_at",
+        "last_episode_number", "next_episode_at", "playable_episodes_count",
     }
     assert not {"episodes", "sources", "playback", "user", "id"} & set(payload["items"][0]["title"])
 
@@ -1149,3 +1151,129 @@ def test_collection_insert_rewrites_positions_in_a_bounded_number_of_queries(
     assert positions[5][1] == titles[0].slug
     assert positions[4][1] == "existing-4"
     assert positions[6][1] == "existing-5"
+
+
+@pytest.mark.django_db
+def test_progress_records_voice_selection_and_continue_restores_it(users, titles):
+    """The played voice variant rides along with progress and the shelf."""
+    episode = Episode.objects.create(title=titles[0], number=1)
+    make_playable(episode)
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.post(
+        "/api/v1/episodes/first/1/progress/",
+        {"source_selection_key": "abc123", "source_name": "AniLibria", "source_kind": "dub"},
+        format="json",
+    )
+    assert response.status_code == 201
+    assert response.json()["source_name"] == "AniLibria"
+    entry = client.get("/api/v1/continue-watching/").json()[0]
+    assert entry["source_selection_key"] == "abc123"
+    assert entry["source_name"] == "AniLibria"
+    assert entry["source_kind"] == "dub"
+    # A later heartbeat without voice data keeps the stored snapshot.
+    client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 30, "duration_seconds": 600, "event": "pause"},
+        format="json",
+    )
+    entry = client.get("/api/v1/continue-watching/").json()[0]
+    assert entry["source_selection_key"] == "abc123"
+    # A heartbeat with a different voice replaces the snapshot.
+    client.patch(
+        "/api/v1/episodes/first/1/progress/",
+        {"watched_seconds": 60, "duration_seconds": 600, "event": "pause",
+         "source_selection_key": "def456", "source_name": "Studio Band", "source_kind": "dub"},
+        format="json",
+    )
+    entry = client.get("/api/v1/continue-watching/").json()[0]
+    assert entry["source_selection_key"] == "def456"
+    assert entry["source_name"] == "Studio Band"
+
+
+@pytest.mark.django_db
+def test_continue_watching_hide_keeps_history_and_is_reversible(users, titles):
+    episode = Episode.objects.create(title=titles[0], number=1)
+    make_playable(episode)
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+    assert len(client.get("/api/v1/continue-watching/").json()) == 1
+
+    assert client.post("/api/v1/continue-watching/first/hide/").status_code == 201
+    assert client.get("/api/v1/continue-watching/").json() == []
+    # Hiding removed the card, not the history: the progress row survives.
+    assert client.get("/api/v1/history/first/").json()["watched_episode_numbers"] == []
+    progress = client.get("/api/v1/episodes/first/1/progress/")
+    assert progress.status_code == 200
+    # Repeat-hide is idempotent, unhide restores the card.
+    assert client.post("/api/v1/continue-watching/first/hide/").status_code == 200
+    assert client.delete("/api/v1/continue-watching/first/hide/").status_code == 204
+    assert len(client.get("/api/v1/continue-watching/").json()) == 1
+    assert client.delete("/api/v1/continue-watching/first/hide/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_library_statuses_returns_compact_map(users, titles):
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status="watching")
+    LibraryEntry.objects.create(
+        user=users[0], title=titles[1], status="planned", is_favorite=True
+    )
+    LibraryEntry.objects.create(user=users[1], title=titles[0], status="completed")
+    client = APIClient()
+    client.force_login(users[0])
+    response = client.get("/api/v1/library/statuses/")
+    assert response.status_code == 200
+    entries = {row["slug"]: row for row in response.json()["entries"]}
+    assert set(entries) == {"first", "second"}
+    assert entries["first"] == {"slug": "first", "status": "watching", "is_favorite": False}
+    assert entries["second"]["is_favorite"] is True
+    assert APIClient().get("/api/v1/library/statuses/").status_code in {401, 403}
+
+
+@pytest.mark.django_db
+def test_auto_add_to_watching_files_first_playback(users, titles):
+    episode = Episode.objects.create(title=titles[0], number=1)
+    make_playable(episode)
+    users[0].auto_add_to_watching = True
+    users[0].save(update_fields=["auto_add_to_watching"])
+    client = APIClient()
+    client.force_login(users[0])
+    assert client.post("/api/v1/episodes/first/1/progress/").status_code == 201
+    entry = LibraryEntry.objects.get(user=users[0], title=titles[0])
+    assert entry.status == LibraryEntry.Status.WATCHING
+    # An explicit status is never overwritten by later playbacks.
+    entry.status = LibraryEntry.Status.COMPLETED
+    entry.save(update_fields=["status"])
+    client.post("/api/v1/episodes/first/1/progress/")
+    entry.refresh_from_db()
+    assert entry.status == LibraryEntry.Status.COMPLETED
+    # Off by default: the second user gets no surprise library entry.
+    users[1].auto_add_to_watching = False
+    users[1].save(update_fields=["auto_add_to_watching"])
+    other = APIClient()
+    other.force_login(users[1])
+    other.post("/api/v1/episodes/first/1/progress/")
+    assert not LibraryEntry.objects.filter(user=users[1]).exists()
+
+
+@pytest.mark.django_db
+def test_continue_watching_reports_franchise_next_part(users, titles):
+    franchise = Franchise.objects.create(name="Story", slug="story")
+    first = Title.objects.create(name="Part One", slug="part-one", year=2018, franchise=franchise)
+    second = Title.objects.create(name="Part Two", slug="part-two", year=2022, franchise=franchise)
+    episode = Episode.objects.create(title=first, number=1)
+    make_playable(episode)
+    Episode.objects.create(title=second, number=1)
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/part-one/1/progress/")
+    entries = client.get("/api/v1/continue-watching/", {"lang": "ru"}).json()
+    assert entries[0]["franchise_next"]["slug"] == "part-two"
+    assert entries[0]["franchise_next"]["year"] == 2022
+    # Titles without a franchise report no next part.
+    solo = Episode.objects.create(title=titles[0], number=1)
+    make_playable(solo)
+    client.post("/api/v1/episodes/first/1/progress/")
+    entries = {entry["title"]["slug"]: entry for entry in client.get("/api/v1/continue-watching/").json()}
+    assert entries["first"]["franchise_next"] is None

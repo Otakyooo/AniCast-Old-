@@ -6,7 +6,7 @@ import { getI18n } from "../../i18n/server";
 
 export default async function LibraryPage() {
   const { t } = await getI18n();
-  return <PageShell active="profile">
+  return <PageShell active="library">
     <ProfileShell tab="library">
       <Suspense fallback={<div className="empty-state">{t("common.loading")}</div>}>
         <LibraryView />

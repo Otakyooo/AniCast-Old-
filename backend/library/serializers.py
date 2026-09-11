@@ -6,7 +6,13 @@ from catalog import posters
 from catalog.i18n import translated_value
 from catalog.serializers import EpisodeSerializer, TitleSerializer
 
-from .models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
+from .models import (
+    EpisodeProgress,
+    LibraryEntry,
+    TitleCollection,
+    TitleCollectionItem,
+    TitleNote,
+)
 
 
 COLLECTION_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -40,6 +46,9 @@ class EpisodeProgressSerializer(serializers.ModelSerializer):
             "is_watched",
             "watched_seconds",
             "duration_seconds",
+            "source_selection_key",
+            "source_name",
+            "source_kind",
             "progress_percent",
             "last_opened_at",
             "watched_at",
@@ -57,6 +66,9 @@ class EpisodePlaybackProgressSerializer(serializers.ModelSerializer):
             "is_watched",
             "watched_seconds",
             "duration_seconds",
+            "source_selection_key",
+            "source_name",
+            "source_kind",
             "progress_percent",
             "last_opened_at",
             "watched_at",
@@ -67,12 +79,23 @@ class EpisodeProgressWriteSerializer(serializers.Serializer):
     is_watched = serializers.BooleanField()
 
 
+class EpisodeSourceSelectionSerializer(serializers.Serializer):
+    """Optional voice-over snapshot of the variant being played."""
+
+    source_selection_key = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    source_name = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    source_kind = serializers.ChoiceField(choices=["", "dub", "sub", "raw"], required=False, allow_blank=True)
+
+
 class EpisodePlaybackProgressWriteSerializer(serializers.Serializer):
     max_playback_seconds = 24 * 60 * 60
 
     watched_seconds = serializers.IntegerField(min_value=0, max_value=max_playback_seconds)
     duration_seconds = serializers.IntegerField(min_value=1, max_value=max_playback_seconds)
     event = serializers.ChoiceField(choices=["progress", "pause", "ended"])
+    source_selection_key = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    source_name = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    source_kind = serializers.ChoiceField(choices=["", "dub", "sub", "raw"], required=False, allow_blank=True)
 
     def validate(self, attrs):
         if attrs["watched_seconds"] > attrs["duration_seconds"]:
@@ -80,6 +103,14 @@ class EpisodePlaybackProgressWriteSerializer(serializers.Serializer):
                 {"watched_seconds": "Время просмотра не может превышать длительность серии."}
             )
         return attrs
+
+
+class LibraryStatusEntrySerializer(serializers.Serializer):
+    """One row of the lightweight card-status map."""
+
+    slug = serializers.CharField()
+    status = serializers.ChoiceField(choices=LibraryEntry.Status.choices)
+    is_favorite = serializers.BooleanField()
 
 
 class TitleNoteSerializer(serializers.ModelSerializer):

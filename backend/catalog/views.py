@@ -37,6 +37,7 @@ from .models import (
 from .playback import (
     issue_playback,
     legacy_source_selection_key_parts,
+    playable_episode_count_annotation,
     playback_sources_prefetch,
     playback_url_allowed,
     resolve_playback,
@@ -123,6 +124,8 @@ class TitleListView(PublicCacheMixin, ListAPIView):
     # Ordering stays opt-in: without the parameter the queryset keeps the
     # model default (name), so existing catalog URLs are unaffected.
     ordering_options = frozenset({"popular", "recent", "name"})
+    seasons_options = frozenset({"grouped", "separate"})
+    status_options = frozenset(choice for choice, _ in Title.STATUS_CHOICES)
 
     def get_queryset(self):
         queryset = Title.objects.select_related("franchise").prefetch_related(
@@ -135,6 +138,8 @@ class TitleListView(PublicCacheMixin, ListAPIView):
         if genre := params.get("genre", "").strip():
             queryset = queryset.filter(genres__slug=genre)
         if status := params.get("status", "").strip():
+            if status not in self.status_options:
+                raise ValidationError({"status": "Неизвестный статус выпуска."})
             queryset = queryset.filter(status=status)
         if title_type := params.get("type", "").strip():
             queryset = queryset.filter(title_type=title_type)
@@ -142,6 +147,27 @@ class TitleListView(PublicCacheMixin, ListAPIView):
         ordering = params.get("ordering", "").strip()
         if ordering and ordering not in self.ordering_options:
             raise ValidationError({"ordering": "Неизвестный порядок сортировки."})
+
+        # Season grouping: general browsing defaults to one entry point per
+        # franchise (its first part), so six "Attack on Titan" cards cannot
+        # fill the first rows. A direct search must show the exact season, and
+        # `seasons=separate` restores the flat list for viewers who want it.
+        seasons = params.get("seasons", "grouped").strip()
+        if seasons not in self.seasons_options:
+            raise ValidationError({"seasons": "Используйте grouped или separate."})
+        if not query and seasons != "separate":
+            franchise_entry = (
+                Title.objects.filter(franchise=OuterRef("franchise"))
+                .order_by(F("year").asc(nulls_last=True), "name", "id")
+                .values("pk")[:1]
+            )
+            queryset = queryset.filter(
+                Q(franchise__isnull=True) | Q(pk=Subquery(franchise_entry))
+            )
+
+        # Every card answers "how many episodes can I watch here": one
+        # correlated count of authorized available sources per row.
+        queryset = queryset.annotate(playable_episodes_count=playable_episode_count_annotation())
         if ordering == "popular":
             # Popularity is derived from real engagement only: library adds and
             # submitted ratings. Without engagement the fallback stays factual.
@@ -194,6 +220,7 @@ class AiringTitleListView(PublicCacheMixin, ListAPIView):
             .annotate(
                 last_episode_number=Subquery(last_episode.values("number")[:1]),
                 next_episode_at=Subquery(next_episode.values("air_at")[:1]),
+                playable_episodes_count=playable_episode_count_annotation(),
             )
             .annotate(popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True))
             .select_related("franchise")

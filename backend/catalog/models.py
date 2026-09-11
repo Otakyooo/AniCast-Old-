@@ -366,6 +366,13 @@ class Source(models.Model):
 
     class Meta:
         ordering = ["name", "id"]
+        indexes = [
+            # The catalog "playable episodes" count filters sources by episode
+            # and availability per title row; this index keeps that correlated
+            # subquery on available rows instead of touching every source of a
+            # long series.
+            models.Index(fields=["episode", "availability"], name="src_episode_avail_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["episode", "name", "kind"],

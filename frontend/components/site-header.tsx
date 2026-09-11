@@ -1,16 +1,16 @@
-import { ThemeSwitcher } from "./theme-switcher";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { getI18n } from "../i18n/server";
 import { BrandLockup } from "./brand-lockup";
 import { GlobalSearch } from "./global-search";
 import { MobileSearchLink } from "./mobile-search-link";
+import { NavMoreMenu } from "./nav-more-menu";
 import { UserMenu } from "./user-menu";
 import { CalendarDots, House, SquaresFour, UserCircle } from "@phosphor-icons/react/dist/ssr";
 
 export type NavSection =
   | "home" | "catalog" | "schedule" | "franchises" | "collections" | "characters"
-  | "media" | "community" | "profile";
+  | "media" | "community" | "profile" | "library";
 
 // Personal routes highlight nothing in the desktop top nav by design: the
 // library lives inside the profile (design freeze v0.2, acceptance #2).
@@ -20,10 +20,6 @@ export async function SiteHeader({ active }: { active: NavSection }) {
   // component confirms the real session, so a stale cookie cannot grant access.
   const hasSessionCookie = Boolean((await cookies()).get("sessionid")?.value);
   const linkClass = (section: NavSection) => section === active ? "active" : undefined;
-  // Catalog browsing is the core daily task; franchise/collection/community
-  // links stay reachable but visually secondary.
-  const secondaryClass = (section: NavSection) =>
-    section === active ? "nav-secondary active" : "nav-secondary";
 
   return (
     <header className="global-nav">
@@ -33,14 +29,11 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("home")} href="/">{t("nav.home")}</Link>
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
-          <span className="nav-divider" aria-hidden="true" />
-          <Link className={secondaryClass("franchises")} href="/franchises">{t("nav.franchises")}</Link>
-          <Link className={secondaryClass("collections")} href="/collections">{t("nav.collections")}</Link>
-          <Link className={secondaryClass("community")} href="/community">{t("nav.community")}</Link>
+          <Link className={linkClass("library")} href="/library">{t("nav.libraryShort")}</Link>
+          <NavMoreMenu />
         </nav>
         <div className="header-search"><GlobalSearch /></div>
         <div className="global-actions">
-          <ThemeSwitcher />
           <UserMenu initialSignedIn={hasSessionCookie} />
         </div>
       </div>

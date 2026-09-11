@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CaretDown } from "@phosphor-icons/react";
 import { fetchAccountSummary, getSessionUser, type AccountSummary, type SessionUser } from "../lib/auth";
 import { ResumeShelf } from "./continue-watching-block";
 import { CollectionPreviews } from "./collection-previews";
-import { RecommendationShelf } from "./recommendation-shelf";
+import LibraryStatusShelves from "./library-status-shelf";
 import { RecentNotes } from "./recent-notes";
 import { useI18n } from "./i18n-provider";
 import { ViewingActivityChart } from "./viewing-activity-chart";
@@ -71,19 +72,25 @@ export function AccountPanel() {
           Continue Watching comes right after the header. */}
       <ResumeShelf />
 
-      <section className={styles.statsLine} aria-label={t("account.statsLabel")}>
-        {stats.map((item) =>
-          item.href ? (
-            <Link className={styles.statsItem} href={item.href} key={item.labelKey}>
-              <strong>{item.value}</strong> {t(item.labelKey)}
-            </Link>
-          ) : (
-            <span className={styles.statsItem} key={item.labelKey}>
-              <strong>{item.value}</strong> {t(item.labelKey)}
-            </span>
-          ),
-        )}
-      </section>
+      <details className={styles.statsDetails}>
+        <summary className={styles.statsSummary}>
+          {t("account.statsLabel")}
+          <CaretDown aria-hidden="true" className={styles.statsChevron} size={14} weight="bold" />
+        </summary>
+        <div className={styles.statsLine}>
+          {stats.map((item) =>
+            item.href ? (
+              <Link className={styles.statsItem} href={item.href} key={item.labelKey}>
+                <strong>{item.value}</strong> {t(item.labelKey)}
+              </Link>
+            ) : (
+              <span className={styles.statsItem} key={item.labelKey}>
+                <strong>{item.value}</strong> {t(item.labelKey)}
+              </span>
+            ),
+          )}
+        </div>
+      </details>
 
       {summary && (summary.watched_episodes ?? 0) >= MIN_EPISODES_FOR_CHART && (
         <ViewingActivityChart activity={summary.activity} />
@@ -108,7 +115,7 @@ export function AccountPanel() {
         </section>
       )}
 
-      <RecommendationShelf />
+      <LibraryStatusShelves />
 
       <RecentNotes />
     </div>

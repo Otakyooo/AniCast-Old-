@@ -27,6 +27,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from catalog import posters
 from catalog.i18n import translated_value
 from catalog.models import Episode, Genre, Title
 from catalog.playback import playback_available, playback_source_queryset, playback_sources_prefetch
@@ -39,6 +40,7 @@ from catalog.serializers import (
 from community.models import TitleRating
 
 from .models import (
+    ContinueWatchingHidden,
     EpisodeProgress,
     LibraryEntry,
     RecommendationDismissal,
@@ -51,6 +53,7 @@ from .serializers import (
     EpisodePlaybackProgressWriteSerializer,
     EpisodeProgressSerializer,
     EpisodeProgressWriteSerializer,
+    EpisodeSourceSelectionSerializer,
     CollectionItemCreateSerializer,
     CollectionItemMoveSerializer,
     CollectionItemSerializer,
@@ -289,11 +292,31 @@ class EpisodeProgressView(APIView):
 
     def post(self, request, slug, number):
         episode = self.get_episode(slug, number)
+        # The player reports which voice-over variant it is about to play so
+        # the resume shelf can restore the same version later.
+        selection = EpisodeSourceSelectionSerializer(data=request.data)
+        selection.is_valid(raise_exception=True)
+        source_fields = {
+            key: value
+            for key, value in selection.validated_data.items()
+            if key.startswith("source_")
+        }
         progress, created = EpisodeProgress.objects.update_or_create(
             user=request.user,
             episode=episode,
-            defaults={"last_opened_at": timezone.now()},
+            defaults={"last_opened_at": timezone.now(), **source_fields},
         )
+        # Optional convenience: the first playback can file the title under
+        # "watching" automatically, keeping the library counters honest about
+        # what the viewer actually started.
+        if request.user.auto_add_to_watching and not LibraryEntry.objects.filter(
+            user=request.user, title_id=episode.title_id
+        ).exists():
+            LibraryEntry.objects.create(
+                user=request.user,
+                title_id=episode.title_id,
+                status=LibraryEntry.Status.WATCHING,
+            )
         return Response(
             EpisodeProgressSerializer(progress).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
@@ -352,6 +375,11 @@ class EpisodeProgressView(APIView):
             if completed and not progress.is_watched:
                 progress.is_watched = True
                 progress.watched_at = now
+            # A voice switch mid-episode updates the snapshot too, so resume
+            # restores what the viewer played last, not the first variant.
+            for field in ("source_selection_key", "source_name", "source_kind"):
+                if incoming.get(field):
+                    setattr(progress, field, incoming[field])
 
             progress.save(
                 update_fields=[
@@ -360,6 +388,9 @@ class EpisodeProgressView(APIView):
                     "watched_seconds",
                     "is_watched",
                     "watched_at",
+                    "source_selection_key",
+                    "source_name",
+                    "source_kind",
                     "updated_at",
                 ]
             )
@@ -375,15 +406,20 @@ class ContinueWatchingView(APIView):
 
     Built only from recorded playback starts. Resume targets are guaranteed to
     have an authorized source; completed and currently unplayable titles do not
-    become dead cards on the home page.
+    become dead cards on the home page. Titles hidden through the shelf menu
+    stay out until explicitly restored; hiding never removes history.
     """
 
     permission_classes = [IsAuthenticated]
     title_limit = 12
 
     def get(self, request):
+        hidden_ids = set(
+            ContinueWatchingHidden.objects.filter(user=request.user).values_list("title_id", flat=True)
+        )
         progress_entries = list(
             EpisodeProgress.objects.filter(user=request.user)
+            .exclude(episode__title_id__in=hidden_ids)
             .select_related("episode", "episode__title", "episode__title__franchise")
             .prefetch_related(
                 *episode_payload_prefetch("episode"),
@@ -457,39 +493,122 @@ class ContinueWatchingView(APIView):
         ) if title_ids else {}
         for entry in ordered:
             setattr(entry.episode.title, "episodes_count", episodes_total.get(entry.episode.title_id, 0))
-        return Response([
-            {
+
+        # "Next part of your story": for every started franchise title, the
+        # franchise sibling that follows it in watch order. This is separate
+        # from recommendations — it is the viewer's own unfinished story.
+        franchise_ids = {
+            entry.episode.title.franchise_id
+            for entry in ordered
+            if entry.episode.title.franchise_id is not None
+        }
+        franchise_siblings: dict[int, list[Title]] = {}
+        if franchise_ids:
+            sibling_rows = (
+                Title.objects.filter(franchise_id__in=franchise_ids)
+                .only("id", "franchise_id", "name", "slug", "poster_url", "year")
+                .prefetch_related("translations")
+            )
+            for sibling in sibling_rows:
+                franchise_siblings.setdefault(sibling.franchise_id, []).append(sibling)
+            for siblings in franchise_siblings.values():
+                siblings.sort(key=lambda title: (title.year is None, title.year or 0, title.name, title.id))
+
+        def franchise_next_payload(entry: EpisodeProgress):
+            title = entry.episode.title
+            if title.franchise_id is None:
+                return None
+            siblings = franchise_siblings.get(title.franchise_id, [])
+            following = [sibling for sibling in siblings if sibling.pk != title.pk]
+            if not following:
+                return None
+            # The sibling list is sorted in watch order; the part after the
+            # current one is the first sibling positioned after this title.
+            position = next(
+                (index for index, sibling in enumerate(siblings) if sibling.pk == title.pk),
+                len(siblings),
+            )
+            after = siblings[position + 1] if position + 1 < len(siblings) else following[0]
+            return {
+                "name": translated_value(after, "name", {"request": request}),
+                "slug": after.slug,
+                "poster_url": posters.public_poster_reference(after.poster_url),
+                "year": after.year,
+            }
+
+        response_rows = []
+        for entry in ordered:
+            title_id = entry.episode.title_id
+            if title_id not in resume_by_title:
+                continue
+            resume_episode = resume_by_title[title_id]
+            same_episode = resume_episode.pk == entry.episode_id
+            response_rows.append({
                 "title": TitleSerializer(entry.episode.title, context=context).data,
                 "last_episode": ShelfEpisodeSerializer(entry.episode, context=context).data,
-                "resume_episode": ShelfEpisodeSerializer(
-                    resume_by_title[entry.episode.title_id], context=context
-                ).data,
+                "resume_episode": ShelfEpisodeSerializer(resume_episode, context=context).data,
                 # Temporary compatibility for the previous frontend release.
-                "next_episode": ShelfEpisodeSerializer(
-                    resume_by_title[entry.episode.title_id], context=context
-                ).data,
+                "next_episode": ShelfEpisodeSerializer(resume_episode, context=context).data,
                 "is_watched": entry.is_watched,
-                "watched_count": watched_counts.get(entry.episode.title_id, 0),
-                "resume_at_seconds": (
-                    entry.watched_seconds
-                    if resume_by_title[entry.episode.title_id].pk == entry.episode_id
-                    else 0
-                ),
-                "duration_seconds": (
-                    entry.duration_seconds
-                    if resume_by_title[entry.episode.title_id].pk == entry.episode_id
-                    else None
-                ),
-                "progress_percent": (
-                    entry.progress_percent
-                    if resume_by_title[entry.episode.title_id].pk == entry.episode_id
-                    else 0
-                ),
+                "watched_count": watched_counts.get(title_id, 0),
+                "resume_at_seconds": entry.watched_seconds if same_episode else 0,
+                "duration_seconds": entry.duration_seconds if same_episode else None,
+                "progress_percent": entry.progress_percent if same_episode else 0,
+                # Voice-over snapshot of what the viewer actually played, so
+                # "continue" restores the same variant instead of the default.
+                "source_selection_key": entry.source_selection_key,
+                "source_name": entry.source_name,
+                "source_kind": entry.source_kind,
+                "franchise_next": franchise_next_payload(entry),
                 "last_opened_at": entry.last_opened_at,
-            }
-            for entry in ordered
-            if entry.episode.title_id in resume_by_title
-        ])
+            })
+        return Response(response_rows)
+
+
+class ContinueWatchingHideView(APIView):
+    """Shelf-level removal of one title from the resume list.
+
+    POST hides the card, DELETE restores it. History rows and the library
+    entry are never touched: an accidental playback can be swept off the shelf
+    without losing real progress.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, slug):
+        title = get_object_or_404(Title, slug=slug)
+        _, created = ContinueWatchingHidden.objects.get_or_create(user=request.user, title=title)
+        return Response(status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request, slug):
+        deleted, _ = ContinueWatchingHidden.objects.filter(
+            user=request.user, title__slug=slug
+        ).delete()
+        if not deleted:
+            raise Http404
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class LibraryStatusesView(APIView):
+    """Compact status map of the viewer's whole library.
+
+    Catalog and recommendation cards need to show "Смотрю"/"В планах" chips
+    and a quick "+ В планы" action without one request per card. One response
+    covers every entry; the payload is a slug-keyed list, not nested titles.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        entries = LibraryEntry.objects.filter(user=request.user).select_related("title").only(
+            "status", "is_favorite", "title__slug"
+        )
+        return Response({
+            "entries": [
+                {"slug": entry.title.slug, "status": entry.status, "is_favorite": entry.is_favorite}
+                for entry in entries
+            ]
+        })
 
 
 class TitleNoteListView(ListAPIView):
@@ -574,12 +693,12 @@ class RecommendationListView(ListAPIView):
     disliked_rating_threshold = 4
     rating_genre_weight = 0.5
     watched_genre_weight = 0.5
-    franchise_boost_per_entry = 1.5
-    franchise_engagement_cap = 4
     # Recommendations must widen the choice, not replay one franchise: only
-    # this many titles per franchise survive, regardless of boost. One
+    # this many titles per franchise survive, regardless of score. One
     # representative is enough — the franchise page and the title's own watch
-    # order already answer "what else is in this story".
+    # order already answer "what else is in this story". Franchises the viewer
+    # already engaged with are excluded entirely; their continuations live in
+    # the "next part of your story" shelf instead.
     per_franchise_cap = 1
     reason_genre_limit = 3
     _signals_cache: tuple[dict[int, float], dict[int, int]] | None = None
@@ -678,6 +797,20 @@ class RecommendationListView(ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        # Franchises the viewer already touched (any library entry or any
+        # playback) are their own story, not a "recommendation". Their next
+        # parts belong to the dedicated "next part of your story" shelf, so
+        # recommendations stay about new stories.
+        engaged_franchise_ids = (
+            set(
+                LibraryEntry.objects.filter(user=user, title__franchise_id__isnull=False)
+                .values_list("title__franchise_id", flat=True)
+            )
+            | set(
+                EpisodeProgress.objects.filter(user=user, episode__title__franchise_id__isnull=False)
+                .values_list("episode__title__franchise_id", flat=True)
+            )
+        )
         excluded_ids = (
             set(LibraryEntry.objects.filter(user=user).values_list("title_id", flat=True))
             | self._fully_watched_title_ids()
@@ -689,15 +822,37 @@ class RecommendationListView(ListAPIView):
             )
             | set(RecommendationDismissal.objects.filter(user=user).values_list("title_id", flat=True))
         )
-        queryset = Title.objects.exclude(id__in=excluded_ids).select_related("franchise").prefetch_related(
-            "translations", "franchise__translations", "genres", "genres__translations"
+        queryset = (
+            Title.objects.exclude(id__in=excluded_ids)
+            .exclude(franchise_id__in=engaged_franchise_ids)
+            .select_related("franchise")
+            .prefetch_related("translations", "franchise__translations", "genres", "genres__translations")
+        )
+        # Within a franchise the entry point (earliest part) is the useful
+        # recommendation; a random later season assumes context the viewer
+        # does not have. Unfranchised titles are entry points by definition.
+        franchise_entry = (
+            Title.objects.filter(franchise=OuterRef("franchise"))
+            .order_by(F("year").asc(nulls_last=True), "name", "id")
+            .values("pk")[:1]
+        )
+        queryset = queryset.annotate(
+            is_franchise_entry=Case(
+                When(franchise__isnull=True, then=Value(1)),
+                When(pk=Subquery(franchise_entry), then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
         )
         weights, engagement = self._signals()
         positive_genres = [genre_id for genre_id, weight in sorted(weights.items()) if weight > 0]
         if not positive_genres:
             # Cold start or only negative signals: an honest recency fallback.
             return self._apply_franchise_cap(queryset.annotate(score=Value(0.0, output_field=FloatField())).order_by(
-                F("year").desc(nulls_last=True), "name", "slug"
+                "-is_franchise_entry",
+                F("year").desc(nulls_last=True),
+                "name",
+                "slug",
             ))
         # Candidacy stays a subquery so the scoring join below sees every genre
         # of a title and negative weights reach the sum without WHERE filtering.
@@ -711,20 +866,12 @@ class RecommendationListView(ListAPIView):
             Value(0.0),
             output_field=FloatField(),
         )
-        if engagement:
-            franchise_whens = [
-                When(
-                    franchise_id=franchise_id,
-                    then=Value(min(count, self.franchise_engagement_cap) * self.franchise_boost_per_entry),
-                )
-                for franchise_id, count in sorted(engagement.items())
-            ]
-            score = score + Case(*franchise_whens, default=Value(0.0), output_field=FloatField())
         return self._apply_franchise_cap(
             queryset.filter(id__in=Subquery(candidates))
             .annotate(**rating_subquery_annotations(), score=score)
             .order_by(
                 "-score",
+                "-is_franchise_entry",
                 F("rating_avg").desc(nulls_last=True),
                 F("year").desc(nulls_last=True),
                 "name",

@@ -344,18 +344,28 @@ summary:focus-visible {
   gap: 24px;
 }
 
+/* The card is now a column of link + library controls. */
 .catalog-card {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  overflow: hidden;
+  gap: 6px;
+  overflow: visible;
   border: 0;
   border-radius: 8px;
   background: transparent;
 }
 
-.catalog-card:hover h2 { text-decoration: underline; text-underline-offset: 3px }
-.catalog-card:active { transform: none }
+/* The link part stays a full-bleed poster + body column like before. */
+.catalog-card-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.catalog-card-main:hover h2 { text-decoration: underline; text-underline-offset: 3px }
+.catalog-card-main:active { transform: none }
 .catalog-card-body { padding: 10px 0 0; min-width: 0 }
 .catalog-card .poster-wrap { overflow: hidden; border-radius: 8px }
 
@@ -372,29 +382,105 @@ summary:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.catalog-card p {
+.catalog-card p,
+.catalog-card .card-genres,
+.catalog-card .card-availability {
+  display: block;
   margin: 0;
   overflow: hidden;
   color: var(--muted);
   font-size: 13px;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.catalog-card-media {
-  overflow: visible;
-  border-color: transparent;
-  border-radius: 8px;
-  background: transparent;
-}
+.catalog-card .card-availability { color: var(--muted-2) }
 
-.catalog-card-media:hover { border-color: transparent }
-.catalog-card-media .poster-wrap { overflow: hidden; border-radius: 8px; background: var(--surface-card) }
+.catalog-card-media { background: transparent }
+
+.catalog-card-media .poster-wrap { overflow: hidden; border-radius: 8px }
 .catalog-card-media .catalog-card-body { padding: 10px 0 0 }
-.catalog-card-media .card-kicker { display: none }
 /* Two reserved title lines keep card facts on one shared baseline. */
 .catalog-card-media h2 { min-height: 2.7em; margin: 0 0 4px; font-size: 15px; line-height: 1.35 }
 .catalog-card-media p { font-size: 13px }
+
+/* ---------- Library chip on every catalog card ---------- */
+
+.card-library {
+  position: relative;
+  min-height: 30px;
+}
+
+.card-library-loader { display: block; height: 28px }
+
+.card-library-add,
+.card-library-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 8px;
+  background: var(--surface-control);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.card-library-add:hover,
+.card-library-chip:hover {
+  border-color: var(--primary);
+  background: var(--surface-control-hover);
+}
+
+.card-library-add svg, .card-library-chip svg { color: var(--muted) }
+
+.card-library-chip { background: var(--primary-soft) }
+.card-library-chip svg { color: var(--primary) }
+
+.card-library-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: grid;
+  min-width: 190px;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-card-opaque);
+  box-shadow: var(--shadow-overlay);
+}
+
+.card-library-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-library-choice:hover { background: var(--surface-2) }
+.card-library-choice.is-active { background: var(--primary-soft); color: var(--text) }
+
+.card-library-remove { color: var(--danger) }
+
+.card-library-hint {
+  margin: 4px 11px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.card-library-hint.error { color: var(--danger) }
 
 .card-kicker {
   color: var(--muted-2);
@@ -519,10 +605,8 @@ summary:focus-visible {
   body { padding-bottom: 68px }
   .global-nav-inner { display: flex; gap: 10px }
   .global-brand { margin-right: auto }
-  .global-brand .brand-wordmark { display: none }
   .primary-nav { display: none }
   .header-search { flex: 0 0 auto }
-  .global-actions .language-switcher { display: none }
   .content { padding-bottom: 40px }
   .page-heading h1,
   .state-panel h1 { overflow-wrap: anywhere; font-size: clamp(27px, 8.5vw, 34px) }

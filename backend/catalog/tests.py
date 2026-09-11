@@ -574,6 +574,77 @@ def test_recent_episodes_validates_the_days_parameter(catalog_data):
 
 
 @pytest.mark.django_db
+def test_catalog_lists_expose_playable_episode_counts(catalog_data):
+    """Cards answer "how many episodes can I watch here" per title.
+
+    The count comes from authorized available sources; episodes without one
+    must not count toward the promise, and titles without any authorized
+    source report 0 — never a phantom number.
+    """
+    # Fixture episode stays reachable metadata: its source has no provider.
+    body = APIClient().get("/api/v1/titles/?ordering=popular").json()
+    row = next(item for item in body["results"] if item["slug"] == "sky-test")
+    assert row["playable_episodes_count"] == 0
+
+    # An entitled provider with an available source counts once per episode.
+    provider = Provider.objects.create(
+        name="Playable Provider", slug="playable-provider", is_enabled=True,
+        allowed_hosts=["playable.example.com"], playback_adapter="external_link",
+        rights_reference="Contract", rights_verified_at=timezone.now(),
+    )
+    episode = catalog_data.episodes.get(number=1)
+    Source.objects.create(
+        episode=episode, provider=provider, external_id="abc",
+        name="Playable", kind="dub", url="https://playable.example.com/e/1",
+    )
+    body = APIClient().get("/api/v1/titles/?ordering=popular").json()
+    row = next(item for item in body["results"] if item["slug"] == "sky-test")
+    assert row["playable_episodes_count"] == 1
+
+
+@pytest.mark.django_db
+def test_catalog_groups_franchise_parts_to_one_entry_by_default(catalog_data):
+    """General browsing shows one card per franchise, not wall-to-wall parts."""
+    franchise = catalog_data.franchise
+    franchise_entry = catalog_data
+    franchise_entry.year = 2013
+    franchise_entry.save(update_fields=["year"])
+    for index in range(3):
+        later = Title.objects.create(
+            name=f"Sky Test Season {index + 2}", slug=f"sky-test-s{index + 2}",
+            year=2015 + index, franchise=franchise, status="finished",
+        )
+        later.genres.add(*franchise_entry.genres.all())
+    Title.objects.create(name="Lone", slug="lone", status="finished")
+
+    grouped = APIClient().get("/api/v1/titles/?ordering=popular").json()
+    slugs = [item["slug"] for item in grouped["results"]]
+    assert slugs.count("sky-test") == 1
+    assert "sky-test-s2" not in slugs  # the entry point stands for the franchise
+    assert "lone" in slugs
+    # The entry point is the earliest part of the franchise.
+    assert "sky-test" in slugs
+
+    separate = APIClient().get("/api/v1/titles/?ordering=popular&seasons=separate").json()
+    separate_slugs = [item["slug"] for item in separate["results"]]
+    assert "sky-test-s2" in separate_slugs
+
+    # A direct search bypasses grouping so the exact season surfaces.
+    search = APIClient().get("/api/v1/titles/?q=Season 2&ordering=name").json()
+    assert [item["slug"] for item in search["results"]] == ["sky-test-s2"]
+
+
+@pytest.mark.django_db
+def test_catalog_rejects_unknown_season_mode(catalog_data):
+    assert APIClient().get("/api/v1/titles/?seasons=once").status_code == 400
+
+
+@pytest.mark.django_db
+def test_catalog_rejects_unknown_release_status(catalog_data):
+    assert APIClient().get("/api/v1/titles/?status=archived").status_code == 400
+
+
+@pytest.mark.django_db
 def test_seed_catalog_is_idempotent_and_sets_air_moments():
     call_command("seed_catalog")
     call_command("seed_catalog")

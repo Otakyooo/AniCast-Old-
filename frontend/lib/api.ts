@@ -107,6 +107,8 @@ export interface CatalogItem {
   last_episode_number?: number | null;
   /** Present only on the airing view: next scheduled exact release time. */
   next_episode_at?: string | null;
+  /** Playable episodes in the player store, when the backend annotates it. */
+  playable_episodes_count?: number | null;
 }
 
 export interface CatalogResponse {
@@ -126,6 +128,8 @@ export interface CatalogFilters {
   page?: number;
   pageSize?: number;
   ordering?: CatalogOrdering;
+  /** Default grouped: one card per franchise. "separate" lists every season. */
+  seasons?: "grouped" | "separate";
 }
 
 export interface ScheduleItem {
@@ -267,6 +271,7 @@ export async function getCatalog(filters: CatalogFilters = {}, signal?: AbortSig
   if (filters.status) query.set("status", filters.status);
   if (filters.genre) query.set("genre", filters.genre);
   if (filters.ordering) query.set("ordering", filters.ordering);
+  if (filters.seasons && filters.seasons !== "grouped") query.set("seasons", filters.seasons);
   if (filters.page && filters.page > 1) query.set("page", String(filters.page));
   if (filters.pageSize) query.set("page_size", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";

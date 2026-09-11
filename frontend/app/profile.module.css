@@ -127,11 +127,39 @@
 
 /* ---------- Stats: one compact reading line ---------- */
 
+.statsDetails summary { list-style: none }
+
+.statsDetails summary::-webkit-details-marker { display: none }
+
+.statsSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.statsSummary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.statsChevron {
+  color: var(--muted);
+  transition: transform 140ms ease;
+}
+
+.statsDetails[open] .statsChevron { transform: rotate(180deg) }
+
 .statsLine {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 0;
+  margin-top: 10px;
   padding: 2px 4px;
 }
 

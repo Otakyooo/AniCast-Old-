@@ -17,6 +17,9 @@ class User(AbstractUser):
     bio = models.CharField("О себе", max_length=280, blank=True)
     profile_is_public = models.BooleanField("Публичный профиль", default=False)
     preferred_language = models.CharField("Язык интерфейса", max_length=8, choices=LANGUAGE_CHOICES, default="ru")
+    # When enabled, the first playback of a title adds it to the library as
+    # "watching" so the shelf counters and the resume shelf stop disagreeing.
+    auto_add_to_watching = models.BooleanField("Автоматически добавлять в «Смотрю»", default=False)
     # Null until the address is proven. Registration accepted any address, so a
     # typo silently produced an account whose password could never be recovered
     # and whose mail went to a stranger. Confirmation is not required to use the

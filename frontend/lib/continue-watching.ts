@@ -15,6 +15,17 @@ export interface ContinueWatchingEntry {
   /** Duration of `resume_episode`, absent while an older API is live. */
   duration_seconds?: number | null;
   progress_percent?: number;
+  /** Voice-over snapshot of what the viewer actually played. */
+  source_selection_key?: string;
+  source_name?: string;
+  source_kind?: string;
+  /** The next part of the franchise, for the "next part of your story" hint. */
+  franchise_next?: {
+    name: string;
+    slug: string;
+    poster_url?: string | null;
+    year?: number | null;
+  } | null;
   last_opened_at: string;
 }
 
@@ -59,4 +70,25 @@ export async function getContinueWatching(signal?: AbortSignal): Promise<Continu
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new ContinueWatchingApiError(response.status);
   return response.json() as Promise<ContinueWatchingEntry[]>;
+}
+
+async function mutateHidden(slug: string, method: "POST" | "DELETE") {
+  const { getCsrfToken } = await import("./auth");
+  const csrf = await getCsrfToken();
+  const response = await fetch(`/api/v1/continue-watching/${encodeURIComponent(slug)}/hide/`, {
+    method,
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": csrf },
+  });
+  if (!response.ok) throw new ContinueWatchingApiError(response.status);
+}
+
+/** Removes a title from the resume shelf only; history stays intact. */
+export function hideFromContinueWatching(slug: string) {
+  return mutateHidden(slug, "POST");
+}
+
+/** Restores a title that was removed from the resume shelf. */
+export function unhideFromContinueWatching(slug: string) {
+  return mutateHidden(slug, "DELETE");
 }

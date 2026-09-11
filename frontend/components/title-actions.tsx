@@ -126,6 +126,9 @@ function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: Title
   }
 
   const isFavorite = entry?.is_favorite ?? false;
+  // The viewer has real playback history for this title but no library entry:
+  // offer to file it under «Смотрю» so the shelf and the counters agree.
+  const showWatchlistSuggestion = entry === null && resumeNumber !== null;
 
   return (
     <div className={styles.actions}>
@@ -172,6 +175,19 @@ function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: Title
           </>
         )}
       </div>
+
+      {showWatchlistSuggestion && (
+        <p className={styles.actionHint}>
+          <button
+            className={styles.actionHintLink}
+            type="button"
+            disabled={pending}
+            onClick={() => void update("watching", false)}
+          >
+            {t("title.addToWatching")}
+          </button>
+        </p>
+      )}
 
       {guest && <p className={styles.actionHint}>{t("title.actionsGuest")}</p>}
       {error && <p className={styles.actionError} role="alert">{error}</p>}

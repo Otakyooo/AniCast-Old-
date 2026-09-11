@@ -118,6 +118,27 @@
 .item:active, .logout:active { background: var(--background) }
 .logout:disabled { color: var(--muted-2); background: transparent; cursor: not-allowed }
 
+/* Preferences row inside the dropdown: theme select and RU/EN switcher. */
+.menuControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 11px;
+  border-top: 1px solid var(--border);
+}
+
+.menuControls:first-of-type { margin-top: 6px }
+
+.menuControlsLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.menuControls :global(.language-switcher) {
+  margin-left: auto;
+}
+
 .logout {
   margin-top: 6px;
   border-top: 1px solid var(--border);
