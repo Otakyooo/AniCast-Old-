@@ -117,6 +117,12 @@
   eslint/tsc/79 unit/production build, npm audit 0 уязвимостей, e2e seed-check.
   pip-audit не установлен локально (остаётся CI gate); полный Chromium E2E —
   только в изолированном CI.
+- Инцидент 12.09.2026 01:47–02:07 MSK: MainServer штатно выключился и
+  перезагрузился; пробы site-availability (идут с MainServer через туннель)
+  упирались в drop VPS-firewall на TCP 443. Внешние пользователи не пострадали.
+  Исправление: awg0/10.78.0.2 разрешены TCP 80/443 (`infra/vps/firewall.nft`,
+  поправка ADR 003); пробы зелёные, SiteDown снялся. Подробности —
+  [релиз-запись](archive/releases/RELEASE-2026-09-12-firewall-hairpin.md).
 
 ## Ресурсы и ограничения
 

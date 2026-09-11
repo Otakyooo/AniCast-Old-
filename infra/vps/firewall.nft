@@ -14,7 +14,11 @@ table inet anicast_edge {
         iifname "br-*" tcp dport { 80, 443 } accept
         iifname "eth0" tcp dport { 22, 80, 443 } accept
         iifname "eth0" udp dport 443 accept
-        iifname "awg0" ip saddr 10.78.0.2 tcp dport { 22, 8443, 9100 } accept
+        # MainServer reaches the public origin only through the tunnel
+        # (default route via awg0): blackbox site-availability probes and
+        # operator checks hairpin here. Same public web ports as eth0/br-*,
+        # single trusted tunnel peer only.
+        iifname "awg0" ip saddr 10.78.0.2 tcp dport { 22, 80, 443, 8443, 9100 } accept
         counter drop
     }
     chain forward {

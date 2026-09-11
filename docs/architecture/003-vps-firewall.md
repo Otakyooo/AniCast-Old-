@@ -1,6 +1,11 @@
 # ADR 003: входящий firewall VPS
 
 Дата: 09.09.2026 (Europe/Moscow). Статус: реализовано.
+Поправка 12.09.2026: awg0/10.78.0.2 разрешены TCP 80/443 — пробы
+site-availability и проверки оператора идут с MainServer только через туннель
+(дефолт via awg0) и упирались в drop; инцидент SiteDown при живом сайте,
+исправление `infra/vps/firewall.nft`, применено через
+`anicast-firewall-apply` с watchdog и проверкой свежих проб.
 
 ## Основания
 
@@ -21,7 +26,7 @@ INPUT default drop, разрешены loopback, established/related, ICMP/ICMPv
 | Источник | Назначение | Разрешение |
 | --- | --- | --- |
 | eth0 (публичная сеть) | VPS | TCP 22/80/443, UDP 443 |
-| awg0, 10.78.0.2 | VPS | TCP 22/8443/9100 |
+| awg0, 10.78.0.2 | VPS | TCP 22/80/443/8443/9100 |
 | awg0, 10.78.0.2 | Docker node-exporter | Только DNAT исходного 10.78.0.1:9100 |
 | awg0, 10.78.0.2 | eth0 | Сохранён существующий выход через VPS |
 | eth0 / awg0, остальной новый forwarded traffic | Docker/прочие маршруты | Drop |
