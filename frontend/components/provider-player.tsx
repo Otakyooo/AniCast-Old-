@@ -209,7 +209,10 @@ function PlayerSession({
           if (!active) return;
           storedLoaded = true;
           storedProgress = progress;
-          mergeServerProgress(progress, "saved");
+          // A pause save may already have failed while the open was still in
+          // flight. Its error must survive: a late "saved" would silently
+          // clear the only signal that progress was lost.
+          if (phase !== "error") mergeServerProgress(progress, "saved");
           tryRestorePosition();
         })
         .catch((reason) => {
@@ -284,7 +287,9 @@ function PlayerSession({
         if (!active) return;
         storedLoaded = true;
         storedProgress = progress;
-        mergeServerProgress(progress, "ready");
+        // Same reason as in beginPlayback: a late initial read must not
+        // clear an error a save already reported.
+        if (phase !== "error") mergeServerProgress(progress, "ready");
         tryRestorePosition();
       })
       .catch((reason) => {
