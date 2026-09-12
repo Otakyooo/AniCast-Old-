@@ -14,6 +14,10 @@ test("explicit themes persist; logo stays transparent and navigation readable", 
   const response = await page.goto("/backup-privacy");
   const root = page.locator("html");
   await expect(root).toHaveAttribute("data-theme", "dark");
+  // The switcher lives in the preferences menu (header shows only the
+  // trigger since the 11.09 UX pass).
+  const openPrefs = () => page.getByRole("button", { name: "Открыть предпочтения", exact: true }).click();
+  await openPrefs();
   const switcher = page.getByLabel("Тема оформления", { exact: true });
   await expect(switcher.locator("option")).toHaveCount(2);
   const policy = response!.headers()["content-security-policy"];
@@ -27,12 +31,15 @@ test("explicit themes persist; logo stays transparent and navigation readable", 
   for (const theme of ["light", "dark"] as const) {
     await switcher.selectOption(theme);
     await expect(root).toHaveAttribute("data-theme", theme);
+    // Nav links transition color over 140ms: measure after it settles,
+    // otherwise the mid-transition blend fails the ratio spuriously.
+    await page.waitForTimeout(300);
     await expect(page.locator(".brand-logo").first()).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Check the actual computed text colors, not just the token source file.
-    // Secondary nav links stay muted in both themes.
-    await expect(page.locator(".primary-nav a.nav-secondary:not(.active)").first()).toHaveCSS("color", theme === "light" ? "rgb(102, 86, 71)" : "rgb(217, 198, 172)");
-    const contrast = await page.locator(".primary-nav a.nav-secondary:not(.active)").first().evaluate(el => {
+    // Primary nav links stay readable in both themes.
+    const navLink = page.locator(".primary-nav a:not(.active)").first();
+    const contrast = await navLink.evaluate(el => {
       const rgb = (s: string) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
       const luminance = (c: number[]) => c.map(n => n / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4).reduce((s, n, i) => s + n * [.2126, .7152, .0722][i], 0);
       const fg = luminance(rgb(getComputedStyle(el).color));
@@ -50,6 +57,7 @@ test("explicit themes persist; logo stays transparent and navigation readable", 
   await expect(root).toHaveAttribute("data-theme", "light");
   const other = await context.newPage();
   await other.goto("/backup-privacy");
+  await other.getByRole("button", { name: "Открыть предпочтения", exact: true }).click();
   await other.getByLabel("Тема оформления", { exact: true }).selectOption("dark");
   await expect(root).toHaveAttribute("data-theme", "dark");
   await other.close();
@@ -60,6 +68,7 @@ test("legacy system preference becomes dark and does not follow the OS", async (
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/backup-privacy");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Открыть предпочтения", exact: true }).click();
   await expect(page.getByLabel("Тема оформления", { exact: true })).toHaveValue("dark");
 });
 
@@ -68,6 +77,7 @@ test("switching still works when browser storage is unavailable", async ({ page 
     Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Blocked", "SecurityError"); } });
   });
   await page.goto("/backup-privacy");
+  await page.getByRole("button", { name: "Открыть предпочтения", exact: true }).click();
   const switcher = page.getByLabel("Тема оформления", { exact: true });
   await switcher.focus();
   await expect(switcher).toBeFocused();
@@ -81,8 +91,10 @@ test("header links remain reachable and search fits the viewport", async ({ page
   if (mobile) {
     await page.getByRole("button", { name: "Открыть поиск", exact: true }).click();
   } else {
+    // Four primary links since the 11.09 UX pass (the rest moved to the
+    // "Ещё" menu); each must stay clickable and unobscured.
     const links = page.locator(".primary-nav > a");
-    await expect(links).toHaveCount(6);
+    await expect(links).toHaveCount(4);
     for (const link of await links.all()) {
       await expect(link).toBeVisible();
       expect(await link.evaluate(el => {

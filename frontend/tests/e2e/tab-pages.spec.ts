@@ -6,7 +6,10 @@ test.afterEach(async ({ page, context }) => {
 });
 
 async function captureThemes(page: Page, info: TestInfo, name: string) {
-  for (const theme of ["light", "dark"]) {
+  // The theme switcher lives in the preferences menu (header shows only the
+  // trigger since the 11.09 UX pass), so open it once before switching.
+  await page.getByRole("button", { name: "Открыть предпочтения", exact: true }).click();
+  for (const theme of ["light", "dark"] as const) {
     await page.getByLabel("Тема оформления", { exact: true }).selectOption(theme);
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -20,7 +23,7 @@ test("catalog filter chips synchronize fields; random title preserves selection 
   await page.getByRole("link", { name: "Сбросить: Поиск по каталогу", exact: true }).click();
   await expect(page).toHaveURL(/\/catalog\?status=finished$/);
   await expect(page.getByLabel("Поиск по каталогу", { exact: true })).toHaveValue("");
-  await expect(page.getByRole("combobox", { name: "Статус", exact: true })).toHaveValue("finished");
+  await expect(page.getByRole("combobox", { name: "Статус выпуска", exact: true })).toHaveValue("finished");
   // A non-overflowing form can still squeeze its search input into a sliver.
   expect((await page.getByRole("textbox", { name: "Поиск по каталогу", exact: true }).boundingBox())!.width).toBeGreaterThanOrEqual(230);
   await captureThemes(page, info, "catalog");
