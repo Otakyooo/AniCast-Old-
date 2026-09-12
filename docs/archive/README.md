@@ -19,6 +19,7 @@
 | 09.09: React state, вход/плеер E2E и ограниченная нагрузка | [Релиз](releases/RELEASE-2026-09-09-react-scenarios.md) |
 | 09.09: каталог, расписание, история и библиотека | [Релиз](releases/RELEASE-2026-09-09-tab-pages.md) |
 | 12.09: firewall hairpin для проб site-availability | [Релиз](releases/RELEASE-2026-09-12-firewall-hairpin.md) |
+| 12.09: hardening-аудит и фикс каталога (MainServer) | [Релиз](releases/RELEASE-2026-09-12-hardening-catalog.md) |
 
 Сохранены [аудит 08.09](audits/SYSTEM_AUDIT-2026-09-08.md),
 [прежняя сводка](IMPLEMENTATION_STATUS-2026-09-07.md) и планы:
