@@ -17,6 +17,11 @@ for (const { name, path } of pages) {
     await page.goto(path);
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa"])
+      // Provider player documents are third-party: their internals (e.g. a
+      // Kodik error state WebKit rendered in CI) are out of scope. Our side
+      // of the frame — sandbox, title, loading and error states — is covered
+      // by the player specs and the checks above.
+      .exclude("iframe")
       .analyze();
     const blocking = results.violations.filter(
       (violation) => violation.impact === "serious" || violation.impact === "critical",

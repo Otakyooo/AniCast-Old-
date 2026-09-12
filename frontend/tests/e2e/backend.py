@@ -70,7 +70,10 @@ with TemporaryDirectory(prefix="anicast-browser-") as directory:
                 episode=episode, provider=provider, name=voice, kind="dub",
                 url=f"https://kodikplayer.com/seria/fixture-{number}-{voice}/test/720p",
             )
-    for viewport in ("desktop", "laptop", "tablet", "mobile"):
+    # Login helpers address users as f"{project.name}-{scenario}": seed every
+    # Playwright project name, including the opt-in Firefox/WebKit desktops
+    # from playwright.config.ts (E2E_BROWSERS=all). Keep the lists in sync.
+    for viewport in ("desktop", "laptop", "tablet", "mobile", "firefox-desktop", "webkit-desktop"):
         for scenario in ("auth", "player", "switch"):
             user = User.objects.create_user(
                 email=f"{viewport}-{scenario}@example.invalid",
