@@ -4,6 +4,7 @@ import { SITE_URL } from "./site.ts";
 import {
   catalogPageExists,
   catalogSeoState,
+  communitySeoState,
   franchiseSeoState,
   jsonLdScript,
   titleOpenGraphType,
@@ -66,6 +67,12 @@ test("franchise index keeps pagination indexable and consolidates search", () =>
     { canonical: "/franchises", index: false },
   );
   assert.deepEqual(franchiseSeoState({ page: 99 }, false), { canonical: "/franchises", index: false });
+});
+
+test("community index keeps review pagination self-canonical", () => {
+  assert.deepEqual(communitySeoState(), { canonical: "/community", index: true });
+  assert.deepEqual(communitySeoState(2), { canonical: "/community?page=2", index: true });
+  assert.deepEqual(communitySeoState(99, false), { canonical: "/community", index: false });
 });
 
 test("json-ld payloads cannot break out of their script element", () => {

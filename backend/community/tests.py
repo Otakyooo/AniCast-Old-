@@ -19,6 +19,15 @@ def community_data(db):
 
 
 @pytest.mark.django_db
+def test_community_summary_is_private_no_store(community_data):
+    """The summary mixes public aggregates with the viewer's own state."""
+    _, _, title = community_data
+    response = APIClient().get(f"/api/v1/titles/{title.slug}/community/")
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "no-store, private"
+
+
+@pytest.mark.django_db
 def test_ratings_are_private_to_writer_and_publicly_aggregated(community_data):
     first, second, title = community_data
     first_client = APIClient()

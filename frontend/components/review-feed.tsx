@@ -16,7 +16,7 @@ import styles from "../app/community/community.module.css";
 export async function ReviewFeed({ reviews }: { reviews: PublicReview[] }) {
   const { t } = await getI18n();
   if (!reviews.length) {
-    return <div className="empty-state"><strong>{t("community.noReviews")}</strong></div>;
+    return <div className="empty-state" role="status"><strong>{t("community.noReviews")}</strong></div>;
   }
   return (
     <div className={styles.feed}>

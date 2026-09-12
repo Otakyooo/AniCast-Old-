@@ -1,0 +1,48 @@
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 32px;
+  color: var(--muted);
+}
+
+.pageLink,
+.pageDisabled {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pageLink {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.pageLinkCurrent,
+.pageDisabled {
+  border-color: transparent;
+  cursor: default;
+}
+
+.pageLinkCurrent {
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+}
+
+.pageDisabled { color: var(--muted-2) }
+
+.pageGap { padding: 0 2px; color: var(--muted-2) }
+
+.pageLink:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.pageLink:active { background: var(--surface-2) }

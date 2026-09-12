@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { deleteReview, getCommunitySummary, saveReview, setRating, type CommunitySummary } from "../lib/community";
+import { deleteReview, getCommunitySummary, isAuthError, saveReview, setRating, type CommunitySummary } from "../lib/community";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/community/community.module.css";
 
@@ -14,32 +14,61 @@ export function CommunityPanel({ slug }: { slug: string }) {
 function CommunityContent({ slug }: { slug: string }) {
   const { t } = useI18n();
   const [data, setData] = useState<CommunitySummary>();
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ message: string; auth: boolean } | null>(null);
   const [pendingRating, setPendingRating] = useState<number | null>(null);
   const [formPending, setFormPending] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  // 401/403 means the session is gone and the login link helps; anything else
+  // is a failed request and must say so instead of sending a signed-in viewer
+  // to the login page.
+  const describeError = useCallback((cause: unknown) => (
+    isAuthError(cause)
+      ? { message: t("community.signIn"), auth: true }
+      : { message: t("common.loadFailed"), auth: false }
+  ), [t]);
 
   const load = useCallback(async () => {
     const next = await getCommunitySummary(slug);
     setData(next);
-    setError("");
+    setError(null);
   }, [slug]);
 
   useEffect(() => {
     let active = true;
     getCommunitySummary(slug)
-      .then((next) => { if (active) setData(next); })
-      .catch(() => { if (active) setError(t("common.error")); });
-    return () => { active = false; };
-  }, [slug, t]);
+      .then((next) => {
+        if (!active) return;
+        setData(next);
+        setError(null);
+      })
+      .catch((cause) => {
+        if (active) setError(describeError(cause));
+      });
+    return () => {
+      active = false;
+    };
+  }, [slug, describeError]);
+
+  async function retry() {
+    setRetrying(true);
+    try {
+      await load();
+    } catch (cause) {
+      setError(describeError(cause));
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   async function rate(value: number) {
     setPendingRating(value);
-    setError("");
+    setError(null);
     try {
       await setRating(slug, value);
       await load();
-    } catch {
-      setError(t("community.signIn"));
+    } catch (cause) {
+      setError(describeError(cause));
     } finally {
       setPendingRating(null);
     }
@@ -49,12 +78,12 @@ function CommunityContent({ slug }: { slug: string }) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setFormPending(true);
-    setError("");
+    setError(null);
     try {
       await saveReview(slug, String(form.get("body") ?? ""), form.get("spoiler") === "on");
       await load();
-    } catch {
-      setError(t("community.signIn"));
+    } catch (cause) {
+      setError(describeError(cause));
     } finally {
       setFormPending(false);
     }
@@ -62,12 +91,12 @@ function CommunityContent({ slug }: { slug: string }) {
 
   async function removeReview() {
     setFormPending(true);
-    setError("");
+    setError(null);
     try {
       await deleteReview(slug);
       await load();
-    } catch {
-      setError(t("common.error"));
+    } catch (cause) {
+      setError(describeError(cause));
     } finally {
       setFormPending(false);
     }
@@ -75,8 +104,14 @@ function CommunityContent({ slug }: { slug: string }) {
 
   if (!data) {
     return (
-      <section className={styles.panel} role={error ? "alert" : "status"}>
-        {error || t("common.loading")}
+      <section className={styles.panel} role={error ? "alert" : "status"} aria-busy={retrying}>
+        <p>{error ? error.message : t("common.loading")}</p>
+        {error && !error.auth && (
+          <button type="button" disabled={retrying} onClick={retry}>
+            {t(retrying ? "common.loading" : "common.retry")}
+          </button>
+        )}
+        {error?.auth && <p><Link href="/login">{t("common.login")}</Link></p>}
       </section>
     );
   }
@@ -120,7 +155,7 @@ function CommunityContent({ slug }: { slug: string }) {
         {data.my_review?.status && <small role="status">{t(`community.${data.my_review.status}`)}</small>}
       </form>
 
-      {error && <p role="alert">{error} <Link href="/login">{t("common.login")}</Link></p>}
+      {error && <p role="alert">{error.message} {error.auth && <Link href="/login">{t("common.login")}</Link>}</p>}
 
       <div>
         <h3>{t("community.publicReviews")}</h3>

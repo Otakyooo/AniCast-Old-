@@ -49,6 +49,13 @@ def published_reviews():
 class CommunitySummaryView(APIView):
     permission_classes = [AllowAny]
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        # The payload mixes public aggregates with the viewer's own rating and
+        # review, so it must never sit in a shared cache.
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "no-store, private"
+        return response
+
     def get(self, request, slug):
         title = get_object_or_404(Title, slug=slug)
         rating = TitleRating.objects.filter(title=title).aggregate(average=Avg("value"))

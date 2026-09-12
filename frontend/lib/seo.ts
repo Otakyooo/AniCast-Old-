@@ -70,6 +70,19 @@ export function franchiseSeoState(
   };
 }
 
+/**
+ * Community review index: real pagination is self-canonical and indexable, a
+ * page past the last review is not. No facets exist on this page.
+ */
+export function communitySeoState(page = 1, pageExists = true) {
+  const resolvedPage = Number.isInteger(page) && page > 1 ? page : 1;
+  return {
+    canonical:
+      !pageExists || resolvedPage === 1 ? "/community" : `/community?page=${resolvedPage}`,
+    index: pageExists,
+  };
+}
+
 export function titleSchemaType(titleType?: string | null) {
   return titleType === "movie" ? "Movie" : "TVSeries";
 }
