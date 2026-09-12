@@ -279,10 +279,10 @@ Gunicorn runs 2 workers × 2 threads with `--timeout 30`, `--graceful-timeout 30
 
 ## Dependency pins
 
-`backend/requirements.txt` holds the 15 direct dependencies; `backend/constraints.txt` holds the 52 transitive ones, generated from the exact set the production image installs. Regenerate it from a freshly built image after changing requirements:
+`backend/requirements-prod.txt` holds the runtime dependencies (what the production image installs); `backend/requirements.txt` adds CI/dev tools on top via `-r requirements-prod.txt`. `backend/constraints.txt` holds the transitive ones, generated from the exact set the production image installs. Regenerate it from a freshly built image after changing requirements-prod:
 
 ```bash
-docker exec mainserver-backend-1 pip freeze     # keep only entries absent from requirements.txt
+docker exec mainserver-backend-1 pip freeze     # keep only entries absent from requirements-prod.txt
 docker build backend && docker run --rm <image> pip freeze | diff - <expected>   # must be identical
 ```
 

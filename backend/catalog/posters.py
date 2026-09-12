@@ -18,10 +18,12 @@ converge to the best artwork once upstreams recover without manual reruns.
 """
 
 import hashlib
+import ipaddress
 import json
 import os
 import random
 import re
+import socket
 import struct
 import subprocess
 import threading
@@ -104,6 +106,33 @@ def is_allowed_poster_url(url: str) -> bool:
         and port in (None, 443)
         and not parsed.fragment
     )
+
+
+def assert_poster_destination_global(url: str) -> None:
+    """Reject allowlisted hosts resolving to private/reserved addresses.
+
+    An allowlisted CDN hostname (or its redirect target) compromised via DNS
+    or CNAME could otherwise turn the artwork fetcher into an intranet probe.
+    Fail-closed: DNS errors reject the hop.
+    """
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise ValueError("poster URL has no hostname")
+    try:
+        infos = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+    except OSError as error:
+        raise ValueError(f"poster DNS failed: {error}") from error
+    addresses = {item[4][0] for item in infos}
+    if not addresses:
+        raise ValueError("poster DNS returned no address")
+    for address in addresses:
+        try:
+            if not ipaddress.ip_address(address).is_global:
+                raise ValueError("poster DNS points to private or reserved address")
+        except ValueError as error:
+            if "private or reserved" in str(error):
+                raise
+            raise ValueError(f"poster address unparsable: {address}") from error
 
 
 def current_tier(poster_url: str) -> str | None:
@@ -192,6 +221,7 @@ def download_bytes(url: str) -> bytes:
     for _ in range(MAX_REDIRECT_HOPS + 1):
         if not is_allowed_poster_url(current):
             raise ValueError("poster host not allowed")
+        assert_poster_destination_global(current)
         status, body, redirect_url = _fetch_hop(current)
         if status in REDIRECT_STATUSES:
             if not redirect_url:

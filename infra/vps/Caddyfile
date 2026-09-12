@@ -94,11 +94,15 @@ anicast.online {
 	}
 
 	handle /staff* {
-		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
+		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000} {
+			header_up -X-AniCast-Internal-Token
+		}
 	}
 
 	handle /static/* {
-		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000}
+		reverse_proxy {$API_UPSTREAM:10.78.0.2:8000} {
+			header_up -X-AniCast-Internal-Token
+		}
 	}
 
 	handle {

@@ -14,6 +14,10 @@ pg_container=${PG_CONTAINER:-mainserver-postgres-1}
 compose_dir=$root/infra/mainserver
 scratch_db=${SCRATCH_DB:-anicast_restore_test_$$}
 backend_container=${BACKEND_CONTAINER:-mainserver-backend-1}
+# Serialize against backup-db.sh: a concurrent pg_dump/pg_restore on one DB
+# corrupts timing, not data, but verification results become meaningless.
+exec 9>"$backup_dir/.restore.lock"
+flock -n 9 || { echo "another backup/restore holds $backup_dir/.restore.lock" >&2; exit 1; }
 
 mode=${1:-}
 case "$mode" in
@@ -69,9 +73,12 @@ fi
 
 printf 'This REPLACES production database %s from the dump.\n' "$pg_db"
 printf 'App containers (backend, celery) will be stopped during the restore.\n'
+printf 'A pre-restore backup is taken first; abort if it fails.\n'
 printf 'Type the database name to continue: '
 read -r reply
 [ "$reply" = "$pg_db" ] || { echo "aborted" >&2; exit 1; }
+
+BACKUP_NOTIFY=${BACKUP_NOTIFY:-0} sh "$root/scripts/backup-db.sh" || { echo "pre-restore backup failed; aborting" >&2; exit 1; }
 
 ( cd "$compose_dir" && docker compose stop celery-beat celery-worker celery-bulk backend )
 docker exec "$pg_container" dropdb -U "$pg_user" --if-exists "$pg_db"

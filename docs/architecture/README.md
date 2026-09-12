@@ -13,6 +13,7 @@ broker/results, control и disposable cache. Monitoring не подключае�
 | [005: control/offline](005-control-and-offline-recovery.md) | Третий Redis, авторитетное control state, offline credentials и RPO/RTO |
 | [006: Next 16](006-next16.md) | Node proxy с nonce, Turbopack в CI, прежние runtime-лимиты и image rollback |
 | [007: последовательный rollout](007-staged-rollout.md) | API readiness до обновления workers; общий порядок deploy/rollback, bulk grace 1900s |
+| [008: поколения откатов](008-rollback-generations.md) | Три поколения манифестов и gate необратимых миграций; дополняет 004/007 |
 
 ADR сохраняет контекст решения на дату принятия. При изменении границы сервисов,
 владельца данных или контракта релиза добавить следующее решение и отметить,

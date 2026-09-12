@@ -2,10 +2,22 @@
 set -eu
 umask 077
 
-stack=${1:?usage: rollback.sh mainserver|vps [state-dir]}
+stack=${1:?usage: rollback.sh mainserver|vps [state-dir] [manifest]}
 state_dir=${2:-/var/lib/anicast/releases/$stack}
+manifest_arg=${3:-}
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 previous="$state_dir/previous.env"
+if [ -n "$manifest_arg" ]; then
+    case "$manifest_arg" in
+        */*) previous="$manifest_arg" ;;
+        previous.env|previous-2.env|previous-3.env) previous="$state_dir/$manifest_arg" ;;
+        *) echo "rollback manifest must be a retained previous-*.env snapshot" >&2; exit 2 ;;
+    esac
+    case "$previous" in
+        *previous.env|*previous-2.env|*previous-3.env) ;;
+        *) echo "rollback manifest must be a retained previous-*.env snapshot" >&2; exit 2 ;;
+    esac
+fi
 current="$state_dir/current.env"
 
 case "$stack" in

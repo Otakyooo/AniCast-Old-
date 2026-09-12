@@ -82,11 +82,13 @@ Manual rollback is:
 ```bash
 sudo scripts/rollback.sh mainserver
 sudo scripts/rollback.sh vps
+# Older generation when the previous manifest is also broken:
+sudo scripts/rollback.sh mainserver /var/lib/anicast/releases/mainserver previous-2.env
 ```
 
-Rollback changes application images only. It never restores PostgreSQL automatically because traffic may have written data after migration. Migrations must therefore follow expand/contract and keep the previous application release compatible. A destructive migration requires a separately approved maintenance and restore plan; do not use automatic deployment for it.
+Rollback keeps three generations (`previous.env`, `previous-2.env`, `previous-3.env`); a second broken release no longer erases the last known-good manifest. Rollback changes application images only. It never restores PostgreSQL automatically because traffic may have written data after migration. Migrations must therefore follow expand/contract and keep the previous application release compatible. `sh scripts/check-migration-safety.sh` (also a CI gate) fails on likely-irreversible operations (`RemoveField`/`RemoveModel`/`DeleteModel`, `RunSQL` without reverse, `AlterField` adding `NOT NULL`) unless `MIGRATION_BREAKING_APPROVED="<app>.<migration>,..."` names them with a separately approved maintenance and restore plan; do not use automatic deployment for it.
 
-If both hosts were changed and VPS verification fails, roll back VPS first and then MainServer when release compatibility requires it. Inspect `/var/lib/anicast/releases/<stack>/{current,previous,failed}.env` and JSON logs for the incident record.
+If both hosts were changed and VPS verification fails, roll back VPS first and then MainServer when release compatibility requires it. Inspect `/var/lib/anicast/releases/<stack>/{current,previous,previous-2,previous-3,failed}.env` and JSON logs for the incident record.
 
 
 ## Release state and bootstrap

@@ -237,8 +237,10 @@ def test_import_catalog_dry_run_rolls_back_and_apply_persists(tmp_path):
     assert not Title.objects.filter(slug="import-title").exists()
     call_command("import_catalog", path, apply=True, stdout=output)
     title = Title.objects.get(slug="import-title")
-    assert title.episodes.get(number=1).sources.get().provider.is_enabled is False
-    assert title.episodes.get(number=1).sources.get().provider.playback_adapter == "external_link"
+    provider = title.episodes.get(number=1).sources.get().provider
+    assert provider is not None
+    assert provider.is_enabled is False
+    assert provider.playback_adapter == "external_link"
     assert title.translations.get(language="ru").name == "Импортированный тайтл"
 
 

@@ -34,9 +34,20 @@ def staff_login_redirect(request):
 
 
 def _visit_summary(day) -> dict[str, int]:
+    try:
+        cached = cache.get(f"visit-summary:{day.isoformat()}")
+    except Exception:
+        cached = None
+    if isinstance(cached, dict) and "total" in cached and "today" in cached:
+        return cached
     today = DailyVisitStat.objects.filter(day=day).values_list("visits", flat=True).first() or 0
     total = DailyVisitStat.objects.aggregate(total=Sum("visits"))["total"] or 0
-    return {"total": total, "today": today}
+    summary = {"total": total, "today": today}
+    try:
+        cache.set(f"visit-summary:{day.isoformat()}", summary, timeout=60)
+    except Exception:
+        pass
+    return summary
 
 
 def _visit_was_counted(request, day) -> bool:
@@ -79,6 +90,10 @@ def record_visit(request):
                 if not created:
                     DailyVisitStat.objects.filter(pk=stat.pk).update(visits=F("visits") + 1)
             counted = True
+            try:
+                cache.delete(f"visit-summary:{day.isoformat()}")
+            except Exception:
+                pass
 
     response = JsonResponse({**_visit_summary(day), "counted": counted})
     response["Cache-Control"] = "no-store"

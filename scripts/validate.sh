@@ -2,6 +2,13 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+# Secrets must never enter git: live env files and backups stay host-private.
+# This fails the gate if a tracked path looks like a secret carrier.
+if git -C "$root" ls-files | grep -Eq '(^|/)\.env$|(^|/)secrets/|(^|/)credentials/|(^|/)backups/'; then
+    echo "tracked secret carrier found: env/secrets/backups must stay untracked" >&2
+    git -C "$root" ls-files | grep -E '(^|/)\.env$|(^|/)secrets/|(^|/)credentials/|(^|/)backups/' >&2 || true
+    exit 1
+fi
 python3 -m unittest discover -s "$root/scripts/tests" -p 'test_capacity_report.py'
 for script in "$root"/scripts/*.sh "$root"/scripts/tests/*.sh; do sh -n "$script"; done
 docker compose --env-file "$root/infra/mainserver/env.example" -f "$root/infra/mainserver/compose.yml" config -q

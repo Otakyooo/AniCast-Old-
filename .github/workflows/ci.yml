@@ -24,6 +24,7 @@ jobs:
           cache: pip
           cache-dependency-path: |
             backend/requirements.txt
+            backend/requirements-prod.txt
             backend/constraints.txt
       - run: pip install -r requirements.txt
       - run: python manage.py collectstatic --noinput
@@ -39,6 +40,7 @@ jobs:
       - run: python manage.py makemigrations --check --dry-run
         env:
           DJANGO_DATABASE_URL: sqlite:///db.sqlite3
+      - run: sh ../scripts/check-migration-safety.sh origin/main
       - run: python manage.py check
         env:
           DJANGO_DATABASE_URL: sqlite:///db.sqlite3
@@ -51,6 +53,8 @@ jobs:
           DJANGO_DEBUG: "0"
           DJANGO_ALLOWED_HOSTS: anicast.online
           DJANGO_CSRF_TRUSTED_ORIGINS: https://anicast.online
+          POSTGRES_PASSWORD: ci-only-postgres-password-with-plenty-of-variety-123456
+          DJANGO_NUM_PROXIES: "1"
       # Pinned application dependencies go stale silently; the audit turns a
       # missed security release into a failing build instead of a discovery.
       # It resolves the whole graph, not just the named pins, so it covers
@@ -82,6 +86,7 @@ jobs:
           cache: pip
           cache-dependency-path: |
             backend/requirements.txt
+            backend/requirements-prod.txt
             backend/constraints.txt
       - run: pip install -r ../backend/requirements.txt
       - run: npm run test:e2e

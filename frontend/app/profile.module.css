@@ -466,5 +466,5 @@ a.statsItem:hover { color: var(--text) }
 
   .activityCard { padding: 14px 12px }
   .activityChart { gap: 4px; height: 84px }
-  .activityValue, .activityMonth { font-size: 11px }
+  .activityValue, .activityMonth { font-size: 12px }
 }

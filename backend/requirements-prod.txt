@@ -1,0 +1,9 @@
+Django==5.2.17
+djangorestframework==3.17.2
+celery==5.5.3
+redis==6.4.0
+psycopg[binary]==3.2.10
+whitenoise==6.9.0
+gunicorn==23.0.0
+
+-c constraints.txt

@@ -595,19 +595,23 @@ class LibraryStatusesView(APIView):
     Catalog and recommendation cards need to show "Смотрю"/"В планах" chips
     and a quick "+ В планы" action without one request per card. One response
     covers every entry; the payload is a slug-keyed list, not nested titles.
+    Bounded at 2000 entries with an explicit truncated flag: larger libraries
+    page through LibraryEntryView instead of growing this response without bound.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        entries = LibraryEntry.objects.filter(user=request.user).select_related("title").only(
+        entries = list(LibraryEntry.objects.filter(user=request.user).select_related("title").only(
             "status", "is_favorite", "title__slug"
-        )
+        )[:2001])
+        truncated = len(entries) > 2000
         return Response({
             "entries": [
                 {"slug": entry.title.slug, "status": entry.status, "is_favorite": entry.is_favorite}
-                for entry in entries
-            ]
+                for entry in entries[:2000]
+            ],
+            "truncated": truncated,
         })
 
 

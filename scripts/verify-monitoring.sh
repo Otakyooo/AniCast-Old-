@@ -2,8 +2,10 @@
 # Run on MainServer after at least one 30-second scrape interval.
 set -eu
 project=${ANICAST_PROJECT_MONITORING:-monitoring}
-docker exec "$project-prometheus-1" sh -c 'test -r /etc/prometheus/secrets/metrics-token'
-docker exec "$project-alertmanager-1" sh -c 'test -r /etc/alertmanager/secrets/telegram-token'
+# Check readability as the container user (65534), not as root: a root-only
+# check passes on 600 root files that Prometheus/Alertmanager cannot read.
+docker exec -u 65534 "$project-prometheus-1" sh -c 'test -r /etc/prometheus/secrets/metrics-token'
+docker exec -u 65534 "$project-alertmanager-1" sh -c 'test -r /etc/alertmanager/secrets/telegram-token'
 python3 - <<'PY'
 import json
 from urllib.parse import urlencode

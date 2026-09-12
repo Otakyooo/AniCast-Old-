@@ -10,6 +10,8 @@ from django.views.decorators.http import require_safe
 from .security import constant_time_equals
 
 PREFIX = "anicast:metrics:v1"
+RENDER_CACHE_KEY = PREFIX + ":rendered"
+RENDER_CACHE_TIMEOUT = 20
 _cache_retry_at = 0.0
 HTTP_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER")
 HTTP_ENDPOINTS = ("api", "health", "metrics", "staff", "other")
@@ -202,10 +204,27 @@ def render_metrics() -> str:
 def metrics_view(request: HttpRequest) -> HttpResponse:
     token = settings.METRICS_BEARER_TOKEN
     supplied = request.headers.get("Authorization", "")
+    # Production hardens short bearer tokens like the SSR token (see
+    # is_internal_safe_request). Tests run on SQLite with a short fixture
+    # token, so the length floor applies outside local development only.
+    if not getattr(settings, "USE_SQLITE", False) and len(token) < 32:
+        return HttpResponse(status=404)
     if not constant_time_equals(supplied, f"Bearer {token}" if token else ""):
         return HttpResponse(status=404)
     try:
-        body = render_metrics()
+        cache = caches["ephemeral"]
+        try:
+            cached = cache.get(RENDER_CACHE_KEY)
+        except Exception:
+            cached = None
+        if isinstance(cached, str) and cached:
+            body = cached
+        else:
+            body = render_metrics()
+            try:
+                cache.set(RENDER_CACHE_KEY, body, timeout=RENDER_CACHE_TIMEOUT)
+            except Exception:
+                pass
     except Exception:
         return HttpResponse("metrics unavailable\n", status=503, content_type="text/plain")
     response = HttpResponse(body, content_type="text/plain; version=0.0.4; charset=utf-8")

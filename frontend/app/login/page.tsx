@@ -6,7 +6,16 @@ import { getI18n } from "../../i18n/server";
 
 function safeReturnTo(value: string | string[] | undefined) {
   const candidate = Array.isArray(value) ? value[0] : value;
-  return candidate?.startsWith("/") && !candidate.startsWith("//") ? candidate : "/account";
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) return "/account";
+  let decoded = candidate;
+  try {
+    decoded = decodeURIComponent(candidate);
+  } catch {
+    return "/account";
+  }
+  if (decoded.includes("\\") || decoded.includes("//") || decoded.startsWith("/%")) return "/account";
+  if (!/^\/[A-Za-z0-9/_.-]*(\?[A-Za-z0-9/_.\-=&%+;:@$,!*']*)?$/.test(candidate)) return "/account";
+  return candidate;
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {

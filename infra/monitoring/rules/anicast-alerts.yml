@@ -23,8 +23,8 @@ groups:
         annotations:
           summary: "AniCast backend недоступен или scrape не работает более 3 минут"
       - alert: High5xxRate
-        expr: sum(increase(anicast_http_requests_total{status_family="5xx"}[15m])) > 3
-        for: 5m
+        expr: sum(increase(anicast_http_requests_total{status_family="5xx"}[15m])) > 10
+        for: 15m
         labels:
           severity: critical
         annotations:
@@ -156,6 +156,34 @@ groups:
           severity: warning
         annotations:
           summary: "Доступно меньше 10% RAM ({{ $value | humanizePercentage }})"
+      - alert: CpuBusyHigh
+        expr: avg by (job) (1 - avg by (job, cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU занят выше 90% более 10 минут ({{ $labels.job }})"
+      - alert: SwapActivityHigh
+        expr: sum by (job) (rate(node_vmstat_pswpin[5m]) + rate(node_vmstat_pswpout[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Активен swap-in/out ({{ $labels.job }}): смотреть вместе с RAM и latency"
+      - alert: TlsCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry{job="site-availability"} - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS-сертификат {{ $labels.instance }} истекает менее чем через 14 дней"
+      - alert: TlsCertExpiringCritical
+        expr: probe_ssl_earliest_cert_expiry{job="site-availability"} - time() < 7 * 86400
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS-сертификат {{ $labels.instance }} истекает менее чем через 7 дней"
       - alert: NodeExporterDown
         expr: up{job="node"} == 0 or absent(up{job="node"})
         for: 5m

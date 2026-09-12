@@ -6,4 +6,4 @@ modules:
       method: GET
       preferred_ip_protocol: ip4
       follow_redirects: true
-      valid_status_codes: []
+      valid_status_codes: [200]

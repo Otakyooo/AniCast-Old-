@@ -1020,6 +1020,7 @@ def test_collection_limits(users, titles):
     )
     assert create_collection(client).status_code == 400
     collection = TitleCollection.objects.filter(owner=users[0]).first()
+    assert collection is not None
     extra_titles = Title.objects.bulk_create(
         [Title(name=f"Limit {index}", slug=f"limit-{index}") for index in range(200)]
     )

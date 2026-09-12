@@ -2,10 +2,15 @@ FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt constraints.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-prod.txt constraints.txt ./
+RUN pip install --no-cache-dir -r requirements-prod.txt
 COPY . .
-RUN DJANGO_DATABASE_URL=sqlite:///db.sqlite3 DJANGO_ALLOW_DEV_SECRET=1 python manage.py collectstatic --noinput
+RUN DJANGO_DATABASE_URL=sqlite:///db.sqlite3 DJANGO_ALLOW_DEV_SECRET=1 python manage.py collectstatic --noinput \
+ && rm -f db.sqlite3 \
+ && useradd --system --no-create-home --shell /usr/sbin/nologin appuser \
+ && mkdir -p /app/media /app/staticfiles \
+ && chown -R appuser /app
+USER appuser
 EXPOSE 8000
 # The default single sync worker means one slow request blocks the whole API,
 # including the container healthcheck. Two workers with two threads each fit the

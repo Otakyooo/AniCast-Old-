@@ -1,11 +1,8 @@
-Django==5.2.17
-djangorestframework==3.17.2
-celery==5.5.3
-redis==6.4.0
-psycopg[binary]==3.2.10
-whitenoise==6.9.0
+# Runtime set lives in requirements-prod.txt (what the prod image installs).
+# This file adds local/CI-only tools on top; CI installs this file.
+-r requirements-prod.txt
 
-# Development
+# Development / CI only (never installed into the production image)
 pytest==9.1.1
 pytest-xdist==3.8.0
 pytest-django==4.14.0
@@ -13,8 +10,4 @@ ruff==0.12.9
 mypy==1.17.1
 django-stubs==5.2.2
 pip-audit==2.10.1
-
 uvicorn==0.35.0
-gunicorn==23.0.0
-
--c constraints.txt

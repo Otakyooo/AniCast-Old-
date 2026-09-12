@@ -29,7 +29,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True, "OPTIONS": {"context_processors": ["django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
-DATABASES: dict[str, Any] = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ.get("POSTGRES_DB", "anicast"), "USER": os.environ.get("POSTGRES_USER", "anicast"), "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "anicast-dev"), "HOST": os.environ.get("POSTGRES_HOST", "postgres"), "PORT": os.environ.get("POSTGRES_PORT", "5432"), "CONN_MAX_AGE": int(os.environ.get("DJANGO_CONN_MAX_AGE", "60")), "CONN_HEALTH_CHECKS": True}}
+DATABASES: dict[str, Any] = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ.get("POSTGRES_DB", "anicast"), "USER": os.environ.get("POSTGRES_USER", "anicast"), "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""), "HOST": os.environ.get("POSTGRES_HOST", "postgres"), "PORT": os.environ.get("POSTGRES_PORT", "5432"), "CONN_MAX_AGE": int(os.environ.get("DJANGO_CONN_MAX_AGE", "60")), "CONN_HEALTH_CHECKS": True}}
 USE_SQLITE = os.environ.get("DJANGO_DATABASE_URL", "").startswith("sqlite")
 if USE_SQLITE:
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
@@ -41,6 +41,25 @@ if SECRET_KEY == "dev-only-change-me" and not USE_SQLITE and not os.environ.get(
     from django.core.exceptions import ImproperlyConfigured
 
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set outside local development")
+if not USE_SQLITE:
+    if len(SECRET_KEY) < 32:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be at least 32 characters")
+    if not os.environ.get("POSTGRES_PASSWORD"):
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("POSTGRES_PASSWORD must be set outside local development")
+    try:
+        _num_proxies = int(os.environ.get("DJANGO_NUM_PROXIES", "1"))
+    except ValueError:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("DJANGO_NUM_PROXIES must be an integer")
+    if _num_proxies < 0 or _num_proxies > 3:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("DJANGO_NUM_PROXIES must be between 0 and 3")
 LANGUAGE_CODE = "ru-ru"
 TIME_ZONE = os.environ.get("TZ", "UTC")
 USE_I18N = True
@@ -117,6 +136,9 @@ REST_FRAMEWORK = {
         # times, while a script would use it to flood a victim's mailbox.
         "account_mail": "10/hour",
         "visit": "600/hour",
+        "source_report": "10/hour",
+        "follow": "60/hour",
+        "review": "5/hour",
     },
 }
 CACHES: dict[str, Any]
@@ -277,10 +299,13 @@ CELERY_BEAT_SCHEDULE = {
 ANICAST_SITE_URL = os.environ.get("NEXT_PUBLIC_SITE_URL", "https://anicast.online").rstrip("/")
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = not DEBUG and not USE_SQLITE
-SECURE_HSTS_SECONDS = 31_536_000 if not DEBUG else 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = not DEBUG
+# Security headers derive from explicit env, not from DEBUG/SQLite: a stack
+# accidentally booted with DEBUG=1 must not silently drop HSTS/redirect.
+_SECURE_DEFAULT = "0" if (DEBUG or USE_SQLITE) else "1"
+SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", _SECURE_DEFAULT) == "1"
+SECURE_HSTS_SECONDS = 31_536_000 if os.environ.get("DJANGO_SECURE_HSTS", _SECURE_DEFAULT) == "1" else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
 X_FRAME_OPTIONS = "DENY"
 METRICS_BEARER_TOKEN = os.environ.get("METRICS_BEARER_TOKEN", "")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()

@@ -44,6 +44,10 @@ case "$stack" in
         wait_healthy frontend
         wait_healthy caddy
         curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3000/ >/dev/null
+        # Container health cannot see an expired cert or a broken upstream:
+        # probe the public edge after both services pass.
+        curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null
+        curl --fail --silent --show-error --max-time 15 'https://anicast.online/api/v1/titles/?page_size=1' >/dev/null
         ;;
     *) echo "unknown stack: $stack" >&2; exit 2 ;;
 esac

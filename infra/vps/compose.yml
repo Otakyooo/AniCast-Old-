@@ -32,6 +32,12 @@ services:
   caddy:
     image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     restart: unless-stopped
+    # Host networking is required to serve 80/443/8443 directly. Bound the
+    # blast radius instead: memory cap for the 961 MiB host, no-new-privileges
+    # and init like the frontend service.
+    mem_limit: 128m
+    init: true
+    security_opt: [no-new-privileges:true]
     network_mode: host
     env_file: ${ANICAST_ENV_FILE:-.env}
     depends_on:
@@ -41,7 +47,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     healthcheck:
-      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      # Config validation alone stays green with a dead listener or expired
+      # cert, so also probe the local HTTP listener. Edge HTTPS/API coverage
+      # lives in verify-deploy.sh, not in this container gate.
+      test: ["CMD-SHELL", "caddy validate --config /etc/caddy/Caddyfile && wget -q --spider http://127.0.0.1:80/"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -34,6 +34,9 @@ There are three Redis services on MainServer; the VPS has none.
 - `redis-control` is persistent (AOF), `noeviction`, 64 MiB maxmemory / 96 MiB
   container limit. `CONTROL_CACHE_URL` points to DB 0 with its separate
   `CONTROL_REDIS_PASSWORD`; this is the authoritative coordination state.
+  Canonical: `redis://:***@redis-control:6379/0` (see `infra/mainserver/env.example`).
+  A stale broker DB 2 entry must never be reintroduced: it revives obsolete
+  locks/cursors after an image-only rollback.
 - `redis-cache` is disposable: `allkeys-lru`, 64 MiB maxmemory / 96 MiB container
   limit, no AOF/RDB. `CACHE_URL` points to DB 0 here with the separate
   `CACHE_REDIS_PASSWORD`. It has no host port and is not on the metrics network.
@@ -101,12 +104,14 @@ can include builds, deployments and restore drills. Compare one-hour and daily
 windows before changing resources; neither this report nor a short idle snapshot
 establishes a supported number of concurrent visitors.
 
-The owner plans to increase MainServer RAM to 4 GiB later. Until that happens,
-retain current limits and concurrency 1 for each Celery worker. No CPU expansion
-has been confirmed. Investigate sustained low available RAM together with active
-swap and response latency; occupied swap alone is not a reason to restart services.
-Additional RAM provides headroom but does not remove the home host/network failure
-dependency. CPU busy includes I/O wait, which is reported separately.
+MainServer RAM was increased on 09.09.2026 and the OS now sees 3606 MiB; CPU
+remains one. Retain current limits and concurrency 1 for each Celery worker
+until `scripts/capacity-report.py --hours 24` plus a `--hours 1` window justify
+a change. No CPU expansion has been confirmed. Investigate sustained low
+available RAM together with active swap and response latency; occupied swap
+alone is not a reason to restart services. Additional RAM provides headroom
+but does not remove the home host/network failure dependency. CPU busy
+includes I/O wait, which is reported separately.
 
 The sidecar joins `mainserver_metrics`, a scrape-only network that carries the backend and nothing else. It previously joined `mainserver_internal`, which also carries PostgreSQL and Redis, so the monitoring stack held a path into the application's data tier for the sake of one HTTP endpoint. Docker DNS answers are per-network, so a container attached only to `mainserver_metrics` cannot even resolve `postgres` or `redis`. Keep it that way: never add a data-tier service to that network, and never reattach monitoring to `mainserver_internal`.
 
@@ -164,7 +169,7 @@ print(json.load(urllib.request.urlopen(f\"{settings.TELEGRAM_API_BASE_URL}/bot{s
 
 `getMe` is the right probe: it proves the path end to end without delivering anything to a user.
 
-The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s), and a node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the Anicast firewall permits only MainServer on awg0) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
+The stack also watches the public site itself: blackbox-exporter probes `https://anicast.online/` and the titles API from the internet (`SiteDown` after 3 minutes, `SiteSlowWarning` above 3s). Probes originate on MainServer and cross the AWG tunnel, so a tunnel/firewall fault reads as `SiteDown` while the site stays reachable directly (incident 12.09.2026): confirm the tunnel before declaring the site down. A node-exporter on the VPS (`infra/monitoring/vps/compose.yml`, bound to `10.78.0.1:9100` on the AWG interface only — the Anicast firewall permits only MainServer on awg0) feeds host disk/memory rules for the public host. The nginx metrics sidecar resolves the backend per request, so scraping survives backend container recreation. Alertmanager groups by alert and severity, repeats after 4 hours and sends resolved notifications.
 
 Secret files under `infra/monitoring/secrets/` (gitignored) are mounted read-only: `metrics-token` mirrors `METRICS_BEARER_TOKEN`, `telegram-token` and `telegram-chat-id` carry the ops bot credentials. After changing them, `docker compose -f infra/monitoring/compose.yml restart alertmanager`.
 

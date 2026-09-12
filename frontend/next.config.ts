@@ -52,7 +52,11 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    const backend = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8000";
+    // One backend address: INTERNAL_API_BASE_URL is the SSR base including
+    // /api/v1, API_INTERNAL_URL is the bare host fallback for rewrites.
+    const ssrBase = process.env.INTERNAL_API_BASE_URL?.replace(/\/+$/, "");
+    const backend = process.env.API_INTERNAL_URL
+      ?? (ssrBase ? ssrBase.replace(/\/api\/v1$/, "") : "http://127.0.0.1:8000");
     return [
       { source: "/api/v1/media/posters/:filename", destination: `${backend}/api/v1/media/posters/:filename` },
       { source: "/api/:path*", destination: `${backend}/api/:path*/` },

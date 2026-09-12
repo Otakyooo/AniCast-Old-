@@ -20,6 +20,21 @@ SAFE_FIELDS = (
     "sent",
     "transitions",
     "source_id",
+    "title_id",
+    "titles",
+    "processed",
+    "persisted",
+    "scheduled",
+    "credits",
+    "pages",
+    "episodes",
+    "named",
+    "dated",
+    "discovered",
+    "created",
+    "linked",
+    "pruned",
+    "users",
 )
 
 

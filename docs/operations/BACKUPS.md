@@ -190,3 +190,21 @@ email в памяти, Telegram capture sink, signed playback issue/resolve,
 Цели RPO: DB 6h, media 24h при успешном offsite; цель RTO 2h после доступности
 recovery-host/credentials. Время конкретного теста и ограничения — в отчёте релиза.
 Постоянный перенос не выполнен, пока пользователь не предоставил внешний хост.
+
+### Zero-budget standby (без покупок)
+
+Платный переезд не планируется. Вместо HA — быстрый ручной failover:
+
+1. Держать оба age-комплекта свежими после каждой смены OAuth/registry/env и
+   проверять `verify-recovery-kit.py` с операторского компьютера; вторая копия
+   личного ключа — на отдельном носителе.
+2. Второй бесплатный офсайт: отдельная папка Drive + локальная копия дампа на
+   компьютере оператора после каждого Sunday-kit; `SHA-256` sidecar сверять до
+   использования.
+3. Холодный standby — любой доступный бесплатный хост с Docker
+   (домашний ПК, free-tier): `restore-isolated.py` + `DRILL_CUTOVER=1` с
+   образами из release manifest, затем смена `API_UPSTREAM`/`API_INTERNAL_URL`
+   на VPS. Старый MainServer держать выключенным как источник отката, без beat.
+4. Окна обслуживания — `03:00–05:00 UTC`, короткие, только `expand/contract`,
+   без `kill -9` bulk (grace 1900s). Замерять сквозной drill с секундомером
+   (fetch+restore+edge) и записывать факт, не цель.

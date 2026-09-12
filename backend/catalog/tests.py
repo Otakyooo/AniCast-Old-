@@ -300,6 +300,7 @@ def test_watch_navigation_exposes_real_catalog_gaps_without_synthesizing_playbac
         "playable_episode_numbers": [],
         "episode_numbers": [],
         "source_groups": [],
+        "truncated": False,
     }
 
 

@@ -10,6 +10,8 @@ from rest_framework import status
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from common.throttling import LiveRatesMixin
+
 from catalog.models import Title
 from catalog.serializers import TitleSerializer
 from accounts.models import User
@@ -136,8 +138,8 @@ class PublicProfileView(APIView):
         })
 
 
-class FollowThrottle(UserRateThrottle):
-    rate = "60/hour"
+class FollowThrottle(LiveRatesMixin, UserRateThrottle):
+    scope = "follow"
 
 
 class PrivateNoStoreAPIView(APIView):
@@ -250,8 +252,8 @@ class RatingView(APIView):
         return Response(status=204)
 
 
-class ReviewThrottle(UserRateThrottle):
-    rate = "5/hour"
+class ReviewThrottle(LiveRatesMixin, UserRateThrottle):
+    scope = "review"
 
 
 class ReviewView(APIView):

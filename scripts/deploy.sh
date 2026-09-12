@@ -43,6 +43,10 @@ esac
 candidate="$state_dir/candidate.env"
 cp "$release" "$candidate"
 [ -f "$state_dir/current.env" ] || { echo "bootstrap current.env from the live image before deploying" >&2; exit 2; }
+# Keep three rollback generations: a second broken release must not erase the
+# last known-good manifest. Rotation is cheap and host-private.
+if [ -f "$state_dir/previous-2.env" ]; then cp "$state_dir/previous-2.env" "$state_dir/previous-3.env"; fi
+if [ -f "$state_dir/previous.env" ]; then cp "$state_dir/previous.env" "$state_dir/previous-2.env"; fi
 cp "$state_dir/current.env" "$state_dir/previous.env"
 
 rollback_on_failure() {

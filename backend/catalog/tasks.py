@@ -12,6 +12,27 @@ from common.metrics import increment
 logger = logging.getLogger("anicast.providers")
 
 
+def _safe_cursor(cache, key: str) -> int:
+    try:
+        return int(cache.get(key, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _acquire_lock(cache, key: str, timeout: int) -> bool:
+    try:
+        return bool(cache.add(key, "1", timeout=timeout))
+    except Exception:
+        return False
+
+
+def _release_lock(cache, key: str) -> None:
+    try:
+        cache.delete(key)
+    except Exception:
+        pass
+
+
 @shared_task(soft_time_limit=520, time_limit=570)
 def sync_kodik_library(limit: int = 20) -> dict[str, int]:
     """Continuously refresh a bounded slice of the local AniCast library."""
@@ -21,29 +42,43 @@ def sync_kodik_library(limit: int = 20) -> dict[str, int]:
     from .kodik_sync import SHIKIMORI_SLUG, sync_title
     from .models import Title
 
-    batch_limit = max(1, min(int(limit), 50))
-    cursor = int(cache.get("catalog:kodik-sync-cursor", 0) or 0)
-    titles = list(Title.objects.filter(id__gt=cursor).order_by("id")[:batch_limit])
-    if not titles:
-        cursor = 0
-        titles = list(Title.objects.order_by("id")[:batch_limit])
-    totals = {"titles": 0, "failed": 0, "persisted": 0, "scheduled": 0, "credits": 0}
-    for title in titles:
-        if not SHIKIMORI_SLUG.match(title.slug):
-            continue
-        try:
-            result = sync_title(title)
-        except (KodikAPIError, ValueError):
-            totals["failed"] += 1
-            logger.exception("Kodik title sync failed", extra={"event": "kodik_sync_failed", "title_id": title.id})
-            continue
-        totals["titles"] += 1
-        totals["persisted"] += result.persisted
-        totals["scheduled"] += result.scheduled
-        totals["credits"] += result.credits
-    cache.set("catalog:kodik-sync-cursor", titles[-1].id if titles else cursor, timeout=None)
-    logger.info("Kodik library slice synchronized", extra={"event": "kodik_sync_completed", **totals})
-    return totals
+    lock_key = "catalog:kodik-sync-lock"
+    if not _acquire_lock(cache, lock_key, 600):
+        logger.info("kodik sync skipped: another batch holds the lock", extra={"event": "kodik_sync_skipped_locked"})
+        return {}
+    try:
+        deadline = time.monotonic() + 480
+        batch_limit = max(1, min(int(limit), 50))
+        cursor = _safe_cursor(cache, "catalog:kodik-sync-cursor")
+        titles = list(Title.objects.filter(id__gt=cursor).order_by("id")[:batch_limit])
+        if not titles:
+            cursor = 0
+            titles = list(Title.objects.order_by("id")[:batch_limit])
+        totals = {"titles": 0, "failed": 0, "persisted": 0, "scheduled": 0, "credits": 0}
+        for title in titles:
+            if time.monotonic() >= deadline:
+                break
+            if not SHIKIMORI_SLUG.match(title.slug):
+                cursor = title.id
+                continue
+            try:
+                result = sync_title(title)
+            except (KodikAPIError, ValueError):
+                totals["failed"] += 1
+                logger.exception("Kodik title sync failed", extra={"event": "kodik_sync_failed", "title_id": title.id})
+                cursor = title.id
+                cache.set("catalog:kodik-sync-cursor", cursor, timeout=None)
+                continue
+            totals["titles"] += 1
+            totals["persisted"] += result.persisted
+            totals["scheduled"] += result.scheduled
+            totals["credits"] += result.credits
+            cursor = title.id
+            cache.set("catalog:kodik-sync-cursor", cursor, timeout=None)
+        logger.info("Kodik library slice synchronized", extra={"event": "kodik_sync_completed", **totals})
+        return totals
+    finally:
+        _release_lock(cache, lock_key)
 
 
 @shared_task(soft_time_limit=480, time_limit=520)
@@ -60,7 +95,7 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
     from .models import Title
 
     batch_limit = max(1, min(int(limit), 3))
-    cursor = int(cache.get("catalog:episode-metadata-cursor", 0) or 0)
+    cursor = _safe_cursor(cache, "catalog:episode-metadata-cursor")
     from django.db.models import Q
 
     candidates = Title.objects.filter(
@@ -71,7 +106,10 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
         cursor = 0
         titles = list(candidates.order_by("id")[:batch_limit])
     totals = {"titles": 0, "failed": 0, "pages": 0, "episodes": 0, "named": 0, "dated": 0}
+    deadline = time.monotonic() + 440
     for title in titles:
+        if time.monotonic() >= deadline:
+            break
         try:
             result = sync_title_episode_metadata(title)
         except (EpisodeMetadataError, ValueError):
@@ -79,11 +117,14 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
             logger.exception("Episode metadata sync failed", extra={
                 "event": "episode_metadata_sync_failed", "title_id": title.id,
             })
+            cursor = title.id
+            cache.set("catalog:episode-metadata-cursor", cursor, timeout=None)
             continue
         totals["titles"] += 1
         for key in ("pages", "episodes", "named", "dated"):
             totals[key] += getattr(result, key)
-    cache.set("catalog:episode-metadata-cursor", titles[-1].id if titles else cursor, timeout=None)
+        cursor = title.id
+        cache.set("catalog:episode-metadata-cursor", cursor, timeout=None)
     logger.info("Episode metadata slice synchronized", extra={
         "event": "episode_metadata_sync_completed", **totals,
     })
@@ -99,23 +140,29 @@ def sync_character_library(limit: int = 5) -> dict[str, int]:
     from .models import Title
 
     batch_limit = max(1, min(int(limit), 10))
-    cursor = int(cache.get("catalog:character-sync-cursor", 0) or 0)
+    cursor = _safe_cursor(cache, "catalog:character-sync-cursor")
     titles = list(Title.objects.filter(id__gt=cursor).order_by("id")[:batch_limit])
     if not titles:
         cursor = 0
         titles = list(Title.objects.order_by("id")[:batch_limit])
     totals = {"titles": 0, "failed": 0, "discovered": 0, "created": 0, "linked": 0}
+    deadline = time.monotonic() + 440
     for title in titles:
+        if time.monotonic() >= deadline:
+            break
         try:
             result = sync_title_characters(title)
         except (CharacterSyncError, OSError, ValueError):
             totals["failed"] += 1
             logger.exception("Character sync failed", extra={"event": "character_sync_failed", "title_id": title.id})
+            cursor = title.id
+            cache.set("catalog:character-sync-cursor", cursor, timeout=None)
             continue
         totals["titles"] += 1
         for key in ("discovered", "created", "linked"):
             totals[key] += getattr(result, key)
-    cache.set("catalog:character-sync-cursor", titles[-1].id if titles else cursor, timeout=None)
+        cursor = title.id
+        cache.set("catalog:character-sync-cursor", cursor, timeout=None)
     logger.info("Character slice synchronized", extra={"event": "character_sync_completed", **totals})
     return totals
 
@@ -176,9 +223,13 @@ def check_provider_sources(limit: int = HEALTH_CHECK_BATCH_CAP) -> dict[str, int
     """
     from django.core.cache import cache
 
+    lock_key = "catalog:source-check-lock"
+    if not _acquire_lock(cache, lock_key, 600):
+        logger.info("provider check skipped: another batch holds the lock", extra={"event": "provider_check_skipped_locked"})
+        return {}
     batch_limit = max(1, min(int(limit), HEALTH_CHECK_BATCH_CAP))
     deadline = time.monotonic() + HEALTH_CHECK_TIME_BUDGET_SECONDS
-    cursor = int(cache.get("catalog:source-check-cursor", 0) or 0)
+    cursor = _safe_cursor(cache, "catalog:source-check-cursor")
     candidates = Source.objects.filter(
         provider__is_enabled=True,
         availability__in=["available", "provider_error"],
@@ -249,4 +300,5 @@ def check_provider_sources(limit: int = HEALTH_CHECK_BATCH_CAP) -> dict[str, int
         "event": "provider_check_batch_completed", "checked": checked, "failed": failed,
         "transitions": transitions, "pruned": pruned,
     })
+    _release_lock(cache, lock_key)
     return {"checked": checked, "failed": failed, "pruned": pruned}

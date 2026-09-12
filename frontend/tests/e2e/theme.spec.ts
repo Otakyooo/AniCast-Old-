@@ -19,7 +19,9 @@ test("explicit themes persist; logo stays transparent and navigation readable", 
   const policy = response!.headers()["content-security-policy"];
   const nonce = policy.match(/'nonce-([^']+)'/)![1];
   expect(policy).toContain("script-src-attr 'none'");
-  expect(response!.headers()["cache-control"]).toContain("no-store");
+  expect(response!.headers()["cache-control"]).toContain("private");
+  // Public pages may reuse a private short cache; per-user pages stay no-store.
+  expect(response!.headers()["cache-control"]).not.toMatch(/public/);
   expect(await page.locator("script:not([src])").evaluateAll(elements => elements.every(el => Boolean((el as HTMLScriptElement).nonce)))).toBe(true);
 
   for (const theme of ["light", "dark"] as const) {

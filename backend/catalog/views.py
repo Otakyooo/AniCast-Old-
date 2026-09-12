@@ -19,6 +19,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 
+from common.throttling import LiveRatesMixin
+
 from . import posters
 from .models import (
     Character,
@@ -370,9 +372,12 @@ class WatchNavigationView(PublicCacheMixin, APIView):
 
     The response contains no provider URL. Playback remains available only via
     the short-lived signed resolver used by the episode detail endpoint.
+    Bounded at 5000 source rows with an explicit truncated flag: larger
+    catalogs page through episode endpoints instead of growing this GET.
     """
 
     permission_classes = [AllowAny]
+    row_limit = 5000
 
     def get(self, request, slug):
         title = get_object_or_404(Title, slug=slug)
@@ -410,7 +415,7 @@ class WatchNavigationView(PublicCacheMixin, APIView):
             rights_grants__approved_by__isnull=False,
             rights_grants__approved_at__isnull=False,
         )
-        rows = (
+        rows = list(
             Source.objects.filter(
                 episode__title=title,
                 availability="available",
@@ -421,8 +426,10 @@ class WatchNavigationView(PublicCacheMixin, APIView):
                 "provider_id", "episode__number", "name", "kind", "external_id", "url", "playback_count"
             )
             .distinct()
-            .order_by("kind", "name", "provider_id", "episode__number")
+            .order_by("kind", "name", "provider_id", "episode__number")[: self.row_limit + 1]
         )
+        truncated = len(rows) > self.row_limit
+        rows = rows[: self.row_limit]
         groups = {}
         for provider_id, episode_number, name, kind, external_id, url, playback_count in rows:
             provider_slug, provider_name, allowed_hosts = provider_context[provider_id]
@@ -484,6 +491,7 @@ class WatchNavigationView(PublicCacheMixin, APIView):
             # catalog/playable distinction was exposed explicitly.
             "episode_numbers": playable_episode_numbers,
             "source_groups": source_groups,
+            "truncated": truncated,
         })
 
 
@@ -556,8 +564,8 @@ class ScheduleView(PublicCacheMixin, ListAPIView):
         )
 
 
-class SourceReportThrottle(UserRateThrottle):
-    rate = "10/hour"
+class SourceReportThrottle(LiveRatesMixin, UserRateThrottle):
+    scope = "source_report"
 
 
 class SourceReportView(ListAPIView):

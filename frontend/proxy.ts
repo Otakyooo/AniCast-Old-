@@ -17,7 +17,16 @@ export function proxy(request: NextRequest) {
   headers.set("Content-Security-Policy", policy);
   const response = NextResponse.next({ request: { headers } });
   response.headers.set("Content-Security-Policy", policy);
-  response.headers.set("Cache-Control", "private, no-store");
+  // Private pages carry per-user data: never store. Public pages carry a
+  // per-response nonce, so only a private (single-browser) cache may reuse
+  // them briefly; shared caching stays off so a nonce never crosses users.
+  const privatePrefix = /^\/(account|library|history|notes|settings|recommendations|collections|login|register|forgot-password|reset-password|verify-email)(\/|$)/;
+  response.headers.set(
+    "Cache-Control",
+    privatePrefix.test(request.nextUrl.pathname)
+      ? "private, no-store"
+      : "private, max-age=60, must-revalidate",
+  );
   return response;
 }
 
