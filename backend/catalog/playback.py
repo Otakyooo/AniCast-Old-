@@ -8,8 +8,8 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core import signing
-from django.db.models import Count, Expression, IntegerField, OuterRef, Prefetch, Q, Subquery, Value
-from django.db.models.functions import Coalesce, Now
+from django.db.models import Count, Prefetch, Q
+from django.db.models.functions import Now
 from django.urls import reverse
 from django.utils import timezone
 
@@ -361,36 +361,6 @@ def _playable_scope() -> tuple[list[int], Q]:
     else:
         rights_filter = Q(provider_id__in=entitled_providers)
     return validated_providers, rights_filter
-
-
-def playable_episode_count_annotation() -> Expression:
-    """Correlated count of episodes with an authorized available source.
-
-    Used where the row set is already bounded (airing shelf, detail pages).
-    Catalog lists resolve counts per returned page instead (see
-    :func:`playable_episode_counts`): correlating over the whole scan plus
-    the pagination COUNT made the list 100x slower on production-shaped
-    data. The rights logic mirrors :func:`playback_available`:
-    an enabled, configured provider that is either itself entitled or has an
-    active approved source-level grant. Per-source URL host validation stays
-    a playback-time check — providers with an invalid configuration are
-    excluded wholesale, and a source whose URL violates its provider's hosts
-    is a data error the health checks catch; the player remains the source of
-    truth for what finally plays.
-    """
-    validated_providers, rights_filter = _playable_scope()
-    playable = (
-        Source.objects.filter(
-            episode__title=OuterRef("pk"),
-            availability="available",
-            provider_id__in=validated_providers,
-        )
-        .filter(rights_filter)
-        .values("episode__title_id")
-        .annotate(total=Count("episode_id", distinct=True))
-        .values("total")[:1]
-    )
-    return Coalesce(Subquery(playable, output_field=IntegerField()), Value(0), output_field=IntegerField())
 
 
 def playable_episode_counts(title_ids) -> dict[int, int]:

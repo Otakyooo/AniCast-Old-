@@ -39,7 +39,6 @@ from .models import (
 from .playback import (
     issue_playback,
     legacy_source_selection_key_parts,
-    playable_episode_count_annotation,
     playable_episode_counts,
     playback_sources_prefetch,
     playback_url_allowed,
@@ -251,13 +250,22 @@ class AiringTitleListView(PublicCacheMixin, ListAPIView):
             .annotate(
                 last_episode_number=Subquery(last_episode.values("number")[:1]),
                 next_episode_at=Subquery(next_episode.values("air_at")[:1]),
-                playable_episodes_count=playable_episode_count_annotation(),
             )
             .annotate(popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True))
             .select_related("franchise")
             .prefetch_related(*title_payload_prefetch())
             .order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")
         )[: self.limit]
+
+    def list(self, request, *args, **kwargs):
+        items = list(self.filter_queryset(self.get_queryset()))
+        # Same page-slice treatment as the catalog list: one GROUP BY over
+        # at most 12 rows instead of a correlated subquery per scanned row.
+        counts = playable_episode_counts(title.pk for title in items)
+        for title in items:
+            title.playable_episodes_count = counts.get(title.pk, 0)
+        serializer = self.get_serializer(items, many=True)
+        return Response(serializer.data)
 
 
 class RecentEpisodesView(PublicCacheMixin, ListAPIView):
