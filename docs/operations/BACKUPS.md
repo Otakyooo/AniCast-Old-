@@ -4,9 +4,9 @@
 
 ## Backups
 
-`scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/`, proves it is readable with `pg_restore --list`, applies retention (all dumps for 14 days plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
+`scripts/backup-db.sh` creates a verified `pg_dump -Fc` dump in `~/anicast/backups/db/` under `umask 077`, proves its table of contents readable with `pg_restore --list` (headers only — data blocks are proven by the weekly `restore-db.sh --verify` and the isolated drill, not by this check), applies retention (all dumps for 14 days plus Sunday dumps for 60 days; manual `predeploy-*` dumps are never removed) and copies the dump to an encrypted Google Drive remote (`rclone crypt` on top of the user-owned `AniCast Backups` folder). On any failure the script sends a Telegram message through the ops bot configured in `infra/monitoring/.env` and exits non-zero.
 
-`scripts/backup-posters.sh` does the same for the shared artwork volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. It contains title posters and mirrored character/creator portraits. Scheduled daily at 03:45 UTC; the pipeline can rebuild missing files from private origins, but a backup restores them without upstream traffic.
+`scripts/backup-posters.sh` does the same for the shared artwork volume (`mainserver_poster_media`): a verified tarball in `~/anicast/backups/posters/` with 30-day local retention and an offsite copy on the same encrypted remote. Verification runs in a disposable `alpine:3.20` helper (96m, 0.4 CPU, no network), comparing file list against the archive. It contains title posters and mirrored character/creator portraits. Scheduled daily at 03:45 UTC; the pipeline can rebuild missing files from private origins, but a backup restores them without upstream traffic.
 
 Poster restore runbook (`scripts/restore-posters.sh`, defaults to the newest archive):
 
@@ -21,7 +21,7 @@ scripts/restore-posters.sh --verify [archive]
 scripts/restore-posters.sh --force [archive]
 ```
 
-Cron on MainServer runs the backups and verifications (logs in `~/anicast/backups/{backup,restore-verify}.log`):
+Cron on MainServer runs the backups and verifications (logs in `~/anicast/backups/backup.log`, `restore-verify.log` and `maintenance.log` for the prune job):
 
 ```cron
 15 */6 * * *  ~/anicast/scripts/backup-db.sh >> ~/anicast/backups/backup.log 2>&1
@@ -32,7 +32,9 @@ Cron on MainServer runs the backups and verifications (logs in `~/anicast/backup
 10 5 * * *  ~/anicast/scripts/prune-docker-cache.sh >> ~/anicast/backups/maintenance.log 2>&1
 ```
 
-Host timezone is UTC. Install idempotently with `python3 scripts/install-backup-schedule.py`; unrelated crontab entries are preserved. Target RPO: DB 6h, media 24h, conditional on successful offsite upload. Target RTO: 2h after a suitable recovery host and credentials are available; it is not yet a guaranteed end-to-end SLA.
+Offsite copies live longer than local ones: rclone deletes remote objects only
+after 90 days (`--min-age 90d` in all three backup scripts), while local Sunday
+dumps keep 60 days. Host timezone is UTC. Install idempotently with `python3 scripts/install-backup-schedule.py`; unrelated crontab entries are preserved. Target RPO: DB 6h, media 24h, conditional on successful offsite upload (alerts fire later — `db>7h`, `posters>26h`, `recovery-kit>8d` — so one missed run pages only after the slack window, not on the first hiccup). Target RTO: 2h after a suitable recovery host and credentials are available; it is not yet a guaranteed end-to-end SLA.
 
 The newest successful DB dump is recorded in `backups/db/last_backup`. Separate `last_offsite_backup` markers are written only after upload succeeds. Missing rclone and failed uploads fail the job. `BACKUP_NOTIFY=0` suppresses messaging during manual tests. Freshness is exported through node-exporter; alerts cover stale copies and stopped metric updates. A failed backup sends a Telegram message through the ops bot and exits non-zero; a failed offsite upload still alerts even when the local dump succeeded.
 
@@ -48,7 +50,7 @@ scripts/restore-db.sh --verify [dump]
 scripts/restore-db.sh --force [dump]
 ```
 
-`--force` requires typing the production database name, drops and recreates it, restores with `pg_restore`, brings the stack back and waits for backend health. Dumps contain user PII; the Google Drive copy is encrypted with keys stored in `~/.config/rclone/rclone.conf` and encrypted offline recovery kits; the decryption identity stays on the operator workstation.
+`--force` requires typing the production database name, takes a pre-restore backup first (aborts if it fails), holds a lockfile against a concurrent `backup-db.sh`, then drops and recreates the database, restores with `pg_restore`, brings the stack back and waits for backend health. Dumps contain user PII; the Google Drive copy is encrypted with keys stored in `~/.config/rclone/rclone.conf` and encrypted offline recovery kits; the decryption identity stays on the operator workstation.
 
 ### Migrating rclone to a project-owned Google Drive client
 
@@ -87,7 +89,8 @@ python3 scripts/restore-isolated.py /private/backup.dump \
   postgres@sha256:<64-hex-digest> /private/posters.tar.gz
 ```
 
-The utility refuses to start below 448 MiB MemAvailable. Do not lower this guard
+The utility refuses to start below 448 MiB MemAvailable (split inside: 128m media
+extract, 192m PostgreSQL, 160m app, 0.4 CPU, `memory-swap == memory`). Do not lower this guard
 to fit a busy VPS: wait for transient work to finish or use another host. It uses
 new random volumes, an internal network, no public ports, no real runtime secrets,
 no workers and a SELECT-only database role for the initial API probes. A separate process tests synthetic session login, one-use password reset, in-memory email, captured Telegram delivery and signed playback resolution inside a rolled-back transaction on the disposable DB. Media extraction is

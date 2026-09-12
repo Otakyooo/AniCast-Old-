@@ -15,6 +15,22 @@ docker exec mainserver-backend-1 python -c \
 
 `SourceHealthCheck` grows by one row per probed source per run, so the task prunes rows older than 14 days on every run (`HEALTH_CHECK_RETENTION_DAYS`). That window covers the rolling windows the staff dashboard renders; older rows only consume space. The `pruned` count is part of the task result and of its completion log line.
 
+Background bounds at a glance (all beat tasks carry a cache lock, a wall-clock
+deadline inside the loop and an incrementally persisted cursor, so a soft-limit
+kill retries the remainder instead of restarting the slice):
+
+| Task | Schedule / queue | Soft/hard limit | Slice budget |
+| --- | --- | --- | --- |
+| `check_provider_sources` | 10 min / `providers` | 520s / 570s | 150 sources, 420s |
+| `refresh_title_posters` | 6 h / `posters` | 1500s / 1800s | 1300s, 120 outcomes |
+| `sync_kodik_library` | 1 h / `providers` | 520s / 570s | 480s deadline, 20 titles |
+| `sync_episode_metadata_library` | 15 min / `providers` | 480s / 520s | 440s deadline, 3 titles |
+| `sync_character_library` | 1 h / `providers` | 480s / 520s | 440s deadline, 5 titles |
+
+Queues `maintenance` and `analytics` are reserved in the bulk worker routing but
+have no producers yet; new background work should claim one of them instead of
+overloading `providers`/`posters`.
+
 
 ## Account mail
 
@@ -214,11 +230,11 @@ Rollback uses the database dump plus the verified media-volume backup. Do not re
 
 ## Caching and image delivery
 
-Public catalog GETs carry `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300` (search: `s-maxage=300`, since it runs three unindexed ILIKE scans per request) plus `Vary: Accept, Accept-Language, Cookie`. The `Vary` is the load-bearing half: payloads are localized from `?lang=`, the `anicast_lang` cookie and `Accept-Language`, so a shared cache that ignored those would serve one visitor's language to another. `max-age=0` keeps browsers revalidating while allowing an intermediary to serve within the window.
+Public catalog GETs carry `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300` (search: `s-maxage=300` over a `UNION` of indexed `pg_trgm` subqueries — indexable except 2-character terms, which need three characters for a trigram and fall back to the shared cache) plus `Vary: Accept-Language, Cookie` from the app (DRF adds `Accept`). The `Vary` is the load-bearing half: payloads are localized from `?lang=`, the `anicast_lang` cookie and `Accept-Language`, so a shared cache that ignored those would serve one visitor's language to another. `max-age=0` keeps browsers revalidating while allowing an intermediary to serve within the window. (`Accept` in the effective `Vary` comes from DRF defaults, not app code; the app sets `Accept-Language, Cookie` explicitly.)
 
 Authenticated responses are deliberately never marked cacheable, and playback endpoints keep `no-store, private`. Both are covered by tests, because the failure mode of getting this wrong is serving one session's data to another.
 
-Images go through the Next optimizer, which caches variants in `.next/cache/images` keyed by source URL and parameters. The `vps_frontend_images` Docker volume now preserves this directory across releases. It contains optimized public images only, not HTML or user API responses. Monitor disk consumption. Two settings matter:
+Images go through the Next optimizer, which caches variants in `.next/cache/images` keyed by source URL and parameters. The `frontend_images` Docker volume (full name `vps_frontend_images` under project `vps`) now preserves this directory across releases. It contains optimized public images only, not HTML or user API responses. Monitor disk consumption. Two settings matter:
 
 - `formats: ["image/webp"]`. Without it Next negotiates nothing and a browser advertising WebP still received the original PNG/JPEG. AVIF is **not** listed on purpose: measured on the production VPS (1 vCPU) with a real 6.2 MB poster at quality 92, WebP is 88.6 KB in 1.9 s while AVIF is 122.1 KB in 6.8 s. At this quality AVIF is both larger and 3.5x slower, and Next would negotiate it first. Revisit only with a fresh measurement at a lower AVIF-specific quality.
 - `minimumCacheTTL` of 30 days. Poster filenames are content-addressed (a SHA-256 prefix), so a URL never changes meaning and a long TTL cannot serve stale art. The 60-second default re-encoded the same posters all day; a cold miss costs up to 4 s through the tunnel, a hit about 0.5 s.
@@ -239,10 +255,12 @@ Style elements require a nonce; numeric React style attributes remain allowed
 through `style-src-attr 'unsafe-inline'`. Only development permits `unsafe-eval`.
 Root theme bootstrap, JSON-LD and streamed Next scripts use the request nonce.
 
-HTML responses are `private, no-store`; shared HTML caching would reuse a nonce
-and is incompatible with this release contract. Public API/media caching below
-is a separate concern. Caddy preserves the upstream CSP and sets its deferred
-fallback only when the response has none. Frames are limited to self and
+HTML responses are `private`: per-user routes stay `private, no-store`, public
+pages allow a short single-browser cache (`private, max-age=60,
+must-revalidate`) and never a shared one — a shared cache would reuse a nonce
+across users, while a private one reuses it at most 60s inside one browser.
+Public API/media caching below is a separate concern. Caddy preserves the
+upstream CSP and sets its deferred fallback only when the response has none. Frames are limited to self and
 `https://kodikplayer.com`; fonts/connect are self, object/base/frame ancestors none.
 The Kodik iframe retains its sandbox and no-referrer policy.
 
@@ -288,6 +306,6 @@ docker build backend && docker run --rm <image> pip freeze | diff - <expected>  
 
 Do not pin a direct dependency in both files: pip resolves the conflict in favour of the constraint, so the two would disagree silently.
 
-The pins are for reproducibility, not for the audit. `pip-audit --requirement` resolves the whole dependency graph rather than only the named pins — verified: a file containing just `requests==2.34.2` audits `urllib3`, `idna`, `certifi` and `charset-normalizer` as well, and the full run reports 66 packages against 15 direct pins. What the empty constraints file actually cost was determinism: a rebuild could pick up any newer transitive release, so an image built today could differ from the one the suite passed on. Verified after generating it — a fresh `docker build backend` produces a package set byte-identical to the tested one.
+The pins are for reproducibility, not for the audit. `pip-audit --requirement` resolves the whole dependency graph rather than only the named pins — verified: a file containing just `requests==2.34.2` audits `urllib3`, `idna`, `certifi` and `charset-normalizer` as well (exact totals live in CI output, not here). What the empty constraints file actually cost was determinism: a rebuild could pick up any newer transitive release, so an image built today could differ from the one the suite passed on. Verified after generating it — a fresh `docker build backend` produces a package set byte-identical to the tested one.
 
 The metrics endpoint aggregates 24-hour availability in bounded SQL and groups provider/source counts. Keep this path bounded: Prometheus scrapes every 30 seconds and a full Python scan of raw probe history would block a request-serving worker.

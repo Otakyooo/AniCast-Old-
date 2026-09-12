@@ -31,3 +31,17 @@ test("trailing slash canonicalizes", async ({ page }) => {
   await page.goto("/catalog/");
   expect(page.url().replace(/\/$/, "")).toContain("/catalog");
 });
+
+test("visit tracker pings once per load and never breaks it", async ({ page }) => {
+  const posts: string[] = [];
+  await page.route("**/api/v1/auth/csrf/", route => route.fulfill({
+    status: 200, contentType: "application/json", body: '{"csrfToken":"test"}',
+  }));
+  await page.route("**/api/v1/analytics/visit/", route => {
+    posts.push(`${route.request().method()}`);
+    return route.fulfill({ status: 200, contentType: "application/json", body: '{"counted":true,"today":1,"total":1}' });
+  });
+  await page.goto("/");
+  await expect.poll(async () => posts.length, { timeout: 10000 }).toBe(1);
+  expect(posts[0]).toBe("POST");
+});

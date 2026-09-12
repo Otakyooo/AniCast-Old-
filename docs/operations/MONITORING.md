@@ -20,7 +20,7 @@ curl --fail --silent --show-error \
   http://10.78.0.2:8000/internal/metrics
 ```
 
-Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.1`. The self-hosted Prometheus runs on MainServer (see Monitoring stack) and scrapes through an nginx sidecar attached to the scrape-only `mainserver_metrics` Docker network; keep its UI bound to `127.0.0.1` and access it through SSH port forwarding. Never add `/internal/metrics` or a Prometheus port to the public Caddyfile.
+Configure the MainServer firewall to allow TCP/8000 only from VPS peer `10.78.0.1`. Unlike the VPS side, this rule lives only on the host — there is no `infra/mainserver/*firewall*` source in the repo to verify it against, so re-check it by hand after host network changes. The self-hosted Prometheus runs on MainServer (see Monitoring stack) and scrapes through an nginx sidecar attached to the scrape-only `mainserver_metrics` Docker network; keep its UI bound to `127.0.0.1` and access it through SSH port forwarding. Never add `/internal/metrics` or a Prometheus port to the public Caddyfile.
 
 
 ## Redis
@@ -189,7 +189,11 @@ container health. It sends no test notifications.
 Enabled 2026-09-09: `anicast-firewall.service` owns `inet anicast_edge`.
 UFW remains masked/inactive; its status is not the state of this firewall.
 Public eth0 accepts TCP 22/80/443 and UDP 443. awg0 accepts MainServer
-10.78.0.2 only for SSH, relay and exporter. The FORWARD hook runs before Docker
+10.78.0.2 only for SSH, relay and exporter, plus TCP 80/443 hairpin since
+12.09: MainServer itself reaches the public origin only through the tunnel,
+so blackbox probes and operator checks hairpin there (see [ADR 003](../architecture/003-vps-firewall.md)
+and the 12.09 incident). Docker bridge hairpin (`br-*` TCP 80/443) lets the
+frontend container reach the public HTTPS origin. The FORWARD hook runs before Docker
 filtering: only the explicit exporter DNAT is allowed from the peer, while the
 existing peer-to-eth0 egress path is preserved. Docker/AWG NAT rules are unchanged.
 

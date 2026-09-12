@@ -36,14 +36,14 @@ Restrict `/etc/anicast/*.env` to root and the deployment account. Never place to
 
 ## Deploy
 
-Deploy MainServer first and VPS second when both applications change. The script acquires a per-stack lock, validates an immutable digest, rotates `current.env` to `previous.env`, pulls, runs checks and migrations on MainServer, starts without rebuilding, waits for every healthcheck and runs smoke probes.
+Deploy MainServer first and VPS second when both applications change. The script acquires a per-stack lock, validates an immutable digest, rotates rollback generations (`current.env` → `previous.env` → `previous-2.env` → `previous-3.env`) **before** verification, pulls only the application image, runs checks and migrations on MainServer, starts without rebuilding, waits for every healthcheck and runs smoke probes. A failed candidate still consumes one generation slot; older generations survive it.
 
 ```bash
 sudo scripts/deploy.sh mainserver /tmp/mainserver-release.env
 sudo scripts/deploy.sh vps /tmp/vps-release.env
 ```
 
-MainServer verification requires PostgreSQL, all three Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health. The notification/default worker and bulk worker each run with concurrency 1. Warm shutdown allows 600s for default and 1900s for bulk, whose longest task hard limit is 1800s. VPS verification requires frontend and Caddy health plus a loopback frontend request. Run public smoke separately after both stacks pass:
+MainServer verification requires PostgreSQL, all three Redis services, Django readiness, both Celery workers (`celery-worker` and `celery-bulk`) and Celery Beat health (a pidfile liveness check — a wedged scheduler with a live pid still reads green, so watch beat log output, not just the gate). The notification/default worker and bulk worker each run with concurrency 1. Warm shutdown allows 600s for default and 1900s for bulk, whose longest task hard limit is 1800s. VPS verification requires frontend and Caddy health, a loopback frontend request **and the public edge probes below** (the VPS gate runs them itself); the `internal/metrics != 200` check stays a manual smoke step plus the `validate.sh` Caddyfile guard, it is not part of `verify-deploy.sh`. Rollback takes no deployment lock: never run deploy and rollback concurrently, they share `current/previous/rollback.env`.
 
 Deployment and rollback use the same staged `scripts/start-release.sh`:
 data services + backend with a 120s readiness gate, then default worker + beat,
@@ -56,8 +56,9 @@ This fixes API startup being delayed by bulk drain in the
 [previous rollout](../archive/releases/RELEASE-2026-09-09-next16.md). Recreating the
 single API container still causes a short availability gap; this is not blue/green.
 Old workers may overlap the new API, so task payloads and schema changes must stay
-backward compatible. MainServer starts only named services; orphan removal belongs
-to an explicit topology migration. Do not force-stop a bulk task to shorten a release.
+backward compatible. MainServer starts only named services (no `--remove-orphans`;
+orphan removal belongs to an explicit topology migration); VPS passes
+`--remove-orphans`. Do not force-stop a bulk task to shorten a release.
 
 ```bash
 curl --fail --silent --show-error --max-time 15 https://anicast.online/ >/dev/null
@@ -116,7 +117,7 @@ as image identifiers. The image-only rollback script uses the checked-out Compos
 configuration; restore the captured configuration separately when undoing topology.
 Never restore a database automatically to roll back application code.
 
-The 2026-09-08 rollout and actual checks are recorded in `RELEASE-2026-09-08.md`.
+The 2026-09-08 rollout and actual checks are recorded in [RELEASE-2026-09-08](../archive/releases/RELEASE-2026-09-08.md).
 
 
 ## Validation
@@ -135,6 +136,8 @@ DJANGO_DATABASE_URL=sqlite:///db.sqlite3 python manage.py check
 DJANGO_SECRET_KEY=ci-only-secret-with-more-than-fifty-characters-and-plenty-of-variety-9182736450 \
   DJANGO_DEBUG=0 DJANGO_ALLOWED_HOSTS=anicast.online \
   DJANGO_CSRF_TRUSTED_ORIGINS=https://anicast.online \
+  POSTGRES_PASSWORD=ci-only-postgres-password-with-plenty-of-variety-123456 \
+  DJANGO_NUM_PROXIES=1 \
   python manage.py check --deploy --fail-level WARNING
 pip-audit --strict --requirement requirements.txt
 cd ../frontend
@@ -144,8 +147,10 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
-npx playwright install chromium
-# Full browser suite runs in isolated CI (see below).
+npx playwright install --with-deps chromium
+# Full browser suite runs in isolated CI (see below). Extended Firefox/WebKit
+# projects run only with E2E_BROWSERS=all (weekly + manual CI job); local runs
+# need the same browsers installed (see frontend/playwright.config.ts).
 python tests/e2e/backend.py --seed-check
 ```
 

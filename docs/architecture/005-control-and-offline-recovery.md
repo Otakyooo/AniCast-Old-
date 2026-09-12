@@ -6,7 +6,11 @@
 
 Три роли Redis работают независимо: broker/results (200 MiB, noeviction, AOF),
 control (64 MiB, noeviction, AOF, контейнер 96 MiB), ephemeral cache
-(64 MiB, allkeys-lru). Control хранит throttles, locks и cursors в DB 2.
+(64 MiB, allkeys-lru). Control хранит throttles, locks и cursors в DB 0
+**выделенного** `redis-control` хоста (`CONTROL_CACHE_URL`, канон —
+`infra/mainserver/env.example`). Старая общая DB 2 на broker-хосте осталась
+только миграционным следом: возврат к ней воскрешает устаревшие
+locks/cursors, автоматическим rollback target она не является.
 Он не публикуется на хост. Проверки переполнения и отказа каждого вспомогательного
 Redis выполняются в отдельной Docker-сети и подтверждают работу broker.
 
