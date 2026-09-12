@@ -44,8 +44,16 @@ GHCR-публикации (на хосте нет Node для сборки): з�
 
 ## Остаток
 
-- VPS/frontend: собрать из GHCR-публикации (`a8d7a13`) и раскатить
-  `deploy.sh vps` + edge-пробы; до этого прод-фронт — предыдущий релиз.
+- VPS (конфиг): `Caddyfile` (strip токена на `/staff|/static`), `compose.yml`
+  (лимиты Caddy, healthcheck с Host-пробой), `firewall.nft`-копия и скрипты
+  синхронизированы в `/opt/anicast`; деплой `deploy.sh vps` на текущем
+  frontend-образе — `deployment verified`, Caddy `healthy`, edge titles 200.
+  По дороге гейт поймал мою же ошибку (проба без Host всегда 404):
+  исправлено `a1ff5d6`, gatehampton подтверждён повторным деплоем. Вывод:
+  откат использует checked-out Compose, поэтому битый healthcheck роняет и
+  откат до ручной правки — проверять гейты на синк-стенде до деплоя.
+- VPS (фронт): новый образ только из GHCR-публикации (`a8d7a13+`, на хосте нет
+  Node): после зелёного publish — `deploy.sh vps` с digest + edge-пробы.
 - Наблюдать: PG CPU/load после прогрева, `EndpointGroupErrorRatio`,
   `SiteSlowWarning`; повторный затор каталога — сигнал к денормализации
   счётчиков, а не к очередному рефактору запроса.
