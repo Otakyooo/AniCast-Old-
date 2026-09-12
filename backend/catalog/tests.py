@@ -636,6 +636,36 @@ def test_catalog_groups_franchise_parts_to_one_entry_by_default(catalog_data):
 
 
 @pytest.mark.django_db
+def test_catalog_list_counts_grant_authorized_episodes_without_provider_entitlement():
+    """The playable counter honors source-level grants (grants branch).
+
+    The provider below has no rights entitlement of its own, so the episode
+    counts only through the active grant — the branch the list skips while
+    no active grant exists anywhere.
+    """
+    title = Title.objects.create(name="Grant Test", slug="grant-test", status="finished")
+    episode = Episode.objects.create(title=title, number=1)
+    provider = Provider.objects.create(
+        name="Grant Provider", slug="grant-provider", is_enabled=True,
+        allowed_hosts=["watch.example.com"], playback_adapter="external_link",
+    )
+    source = Source.objects.create(
+        episode=episode, provider=provider, name="Grant Source",
+        url="https://watch.example.com/episode/1",
+    )
+    approver = User.objects.create_user(email="grant-counter@example.com", password="A-strong-passphrase-2043")
+    now = timezone.now()
+    RightsGrant.objects.create(
+        source=source, status=RightsGrant.Status.ACTIVE,
+        valid_from=now - timedelta(hours=1), valid_until=now + timedelta(hours=1),
+        contract_reference="GRANT-COUNTER", approved_by=approver, approved_at=now,
+    )
+    body = APIClient().get("/api/v1/titles/?ordering=name").json()
+    row = next(item for item in body["results"] if item["slug"] == "grant-test")
+    assert row["playable_episodes_count"] >= 1
+
+
+@pytest.mark.django_db
 def test_catalog_rejects_unknown_season_mode(catalog_data):
     assert APIClient().get("/api/v1/titles/?seasons=once").status_code == 400
 

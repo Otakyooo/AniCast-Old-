@@ -313,17 +313,11 @@ def resolve_playback(token: str) -> tuple[int, str] | None:
     return (source.pk, target) if source_url_allowed(source) and target == source.url else None
 
 
-def playable_episode_count_annotation() -> Expression:
-    """Correlated count of episodes with an authorized available source.
+def _playable_scope() -> tuple[list[int], Q]:
+    """Validated/entitled providers plus the matching rights filter.
 
-    Used by catalog lists to answer "how many episodes can I actually watch
-    here" on every card. The rights logic mirrors :func:`playback_available`:
-    an enabled, configured provider that is either itself entitled or has an
-    active approved source-level grant. Per-source URL host validation stays
-    a playback-time check — providers with an invalid configuration are
-    excluded wholesale, and a source whose URL violates its provider's hosts
-    is a data error the health checks catch; the player remains the source of
-    truth for what finally plays.
+    Shared by the correlated annotation and the page-sliced batch counter so
+    the two cannot drift apart: same providers, same grant predicates.
     """
     now = timezone.now()
     validated_providers: list[int] = []
@@ -343,13 +337,48 @@ def playable_episode_count_annotation() -> Expression:
         ):
             entitled_providers.append(provider.id)
 
-    rights_filter = Q(provider_id__in=entitled_providers) | Q(
-        rights_grants__status=RightsGrant.Status.ACTIVE,
-        rights_grants__valid_from__lte=now,
-        rights_grants__valid_until__gt=now,
-        rights_grants__approved_by__isnull=False,
-        rights_grants__approved_at__isnull=False,
-    )
+    # The source-level grant branch only matters while at least one active
+    # approved grant exists. The grant table is normally empty (provider
+    # entitlement covers everything), and keeping the OR + LEFT JOIN in that
+    # case cost 1.7M index probes per catalog page on production-shaped data.
+    # One cheap existence check per request recovers the fast plan with
+    # identical semantics: an empty branch matches nothing either way.
+    has_active_grants = RightsGrant.objects.filter(
+        status=RightsGrant.Status.ACTIVE,
+        valid_from__lte=now,
+        valid_until__gt=now,
+        approved_by__isnull=False,
+        approved_at__isnull=False,
+    ).exists()
+    if has_active_grants or not entitled_providers:
+        rights_filter = Q(provider_id__in=entitled_providers) | Q(
+            rights_grants__status=RightsGrant.Status.ACTIVE,
+            rights_grants__valid_from__lte=now,
+            rights_grants__valid_until__gt=now,
+            rights_grants__approved_by__isnull=False,
+            rights_grants__approved_at__isnull=False,
+        )
+    else:
+        rights_filter = Q(provider_id__in=entitled_providers)
+    return validated_providers, rights_filter
+
+
+def playable_episode_count_annotation() -> Expression:
+    """Correlated count of episodes with an authorized available source.
+
+    Used where the row set is already bounded (airing shelf, detail pages).
+    Catalog lists resolve counts per returned page instead (see
+    :func:`playable_episode_counts`): correlating over the whole scan plus
+    the pagination COUNT made the list 100x slower on production-shaped
+    data. The rights logic mirrors :func:`playback_available`:
+    an enabled, configured provider that is either itself entitled or has an
+    active approved source-level grant. Per-source URL host validation stays
+    a playback-time check — providers with an invalid configuration are
+    excluded wholesale, and a source whose URL violates its provider's hosts
+    is a data error the health checks catch; the player remains the source of
+    truth for what finally plays.
+    """
+    validated_providers, rights_filter = _playable_scope()
     playable = (
         Source.objects.filter(
             episode__title=OuterRef("pk"),
@@ -362,3 +391,29 @@ def playable_episode_count_annotation() -> Expression:
         .values("total")[:1]
     )
     return Coalesce(Subquery(playable, output_field=IntegerField()), Value(0), output_field=IntegerField())
+
+
+def playable_episode_counts(title_ids) -> dict[int, int]:
+    """Playable episode counts for an already-bounded title set.
+
+    One GROUP BY query over the page slice instead of a correlated subquery
+    per scanned row (and per row of the pagination COUNT). Same scope as
+    :func:`playable_episode_count_annotation`; titles without a playable
+    source are absent from the result and read as zero.
+    """
+    pks = list(title_ids)
+    if not pks:
+        return {}
+    validated_providers, rights_filter = _playable_scope()
+    rows = (
+        Source.objects.filter(
+            episode__title_id__in=pks,
+            availability="available",
+            provider_id__in=validated_providers,
+        )
+        .filter(rights_filter)
+        .values("episode__title_id")
+        .annotate(total=Count("episode_id", distinct=True))
+        .values_list("episode__title_id", "total")
+    )
+    return dict(rows)

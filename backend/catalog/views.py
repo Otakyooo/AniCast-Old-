@@ -40,6 +40,7 @@ from .playback import (
     issue_playback,
     legacy_source_selection_key_parts,
     playable_episode_count_annotation,
+    playable_episode_counts,
     playback_sources_prefetch,
     playback_url_allowed,
     resolve_playback,
@@ -154,22 +155,35 @@ class TitleListView(PublicCacheMixin, ListAPIView):
         # franchise (its first part), so six "Attack on Titan" cards cannot
         # fill the first rows. A direct search must show the exact season, and
         # `seasons=separate` restores the flat list for viewers who want it.
+        #
+        # The entry ids are resolved by one cheap ordered scan in Python, not
+        # by a correlated subquery per row: the OR + per-row LIMIT subquery
+        # defeated the planner into 1.7M index probes and 40k heap re-reads
+        # on the catalog list (measured 5s on production-shaped data for
+        # 100 titles / 29k sources, vs 0.1s without it).
         seasons = params.get("seasons", "grouped").strip()
         if seasons not in self.seasons_options:
             raise ValidationError({"seasons": "Используйте grouped или separate."})
         if not query and seasons != "separate":
-            franchise_entry = (
-                Title.objects.filter(franchise=OuterRef("franchise"))
-                .order_by(F("year").asc(nulls_last=True), "name", "id")
-                .values("pk")[:1]
-            )
+            seen_franchises: set[int] = set()
+            entry_ids: list[int] = []
+            for franchise_id, pk in (
+                Title.objects.order_by(
+                    "franchise_id", F("year").asc(nulls_last=True), "name", "id"
+                ).values_list("franchise_id", "id")
+            ):
+                if franchise_id is None or franchise_id in seen_franchises:
+                    continue
+                seen_franchises.add(franchise_id)
+                entry_ids.append(pk)
             queryset = queryset.filter(
-                Q(franchise__isnull=True) | Q(pk=Subquery(franchise_entry))
+                Q(franchise__isnull=True) | Q(pk__in=entry_ids)
             )
 
-        # Every card answers "how many episodes can I watch here": one
-        # correlated count of authorized available sources per row.
-        queryset = queryset.annotate(playable_episodes_count=playable_episode_count_annotation())
+        # The per-card playable count is resolved per returned page in list():
+        # correlating it over the whole scan plus the pagination COUNT made
+        # the list 100x slower on production-shaped data (100 titles / 29k
+        # sources), while the page slice needs at most one GROUP BY query.
         if ordering == "popular":
             # Popularity is derived from real engagement only: library adds and
             # submitted ratings. Without engagement the fallback stays factual.
@@ -184,6 +198,21 @@ class TitleListView(PublicCacheMixin, ListAPIView):
         # Unique tiebreaker keeps LIMIT/OFFSET pagination deterministic on
         # Postgres when several titles share a name.
         return annotate_rating_aggregates(queryset).order_by("name", "slug")
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        items = list(page) if page is not None else list(queryset)
+        # One GROUP BY over the returned slice instead of a correlated
+        # subquery per scanned row (see playback.playable_episode_counts).
+        counts = playable_episode_counts(title.pk for title in items)
+        for title in items:
+            title.playable_episodes_count = counts.get(title.pk, 0)
+        if page is not None:
+            serializer = self.get_serializer(items, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(items, many=True)
+        return Response(serializer.data)
 
 
 class EpisodePagination(PageNumberPagination):
