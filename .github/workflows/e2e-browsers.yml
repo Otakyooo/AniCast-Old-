@@ -1,0 +1,50 @@
+name: E2E browsers (extended)
+#
+# Full engine coverage on demand: Firefox + WebKit desktop projects on top of
+# the default Chromium viewports (see E2E_BROWSERS in
+# frontend/playwright.config.ts). Not part of every push: private-repo CI
+# minutes are limited and the extended run triples browser time. Weekly
+# schedule plus manual dispatch is the budget-conscious default.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  extended-browsers:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-prod.txt
+            backend/constraints.txt
+      - run: pip install -r ../backend/requirements.txt
+      - run: npm run test:e2e
+        env:
+          E2E_BROWSERS: all
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: extended-browser-failures
+          path: frontend/test-results/
+          retention-days: 7
