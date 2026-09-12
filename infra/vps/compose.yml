@@ -48,9 +48,10 @@ services:
       - caddy_config:/config
     healthcheck:
       # Config validation alone stays green with a dead listener or expired
-      # cert, so also probe the local HTTP listener. Edge HTTPS/API coverage
-      # lives in verify-deploy.sh, not in this container gate.
-      test: ["CMD-SHELL", "caddy validate --config /etc/caddy/Caddyfile && wget -q --spider http://127.0.0.1:80/"]
+      # cert, so also probe the local HTTP listener with a Host that matches
+      # the site (a bare 127.0.0.1 request matches nothing and answers 404).
+      # Edge HTTPS/API coverage lives in verify-deploy.sh, not in this gate.
+      test: ["CMD-SHELL", "caddy validate --config /etc/caddy/Caddyfile && wget -q --spider --header='Host: anicast.online' http://127.0.0.1:80/"]
       interval: 30s
       timeout: 5s
       retries: 3
