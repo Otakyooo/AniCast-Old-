@@ -39,8 +39,11 @@ GHCR-публикации (на хосте нет Node для сборки): з�
 - `/internal/metrics` снаружи не 200. Все 8 сервисов `healthy` на новом образе.
 - Backend: `pytest` 346 passed + 6 предсуществующих staticfiles-падений
   (как в статусе 11.09); `ruff`, `mypy`, `makemigrations --check`,
-  `check --deploy` — чисто. Frontend-гейты (`audit/lint/typecheck/build`,
-  E2E) — только в CI (на MainServer нет Node), `npm` остаётся CI-gate.
+  `check --deploy` — чисто. Frontend: `lint/typecheck/build` — чисто и в CI,
+  и локально (Node во временном каталоге); E2E: три падения `tab-pages`
+  в CI оказались рассинхроном спек с UX 11.09 (свитчер в меню предпочтений,
+  подпись «Статус выпуска», 4 ссылки вместо 6) — спеки поправлены
+  (`8199ce8`), локально 72/72 на четырёх Chromium-вьюпортах.
 
 ## Остаток
 
