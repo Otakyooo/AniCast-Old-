@@ -133,6 +133,13 @@
   по дороге один автооткат (битый healthcheck Caddy) и один откат
   деградации каталога — оба штатно. Токены ротированы. Подробности —
   [релиз-запись](archive/releases/RELEASE-2026-09-12-hardening-catalog.md).
+- Релиз 13.09.2026 (`83e704e`, оба хоста): серверная пагинация `/community`
+  и `/franchises` с общим `PaginationNav`, self-canonical SEO, реальный 404
+  мимо последней страницы, retryable `SectionUnavailable` вместо ложного
+  пустого состояния; панель сообщества отличает 401/403 от сбоя запроса,
+  summary — `no-store, private`. Раскатка локальными образами с health gates,
+  без автооткатов. Подробности —
+  [релиз-запись](archive/releases/RELEASE-2026-09-13-community-pagination.md).
 - Инцидент 12.09.2026 01:47–02:07 MSK: MainServer штатно выключился и
   перезагрузился; пробы site-availability (идут с MainServer через туннель)
   упирались в drop VPS-firewall на TCP 443. Внешние пользователи не пострадали.
