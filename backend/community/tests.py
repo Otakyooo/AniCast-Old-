@@ -148,6 +148,31 @@ def test_deactivating_an_account_withdraws_its_public_reviews(community_data):
 
 
 @pytest.mark.django_db
+def test_deactivating_an_account_withdraws_its_ratings_from_aggregates(community_data):
+    """Deactivation withdraws reviews, so it must withdraw rating aggregates too.
+
+    Reproduction for the HIGH finding: the summary count/average, the catalog
+    card aggregates and the recommendation ordering signals all read ratings
+    without the user__is_active filter that published_reviews applies.
+    """
+    first, _, title = community_data
+    client = APIClient()
+    client.force_login(first)
+    assert client.put(f"/api/v1/community/ratings/{title.slug}/", {"value": 9}, format="json").status_code == 201
+    assert client.get(f"/api/v1/titles/{title.slug}/community/").json()["rating_count"] == 1
+
+    first.is_active = False
+    first.save(update_fields=["is_active"])
+
+    summary = client.get(f"/api/v1/titles/{title.slug}/community/").json()
+    assert summary["rating_count"] == 0
+    assert summary["average_rating"] is None
+    catalog = client.get("/api/v1/titles/").json()["results"][0]
+    assert catalog["rating_count"] == 0
+    assert catalog["rating_average"] is None
+
+
+@pytest.mark.django_db
 def test_deactivating_an_account_withdraws_its_public_collections(community_data):
     first, _, title = community_data
     collection = TitleCollection.objects.create(

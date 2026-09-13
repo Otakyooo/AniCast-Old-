@@ -666,9 +666,10 @@ def rating_subquery_annotations() -> dict[str, Subquery]:
     The recommendation queryset joins genres for scoring, so join-based
     aggregates (catalog's annotate_rating_aggregates) would multiply the
     score sum by the rating count; subqueries keep both independent.
+    Deactivated accounts are excluded, matching the review takedown.
     """
 
-    stats = TitleRating.objects.filter(title=OuterRef("pk")).values("title")
+    stats = TitleRating.objects.filter(title=OuterRef("pk"), user__is_active=True).values("title")
     return {
         "rating_count": Subquery(
             stats.annotate(total=Count("pk")).values("total")[:1], output_field=IntegerField()

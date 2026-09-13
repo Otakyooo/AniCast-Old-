@@ -112,10 +112,11 @@ def annotate_rating_aggregates(queryset):
     """Attach community rating aggregates and the episode count for
     TitleSerializer. The annotations are part of the list SELECT, so serialized
     cards never query ratings or episodes per row; unannotated querysets simply
-    serialize nulls."""
+    serialize nulls. Ratings from deactivated accounts are excluded, matching
+    the review takedown: deactivation withdraws public content."""
     return queryset.annotate(
-        rating_count=Count("ratings", distinct=True),
-        rating_avg=Avg("ratings__value"),
+        rating_count=Count("ratings", distinct=True, filter=Q(ratings__user__is_active=True)),
+        rating_avg=Avg("ratings__value", filter=Q(ratings__user__is_active=True)),
         episodes_count=Count("episodes", distinct=True),
     )
 
@@ -186,8 +187,12 @@ class TitleListView(PublicCacheMixin, ListAPIView):
         if ordering == "popular":
             # Popularity is derived from real engagement only: library adds and
             # submitted ratings. Without engagement the fallback stays factual.
+            # Deactivated accounts withdraw their submitted ratings, matching
+            # the review takedown; library adds stay counted because the
+            # documented takedown covers published content, not private shelves.
             queryset = queryset.annotate(
-                popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True)
+                popularity=Count("library_entries", distinct=True)
+                + Count("ratings", distinct=True, filter=Q(ratings__user__is_active=True))
             ).order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")
             return annotate_rating_aggregates(queryset)
         if ordering == "recent":
@@ -251,7 +256,7 @@ class AiringTitleListView(PublicCacheMixin, ListAPIView):
                 last_episode_number=Subquery(last_episode.values("number")[:1]),
                 next_episode_at=Subquery(next_episode.values("air_at")[:1]),
             )
-            .annotate(popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True))
+            .annotate(popularity=Count("library_entries", distinct=True) + Count("ratings", distinct=True, filter=Q(ratings__user__is_active=True)))
             .select_related("franchise")
             .prefetch_related(*title_payload_prefetch())
             .order_by("-popularity", F("year").desc(nulls_last=True), "name", "slug")

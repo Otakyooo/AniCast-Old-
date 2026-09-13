@@ -58,7 +58,8 @@ class CommunitySummaryView(APIView):
 
     def get(self, request, slug):
         title = get_object_or_404(Title, slug=slug)
-        rating = TitleRating.objects.filter(title=title).aggregate(average=Avg("value"))
+        active = TitleRating.objects.filter(title=title, user__is_active=True)
+        rating = active.aggregate(average=Avg("value"))
         reviews = published_reviews().filter(title=title)[:20]
         own_rating = own_review = None
         if request.user.is_authenticated:
@@ -66,7 +67,7 @@ class CommunitySummaryView(APIView):
             own_review = TitleReview.objects.filter(title=title, user=request.user).select_related("user", "title").first()
         return Response({
             "average_rating": round(rating["average"], 2) if rating["average"] is not None else None,
-            "rating_count": TitleRating.objects.filter(title=title).count(),
+            "rating_count": active.count(),
             "reviews": PublicReviewSerializer(reviews, many=True, context={"request": request}).data,
             "my_rating": RatingSerializer(own_rating).data if own_rating else None,
             "my_review": PrivateReviewSerializer(own_review, context={"request": request}).data if own_review else None,
