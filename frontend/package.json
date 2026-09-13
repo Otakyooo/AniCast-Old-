@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "audit": "npm audit --audit-level=high",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/pagination.test.ts lib/title-template.test.ts lib/title-names.test.ts lib/similar-shelf.test.ts lib/episode-coverage.test.ts lib/watch-controls.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts lib/continue-watching.test.ts lib/home-shelves.test.ts lib/episode-count.test.ts lib/theme.test.ts lib/csp.test.ts",
+    "test": "node --experimental-strip-types --test lib/schedule.test.ts lib/account-summary.test.ts lib/i18n.test.ts lib/site.test.ts lib/seo.test.ts lib/pagination.test.ts lib/title-template.test.ts lib/title-names.test.ts lib/similar-shelf.test.ts lib/episode-coverage.test.ts lib/watch-controls.test.ts lib/character-image.test.ts lib/playback.test.ts lib/rating.test.ts lib/recommendation-reasons.test.ts lib/global-search.test.ts lib/continue-watching.test.ts lib/home-shelves.test.ts lib/episode-count.test.ts lib/theme.test.ts lib/csp.test.ts lib/rewrite-destination.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

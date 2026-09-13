@@ -59,6 +59,13 @@ const nextConfig: NextConfig = {
       ?? (ssrBase ? ssrBase.replace(/\/api\/v1$/, "") : "http://127.0.0.1:8000");
     return [
       { source: "/api/v1/media/posters/:filename", destination: `${backend}/api/v1/media/posters/:filename` },
+      // Strict matching needs both variants: "/api/:path*/" matches only
+      // paths with a trailing slash, "/api/:path*" only paths without one.
+      // The catch-all captures the segments without a leading or trailing
+      // slash, so the literal "/api/" prefix and the trailing "/" written in
+      // the destination each add exactly one slash (asserted in
+      // lib/rewrite-destination.test.ts against Next's own matcher).
+      { source: "/api/:path*/", destination: `${backend}/api/:path*/` },
       { source: "/api/:path*", destination: `${backend}/api/:path*/` },
     ];
   },
