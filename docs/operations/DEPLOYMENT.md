@@ -20,7 +20,7 @@ Build and publish backend/frontend images outside the hosts, then resolve them t
 ```dotenv
 BACKEND_IMAGE=registry.example/anicast-backend@sha256:<digest>
 RELEASE_SHA=<git-sha>
-ANICAST_ENV_FILE=/etc/anicast/mainserver.env
+ANICAST_ENV_FILE=/home/lama_admin/anicast/infra/mainserver/.env
 ```
 
 A VPS release file uses:
@@ -28,10 +28,10 @@ A VPS release file uses:
 ```dotenv
 FRONTEND_IMAGE=registry.example/anicast-frontend@sha256:<digest>
 RELEASE_SHA=<git-sha>
-ANICAST_ENV_FILE=/etc/anicast/vps.env
+ANICAST_ENV_FILE=/opt/anicast/infra/vps/.env
 ```
 
-Restrict `/etc/anicast/*.env` to root and the deployment account. Never place tokens/passwords in a release manifest, command line, Compose output or Git.
+Restrict the runtime env files (`infra/mainserver/.env`, `infra/vps/.env`) to root and the deployment account. Never place tokens/passwords in a release manifest, command line, Compose output or Git.
 
 
 ## Deploy

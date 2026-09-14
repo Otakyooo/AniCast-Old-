@@ -11,7 +11,7 @@ Application logs are written to stdout as one JSON object per line. Django logs 
 
 ## Metrics
 
-Set a unique random `METRICS_BEARER_TOKEN` of at least 32 characters in `/etc/anicast/mainserver.env`. The endpoint is available only over the private MainServer listener:
+Set a unique random `METRICS_BEARER_TOKEN` of at least 32 characters in `/home/lama_admin/anicast/infra/mainserver/.env`. The endpoint is available only over the private MainServer listener:
 
 ```bash
 curl --fail --silent --show-error \

@@ -29,8 +29,10 @@ digest_of() {
 
 backend_digest=$(digest_of "$registry/$owner/anicast-backend:$suffix")
 frontend_digest=$(digest_of "$registry/$owner/anicast-frontend:$suffix")
-mainserver_env=${MAINSERVER_ENV_FILE:-/etc/anicast/mainserver.env}
-vps_env=${VPS_ENV_FILE:-/etc/anicast/vps.env}
+# Production keeps these beside the checkout, not under /etc. /etc/anicast
+# only ever held firewall.nft, and it exists on the VPS alone.
+mainserver_env=${MAINSERVER_ENV_FILE:-/home/lama_admin/anicast/infra/mainserver/.env}
+vps_env=${VPS_ENV_FILE:-/opt/anicast/infra/vps/.env}
 
 echo "# mainserver release: scripts/deploy.sh mainserver this.env"
 echo "BACKEND_IMAGE=$registry/$owner/anicast-backend@$backend_digest"
