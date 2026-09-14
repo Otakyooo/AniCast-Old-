@@ -41,7 +41,10 @@ def main():
         for p in (root / "infra/monitoring/secrets").iterdir():
             if p.is_file():
                 files["infra/monitoring/secrets/" + p.name] = p
-        state = root / "backups/releases/mainserver/current.env"
+        # deploy.sh promotes the live manifest under /var/lib; the old
+        # backups/releases path was abandoned on 2026-09-10 and made every
+        # kit record a stale release.
+        state = Path("/var/lib/anicast/releases/mainserver/current.env")
         for name in ("compose.yml", "prometheus.yml", "alertmanager.yml", "blackbox.yml", "rules/anicast-alerts.yml", "nginx/metrics-proxy.conf"):
             files["infra/monitoring/" + name] = root / "infra/monitoring" / name
     else:

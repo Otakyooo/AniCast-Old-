@@ -77,5 +77,15 @@ fi
 sh "$root/scripts/start-release.sh" "$stack" "$candidate"
 "$root/scripts/verify-deploy.sh" "$stack" "$candidate"
 mv "$candidate" "$state_dir/current.env"
+# The recovery kit is built by the deployment account, which cannot read a
+# 0600 root-owned manifest. Keep the promoted manifest group-readable so the
+# kit records the live release instead of a stale copy. Never fail a deploy
+# over this.
+for d in "$state_dir" "$(dirname "$state_dir")" "$(dirname "$(dirname "$state_dir")")"; do
+    chgrp lama_admin "$d" 2>/dev/null || true
+    chmod 0750 "$d" 2>/dev/null || true
+done
+chgrp lama_admin "$state_dir/current.env" 2>/dev/null || true
+chmod 0640 "$state_dir/current.env" 2>/dev/null || true
 trap cleanup EXIT INT TERM
 echo "deployment verified for $stack"
