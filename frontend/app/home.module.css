@@ -244,13 +244,16 @@
 
 .shelfHeading h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--fs-title);
+  line-height: 1.25;
+  letter-spacing: -.01em;
 }
 
 .shelfHeading p {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--fs-small);
+  line-height: 1.45;
 }
 
 /* Release rows and airing cards share the compact poster rail settings. */
@@ -285,10 +288,13 @@
 
 .releaseCard {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  border-radius: 10px;
+  transition: transform 140ms ease;
 }
 
+.releaseCard:hover { transform: translateY(-2px) }
 .releaseCard:hover strong { text-decoration: underline; text-underline-offset: 3px }
 
 .releasePoster {
@@ -296,7 +302,7 @@
   display: grid;
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 10px;
   place-items: center;
   background: var(--poster-gradient);
   transition: background 140ms ease;
@@ -342,7 +348,8 @@
 .releaseBody small {
   overflow: hidden;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-caption);
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -398,7 +405,7 @@
 
 .releaseAvailability {
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -440,12 +447,12 @@
 .franchiseCard {
   display: grid;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface-1);
-  transition: background 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
-.franchiseCard:hover { background: var(--surface-2) }
+.franchiseCard:hover { background: var(--surface-2); transform: translateY(-2px) }
 .franchiseCard:active { transform: none }
 
 /* Three 2:3 posters side by side read as one 2:1 strip. */
@@ -474,19 +481,21 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding: 11px 13px 13px;
+  padding: 12px 14px 14px;
 }
 
 .franchiseBody strong {
   overflow: hidden;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .franchiseBody small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-caption);
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
 }
 
@@ -504,12 +513,12 @@
 .nextPartLink {
   display: grid;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface-1);
-  transition: background 140ms ease;
+  transition: background 140ms ease, transform 140ms ease;
 }
 
-.nextPartLink:hover { background: var(--surface-2) }
+.nextPartLink:hover { background: var(--surface-2); transform: translateY(-2px) }
 .nextPartLink:active { transform: none }
 
 .nextPartPoster {
@@ -527,20 +536,25 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding: 11px 13px 13px;
+  padding: 12px 14px 14px;
 }
 
 .nextPartBody strong {
   overflow: hidden;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .nextPartBody small {
+  overflow: hidden;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-caption);
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- Continue watching: compact resume cards ---------- */
@@ -611,18 +625,18 @@
 .continueTitle {
   overflow: hidden;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.resumeItemFeature .continueTitle { font-size: 16px; font-weight: 700 }
+.resumeItemFeature .continueTitle { font-size: 17px; font-weight: 700 }
 
 .continueFact {
   color: var(--accent-text);
-  font-size: 13px;
+  font-size: var(--fs-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -631,27 +645,27 @@
 .continueVoice {
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .resumeItemFeature .continueFact { font-size: 15px }
-.resumeItemFeature .continueMeta, .resumeItemFeature .continueVoice { font-size: 13px }
+.resumeItemFeature .continueMeta, .resumeItemFeature .continueVoice { font-size: var(--fs-caption) }
 
 .continueProgressTrack {
   display: block;
-  height: 3px;
-  margin-top: 4px;
-  border-radius: 2px;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 3px;
   background: var(--surface-progress);
 }
 
 .continueProgressBar {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   background: var(--primary);
 }
 
@@ -664,12 +678,13 @@
 .continuePlay {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 38px;
+  gap: 8px;
+  min-height: 44px;
   margin-top: 0;
-  padding: 9px 13px;
-  border-radius: 9px;
-  font-size: 13px;
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-size: var(--fs-small);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -706,12 +721,13 @@
 }
 
 .continueMenu button {
+  min-height: 40px;
   padding: 9px 11px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-caption);
   text-align: left;
   cursor: pointer;
 }
@@ -727,7 +743,7 @@
   border-radius: 7px;
   background: var(--surface-card-opaque);
   color: var(--danger);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .continueUndo {
@@ -738,27 +754,29 @@
   border-radius: 8px;
   background: var(--primary-soft);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .continueUndo button {
-  padding: 4px 9px;
+  min-height: 32px;
+  padding: 6px 12px;
   border: 0;
   border-radius: 7px;
   background: var(--primary);
   color: var(--on-primary);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   font-weight: 700;
   cursor: pointer;
 }
 
 @media (max-width: 767px) {
-  .resumeItem, .resumeItemFeature { grid-template-columns: 56px minmax(0, 1fr) }
+  .resumeItem, .resumeItemFeature { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; padding: 12px }
   .resumeItem .continueThumb, .resumeItemFeature .continueThumb { width: 56px }
   .resumeItem .continueActions, .resumeItemFeature .continueActions {
     grid-column: 1 / -1;
     justify-content: flex-start;
   }
+  .continuePlay { flex: 1 1 auto; justify-content: center }
 }
 
 .scheduleCard {
@@ -838,7 +856,7 @@
 }
 
 @media (max-width: 767px) {
-  .shelfHeading h2 { font-size: 19px }
+  .shelfHeading h2 { font-size: var(--fs-title) }
   .shelfHeading p { display: none }
   .resumeHero {
     grid-template-columns: 108px minmax(0, 1fr);
@@ -865,8 +883,8 @@
   .resumeHeroBackdropArt { object-position: 68% 18%; filter: none; transform: scale(1.045) }
   .resumeHeroArtFrame { display: none }
   .resumeHeroBody { align-content: end; min-height: 256px }
-  .resumeHeroEyebrow { font-size: 12px }
+  .resumeHeroEyebrow { font-size: var(--fs-caption) }
   .resumeHeroTitle { font-size: 24px }
   .heroGenres { display: none }
-  .resumeHeroCta, .resumeHeroSecondary { min-height: 42px; padding: 10px 13px }
+  .resumeHeroCta, .resumeHeroSecondary { min-height: 44px; padding: 11px 14px }
 }

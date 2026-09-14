@@ -31,7 +31,7 @@
 .arrowPrev,
 .arrowNext {
   position: absolute;
-  top: 50%;
+  top: 38%;
   z-index: 3;
   display: grid;
   /* Always visible while scrollable: a cut card alone only hints at the rail;
