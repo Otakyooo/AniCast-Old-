@@ -91,10 +91,11 @@ test("header links remain reachable and search fits the viewport", async ({ page
   if (mobile) {
     await page.getByRole("button", { name: "Открыть поиск", exact: true }).click();
   } else {
-    // Four primary links since the 11.09 UX pass (the rest moved to the
-    // "Ещё" menu); each must stay clickable and unobscured.
+    // Three primary links: the library left the header because it is already in
+    // the account menu and the profile, so the header entry only repeated it.
+    // Each must stay clickable and unobscured.
     const links = page.locator(".primary-nav > a");
-    await expect(links).toHaveCount(4);
+    await expect(links).toHaveCount(3);
     for (const link of await links.all()) {
       await expect(link).toBeVisible();
       expect(await link.evaluate(el => {
