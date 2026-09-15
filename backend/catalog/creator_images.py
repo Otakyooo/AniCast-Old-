@@ -4,8 +4,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import providers
 
-API_BASE = "https://shikimori.one/api"
 USER_AGENT = "AniCast/1.0 (creator metadata import)"
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
@@ -21,7 +21,7 @@ def _normalized(value: object) -> str:
 def search_people(name: str) -> list[dict]:
     query = urllib.parse.urlencode({"search": name})
     request = urllib.request.Request(
-        f"{API_BASE}/people/search?{query}",
+        f"{providers.api_base()}/people/search?{query}",
         headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
     )
     try:
@@ -63,5 +63,5 @@ def creator_image(name: str) -> str:
         image = person.get("image")
         path = str(image.get("original") or "") if isinstance(image, dict) else ""
         if path.startswith("/system/people/original/") and "missing_" not in path:
-            return f"https://shikimori.one{path}"
+            return providers.absolute_url(path)
     return ""

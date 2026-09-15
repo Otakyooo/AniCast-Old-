@@ -214,6 +214,21 @@ INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "")
 PLAYBACK_URL_TTL_SECONDS = int(os.environ.get("PLAYBACK_URL_TTL_SECONDS", "60"))
 POSTERS_MEDIA_ROOT = Path(os.environ.get("POSTERS_MEDIA_ROOT", str(BASE_DIR / "media" / "posters")))
 POSTERS_PUBLIC_BASE = os.environ.get("POSTERS_PUBLIC_BASE", "https://anicast.online").rstrip("/")
+
+# The external metadata provider. Shikimori is a Russian community site that
+# has moved domains before (shikimori.org -> shikimori.one -> shikimori.io) and
+# may move again, so its address is configuration rather than a constant. The
+# alias list keeps artwork we already stored valid across a move; it is not a
+# licence to trust arbitrary hosts.
+METADATA_BASE_URL = os.environ.get("ANICAST_METADATA_BASE_URL", "https://shikimori.io").rstrip("/")
+METADATA_ASSET_HOSTS = tuple(
+    host.strip().lower()
+    for host in os.environ.get(
+        "ANICAST_METADATA_ASSET_HOSTS",
+        "shikimori.io,shikimori.one,shikimori.org,shikimori.me",
+    ).split(",")
+    if host.strip()
+)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")

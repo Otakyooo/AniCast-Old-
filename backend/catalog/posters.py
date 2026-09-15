@@ -37,13 +37,19 @@ from catalog.management.commands import fetch_shikimori
 from catalog.models import Title
 from common.metrics import increment
 
+from . import providers
+
 TIER_MAXIMUM = "m"
 TIER_LARGE = "l"
 TIER_KITSU = "k"
 TIER_ORIGIN = "o"
 TIER_FALLBACK = "s"
 
-ALLOWED_POSTER_HOSTS = frozenset({"shikimori.one", "shikimori.io", "cdn.myanimelist.net", "media.kitsu.app", "media.kitsu.io"})
+# The provider's own hosts come from configuration so a domain move is an env
+# change; the other entries are independent artwork CDNs, not aliases of it.
+ALLOWED_POSTER_HOSTS = providers.asset_hosts() | frozenset(
+    {"cdn.myanimelist.net", "media.kitsu.app", "media.kitsu.io"}
+)
 POSTER_NAME_RE = re.compile(r"^(\d{1,7}|x)-([mlsko])-([0-9a-f]{8}|[0-9a-f]{16})\.(jpg|png|webp)$")
 MEDIA_PATH_MARKER = "/api/v1/media/posters/"
 MIN_WIDTH = 200
@@ -329,7 +335,7 @@ def _ensure_origin(title: Title, apply_changes: bool) -> None:
     mal_id = slug_mal_id(title.slug)
     if mal_id is None:
         return
-    origin = f"https://shikimori.one/system/animes/original/{mal_id}.jpg"
+    origin = providers.absolute_url(f"/system/animes/original/{mal_id}.jpg")
     if apply_changes:
         Title.objects.filter(pk=title.pk).update(poster_origin_url=origin)
     title.poster_origin_url = origin

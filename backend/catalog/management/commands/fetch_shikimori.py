@@ -7,7 +7,8 @@ import urllib.request
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.text import slugify
 
-API_BASE = "https://shikimori.io/api"
+from catalog import providers
+
 JIKAN_BASE = "https://api.jikan.moe/v4"
 USER_AGENT = "AniCast/1.0 (catalog metadata import)"
 REQUEST_PAUSE_SECONDS = 0.7
@@ -37,7 +38,7 @@ STATUS_MAP = {
 
 def api_get(path: str) -> object:
     request = urllib.request.Request(
-        f"{API_BASE}{path}",
+        f"{providers.api_base()}{path}",
         headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=20) as response:
@@ -82,7 +83,7 @@ def mal_poster(entry: dict) -> str:
 def graphql_post(query: str) -> dict:
     payload = json.dumps({"query": query}).encode("utf-8")
     request = urllib.request.Request(
-        f"{API_BASE}/graphql",
+        providers.graphql_url(),
         data=payload,
         headers={"User-Agent": USER_AGENT, "Content-Type": "application/json", "Accept": "application/json"},
     )
@@ -109,7 +110,7 @@ def build_character(role_entry: dict, detail: dict) -> dict:
         "name": character.get("russian") or character.get("name") or "",
         "original_name": japanese if isinstance(japanese, str) else "",
         "description": clean_description(detail.get("description") or ""),
-        "image_url": f"https://shikimori.io{image}" if image else "",
+        "image_url": providers.absolute_url(image),
         "translations": {
             "en": {"name": character.get("name") or character.get("russian") or ""},
             "ru": {"name": character.get("russian") or character.get("name") or ""},
@@ -195,7 +196,7 @@ def build_title(entry: dict, detail: dict) -> dict:
         "title_type": map_kind(entry.get("kind") or "tv"),
         "status": map_status(entry.get("status") or "anons"),
         "year": int(aired_on[:4]) if len(aired_on) >= 4 and aired_on[:4].isdigit() else None,
-        "poster_url": poster if poster.startswith("http") else (f"https://shikimori.io{poster}" if poster else ""),
+        "poster_url": providers.absolute_url(poster),
         "genres": [
             slugify(genre["name"]) or f"genre-{genre['id']}"
             for genre in (detail.get("genres") or [])

@@ -8,11 +8,11 @@ perform outbound network work.
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import posters
+from . import posters, providers
 
 
 PORTRAIT_KINDS = frozenset({"characters", "creators"})
-ALLOWED_ORIGIN_HOSTS = frozenset({"shikimori.one", "shikimori.io", "cdn.myanimelist.net"})
+ALLOWED_ORIGIN_HOSTS = providers.asset_hosts() | frozenset({"cdn.myanimelist.net"})
 MIN_WIDTH = 40
 MIN_HEIGHT = 40
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from django.db import transaction
 from django.utils.text import slugify
 
+from . import providers
 from .models import Character, CharacterTranslation, Title, TitleCharacter
 from .portraits import set_private_origin
 
@@ -37,7 +38,7 @@ def _character_roles(anime_id: int) -> list[dict]:
                 "-H", "User-Agent: AniCast/1.0 (catalog metadata import)",
                 "-H", "Content-Type: application/json",
                 "--data-binary", json.dumps({"query": query}),
-                "https://shikimori.io/api/graphql",
+                providers.graphql_url(),
             ],
             capture_output=True,
             text=True,

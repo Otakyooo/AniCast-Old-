@@ -1,4 +1,4 @@
-from catalog import creator_images
+from catalog import creator_images, providers
 
 
 def person(name, russian, image):
@@ -19,8 +19,10 @@ def test_creator_image_prefers_exact_original_photo(monkeypatch):
         ],
     )
 
-    assert creator_images.creator_image("Тэцуро Араки") == (
-        "https://shikimori.one/system/people/original/5088.jpg"
+    # Asserted against the configured base, not a literal domain: the provider
+    # has moved hosts before, and this must follow it rather than pin it.
+    assert creator_images.creator_image("Тэцуро Араки") == providers.absolute_url(
+        "/system/people/original/5088.jpg"
     )
 
 
