@@ -14,6 +14,19 @@ compose() {
     docker compose --project-name "$project" --env-file "$env_file" -f "$root/infra/$stack/compose.yml" "$@"
 }
 if [ "$stack" = mainserver ]; then
+    # A named volume arrives root-owned and shadows the image's /app/media, so
+    # the app (appuser) cannot write artwork: Docker never applies the image's
+    # ownership to a volume, only to the image's own directory. That broke the
+    # whole poster and portrait pipeline for two weeks without failing a deploy,
+    # because the write error surfaces as a per-item failure inside a task.
+    # Realign on every start: `compose down -v`, or a project rename, recreates
+    # the volume root-owned and would break it again silently.
+    backend_image=$(sed -n 's/^BACKEND_IMAGE=//p' "$env_file" | head -1)
+    if [ -n "$backend_image" ]; then
+        docker run --rm --user root --entrypoint sh \
+            -v "${project}_poster_media:/app/media" \
+            "$backend_image" -c 'chown -R appuser /app/media'
+    fi
     echo 'Starting API and verifying readiness before worker rollout'
     compose up -d --no-build --wait --wait-timeout 120 postgres redis redis-cache redis-control backend
     echo 'API healthy; updating default worker and scheduler'
