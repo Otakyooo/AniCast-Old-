@@ -435,7 +435,9 @@ export default async function CatalogDetailPage({
       template.playbackPresentation,
       fallbackNumber,
       query.episode,
-      catalogNumbersKnown ? catalogEpisodeNumbers : undefined,
+      // A specials number is its own: it is not one of the runs, so validating
+      // it against the run would "correct" it to a regular episode.
+      catalogNumbersKnown && season === 1 ? catalogEpisodeNumbers : undefined,
     );
     let watchNumber = resolvedRequest.number;
     let invalidEpisodeRequest = resolvedRequest.corrected;
