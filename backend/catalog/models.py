@@ -155,7 +155,14 @@ class Episode(models.Model):
 
     class Meta:
         ordering = ["number"]
-        constraints = [models.UniqueConstraint(fields=["title", "number"], name="unique_title_episode_number")]
+        constraints = [
+            # Season is part of the key: a special in season zero may hold the
+            # same number as a regular episode without being the same episode.
+            models.UniqueConstraint(
+                fields=["title", "season_number", "number"],
+                name="unique_title_season_episode_number",
+            )
+        ]
         indexes = [
             models.Index(fields=["air_date"]),
             models.Index(fields=["air_at"]),

@@ -228,7 +228,11 @@ class TitleDetailSerializer(TitleSerializer):
     def get_episodes(self, obj):
         from .playback import playback_sources_prefetch
 
-        episodes = Episode.objects.filter(title=obj).prefetch_related("translations").order_by("number")
+        episodes = (
+            Episode.objects.filter(title=obj, season_number=1)
+            .prefetch_related("translations")
+            .order_by("number")
+        )
         # Optional inclusive number window (player episode rail): pagination
         # stays row-based, so the window is applied first and the client pages
         # inside it. episodes_count keeps reporting the full title total.

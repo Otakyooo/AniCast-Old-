@@ -1,26 +1,25 @@
-"""Classify a work's specials and name them from the providers that own them.
+"""Move a legacy special row's players onto the special the mapping numbers it under.
 
-Kodik keeps a work's specials in its own season zero, exactly as TVDB and TMDB do,
-and ani.zip names them under keys `S1`..`Sn`. Neither alone is enough: Kodik knows
-which of our stored players belong to a special but not what it is called, and the
-mapping knows the names but not which row holds which one.
+Kodik numbers a work's specials in its own season zero and the mapping numbers them
+`S1`..`Sn`; the two are offset by a per-work amount. The rows the old import left
+behind are numbered by neither -- One Punch Man's six OVAs sit at 13..18 because
+they collided with regular episode numbers -- so renaming a row in place would put
+one special's title on another special's players.
 
-The two numberings are not the same list. Kodik's season zero holds the episodes
-its translators published as specials, while the mapping's `S` keys also cover
-shorts and recaps, so the two line up only up to an offset that differs per work:
-One Punch Man's six match `S1`..`S6`, while Brotherhood's four OVAs are `S2`..`S5`
-because its `S1` is a recap and `S6` onwards are shorts.
+The rows are therefore relocated: each identified row's players move to the row the
+mapping numbers that special, and the row they came from is left as whatever the
+mapping says it is. The offset is fixed by an anchor -- the highest row whose own
+title is one of the mapping's special titles and which is not named after a regular
+episode -- so nothing moves on a guess.
 
-The offset is fixed by an anchor rather than assumed. A row whose own title is one
-of the mapping's special titles, and which is not named after a regular episode,
-identifies itself; the highest such row is used, because a corrupted title always
-came from a collision with a regular episode's number and the last special is the
-one that could not collide. Everything else follows from the offset, and the result
-is refused unless the titles come out distinct.
+A row is identified when at least one of its packs is filed in Kodik's season zero
+and those packs agree on one number. Translators disagree about which season an
+extra belongs to -- Brotherhood's STEPonee counts its four OVAs as episodes 65..68
+of a longer season while MiraiDUB files them in season zero -- so requiring every
+pack to be there would find nothing, and requiring the season-zero packs to agree is
+the real test.
 
-A row is only marked as a special when at least one of its packs is in season zero,
-which is the provider's own word for it, and only renamed when every one of its
-packs is. Dry-run by default.
+Dry-run by default.
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from catalog.kodik import KodikAPIError, search_by_shikimori
-from catalog.models import Episode, EpisodeTranslation, Source, Title
+from catalog.models import Episode, Source, Title
 
 SERIA = re.compile(r"/seria/(\d+)/")
 LANGUAGES = ("en", "ja")
@@ -83,7 +82,7 @@ def _kodik_special_seria(mal_id: int) -> dict[str, int]:
 
 
 class Command(BaseCommand):
-    help = "Mark a work's specials as season 0 and name them from the provider mapping."
+    help = "Move legacy special rows' players onto the special the mapping numbers them under."
 
     def add_arguments(self, parser):
         parser.add_argument("title_slug")
@@ -127,24 +126,15 @@ class Command(BaseCommand):
                         packs.add(match.group(1))
                 if not packs:
                     continue
-                # Only the packs filed in season zero count. Translators disagree
-                # about which season an extra belongs to -- Brotherhood's STEPonee
-                # counts the four OVAs as episodes 65..68 of a longer season while
-                # MiraiDUB files them in season zero -- so requiring every pack to
-                # be there would find nothing, and requiring none to disagree is
-                # the real test.
                 mapped = {seria_to_special[pack] for pack in packs if pack in seria_to_special}
                 if not mapped or len(mapped) != 1:
                     continue
                 rows.append((episode, mapped.pop()))
 
             if not rows:
-                self.stdout.write("DRY-RUN: specials=0")
+                self.stdout.write("DRY-RUN: relocated=0")
                 return
 
-            # Anchor: the highest special whose current title is one of the
-            # mapping's, so the offset between the two numberings is fixed by
-            # evidence rather than assumed.
             anchors = [
                 (number, by_title[_identity_key(episode.name)])
                 for episode, number in rows
@@ -152,43 +142,43 @@ class Command(BaseCommand):
                 and _identity_key(episode.name) not in local_names
             ]
             offset = 0
-            named = False
             if anchors:
                 highest, special_number = max(anchors)
                 offset = special_number - highest
-                named = True
                 self.stdout.write(f"anchor: special {highest} is S{special_number} -> offset {offset:+d}")
 
-            planned: list[tuple[Episode, int, dict[str, str]]] = []
+            moves: list[tuple[Episode, int]] = []
             for episode, number in rows:
-                wanted = specials.get(number + offset) if named else None
-                planned.append((episode, number, wanted or {}))
-            names = [values.get("en") for _, _, values in planned if values.get("en")]
-            if len(names) != len(set(names)):
-                raise CommandError("The offset produces duplicate titles; refusing")
-
-            for episode, number, wanted in planned:
-                self.stdout.write(f"{episode.number}: special {number} -> {wanted.get('en') or '(kept)'}")
+                target = number + offset
+                if target < 1 or target not in specials:
+                    raise CommandError(f"Special {number} maps to S{target}, which the mapping does not have")
+                if episode.number != target or episode.season_number != 0:
+                    moves.append((episode, target))
 
             if options["apply"]:
-                for episode, number, wanted in planned:
-                    changed = ["season_number"]
-                    episode.season_number = 0
-                    if wanted.get("en") and episode.name != wanted["en"]:
-                        episode.name = wanted["en"]
-                        changed.append("name")
-                    episode.save(update_fields=changed)
-                    for language, value in wanted.items():
-                        translation, _ = EpisodeTranslation.objects.get_or_create(
-                            episode=episode, language=language
+                for episode, target in moves:
+                    target_row = Episode.objects.filter(
+                        title=title, season_number=0, number=target
+                    ).first()
+                    if target_row is None:
+                        target_row = Episode.objects.create(
+                            title=title, number=target, season_number=0
                         )
-                        if translation.name != value:
-                            translation.name = value
-                            translation.save(update_fields=["name"])
+                    existing = {
+                        url
+                        for url in Source.objects.filter(episode=target_row).values_list("url", flat=True)
+                    }
+                    moved = 0
+                    for source in Source.objects.filter(episode=episode):
+                        if source.url in existing:
+                            continue
+                        source.episode = target_row
+                        source.save(update_fields=["episode"])
+                        existing.add(source.url)
+                        moved += 1
+                    self.stdout.write(f"{episode.number} -> special {target}: moved {moved} player(s)")
+                    episode.delete()
             else:
                 transaction.set_rollback(True)
 
-        self.stdout.write(
-            f"{'APPLIED' if options['apply'] else 'DRY-RUN'}: specials={len(planned)} "
-            f"named={sum(1 for _, _, values in planned if values)}"
-        )
+        self.stdout.write(f"{'APPLIED' if options['apply'] else 'DRY-RUN'}: relocated={len(moves)}")

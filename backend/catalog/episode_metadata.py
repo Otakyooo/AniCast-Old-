@@ -61,12 +61,13 @@ def _page(mal_id: int, page: int) -> dict:
     raise EpisodeMetadataError("Jikan episode request failed")
 
 
-def _anizip_rows(mal_id: int) -> list[dict]:
-    """Normalize the ani.zip mapping fallback to Jikan's episode shape.
+def _anizip_rows(mal_id: int) -> tuple[list[dict], list[dict]]:
+    """Normalize the ani.zip mapping to Jikan's episode shape.
 
-    ani.zip exposes TVDB-derived dates and multilingual episode titles in one
-    bounded response. It is used only when Jikan is unavailable, so the normal
-    MAL path and its pagination semantics stay unchanged.
+    Returns the work's own episodes and its specials separately. ani.zip exposes
+    TVDB-derived dates and multilingual titles in one bounded response, and keys
+    the specials as ``S1``..``Sn`` -- the same season-zero idea the catalog now
+    keeps, so they are imported into season 0 rather than as ordinary episodes.
     """
     try:
         result = subprocess.run(
@@ -81,28 +82,33 @@ def _anizip_rows(mal_id: int) -> list[dict]:
     episodes = payload.get("episodes") if isinstance(payload, dict) else None
     if not isinstance(episodes, dict):
         raise EpisodeMetadataError("ani.zip episode response schema is invalid")
-    rows = []
+    rows: list[dict] = []
+    specials: list[dict] = []
     for raw_number, item in episodes.items():
         if not isinstance(item, dict):
             continue
         # Mapping keys are local to this MAL work. TVDB absolute numbers span
-        # seasons (e.g. SnK S3: key 1, absolute 38); mixing them duplicates rows.
-        # Specials such as S1 must not be imported as ordinary numbered episodes.
-        if not str(raw_number).isdigit():
+        # seasons (e.g. SnK S3: key 1, absolute 38); mixing them duplicates rows,
+        # so only the work-local key is ever read.
+        raw = str(raw_number)
+        if raw.startswith("S") and raw[1:].isdigit():
+            number, target = int(raw[1:]), specials
+        elif raw.isdigit():
+            number, target = int(raw), rows
+        else:
             continue
-        number = int(raw_number)
         if number < 1:
             continue
         raw_titles = item.get("title")
         titles: dict = raw_titles if isinstance(raw_titles, dict) else {}
-        rows.append({
+        target.append({
             "mal_id": number,
             "title": titles.get("en") or titles.get("x-jat") or "",
             "title_japanese": titles.get("ja") or "",
             "title_russian": titles.get("ru") or "",
             "aired": item.get("airDateUtc") or item.get("airDate"),
         })
-    return rows
+    return rows, specials
 
 
 def _fill_translation(episode: Episode, language: str, name: str) -> bool:
@@ -125,6 +131,7 @@ def sync_title_episode_metadata(
     *,
     max_pages: int = MAX_PAGES,
     fallback_first: bool = False,
+    include_specials: bool = False,
 ) -> EpisodeMetadataResult:
     match = MAL_ID.match(title.slug)
     if match is None:
@@ -134,9 +141,10 @@ def sync_title_episode_metadata(
 
     mal_id = int(match.group(1))
     rows: list[dict] = []
+    specials: list[dict] = []
     page_number = 1
     if fallback_first:
-        rows = _anizip_rows(mal_id)
+        rows, specials = _anizip_rows(mal_id)
         page_number = 1
     else:
         try:
@@ -151,20 +159,37 @@ def sync_title_episode_metadata(
                 if (payload.get("pagination") or {}).get("has_next_page"):
                     raise EpisodeMetadataError("Jikan episode pagination exceeds the safety limit")
         except EpisodeMetadataError:
-            rows = _anizip_rows(mal_id)
+            rows, specials = _anizip_rows(mal_id)
             page_number = 1
+
+    if include_specials and not specials:
+        # MAL's episode list carries the work's own episodes only, so specials
+        # come from the mapping. Asking is opt-in because it is a second request
+        # per title, and they are a bonus: a provider hiccup must not fail a sync
+        # that already has the episodes.
+        try:
+            _, specials = _anizip_rows(mal_id)
+        except EpisodeMetadataError:
+            specials = []
 
     result = EpisodeMetadataResult(title=title.slug, pages=page_number)
     with transaction.atomic():
-        episodes = {episode.number: episode for episode in Episode.objects.filter(title=title)}
-        for row in rows:
+        existing = {
+            (episode.season_number, episode.number): episode
+            for episode in Episode.objects.filter(title=title)
+        }
+        # Season 1 is the work's own run, season 0 its specials. Their numbers
+        # may coincide, which is why the season is part of the key.
+        for season, row in [(1, row) for row in rows] + [(0, row) for row in specials]:
             number = row.get("mal_id")
             if type(number) is not int or number < 1:
                 continue
-            episode = episodes.get(number)
+            episode = existing.get((season, number))
             if episode is None:
-                episode = Episode.objects.create(title=title, number=number)
-                episodes[number] = episode
+                episode = Episode.objects.create(
+                    title=title, number=number, season_number=season
+                )
+                existing[(season, number)] = episode
                 result.created += 1
 
             english = _clean_name(row.get("title")) or _clean_name(row.get("title_romanji"))

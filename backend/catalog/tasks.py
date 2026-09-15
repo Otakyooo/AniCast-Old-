@@ -111,7 +111,7 @@ def sync_episode_metadata_library(limit: int = 3) -> dict[str, int]:
         if time.monotonic() >= deadline:
             break
         try:
-            result = sync_title_episode_metadata(title)
+            result = sync_title_episode_metadata(title, include_specials=True)
         except (EpisodeMetadataError, ValueError):
             totals["failed"] += 1
             logger.exception("Episode metadata sync failed", extra={

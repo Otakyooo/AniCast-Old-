@@ -378,6 +378,9 @@ def playable_episode_counts(title_ids) -> dict[int, int]:
     rows = (
         Source.objects.filter(
             episode__title_id__in=pks,
+            # Specials are not part of a title's episode run, so they must not
+            # inflate how many episodes it says it can play.
+            episode__season_number=1,
             availability="available",
             provider_id__in=validated_providers,
         )

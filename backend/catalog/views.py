@@ -117,7 +117,7 @@ def annotate_rating_aggregates(queryset):
     return queryset.annotate(
         rating_count=Count("ratings", distinct=True, filter=Q(ratings__user__is_active=True)),
         rating_avg=Avg("ratings__value", filter=Q(ratings__user__is_active=True)),
-        episodes_count=Count("episodes", distinct=True),
+        episodes_count=Count("episodes", distinct=True, filter=Q(episodes__season_number=1)),
     )
 
 
@@ -247,9 +247,11 @@ class AiringTitleListView(PublicCacheMixin, ListAPIView):
         # one already aired: the Kodik sync pre-creates the next episode row,
         # so the plain maximum number would advertise an unreleased episode.
         last_episode = Episode.objects.filter(
-            title=OuterRef("pk"), air_date__lte=today
+            title=OuterRef("pk"), air_date__lte=today, season_number=1
         ).order_by("-number")
-        next_episode = Episode.objects.filter(title=OuterRef("pk"), air_at__gt=now).order_by("air_at")
+        next_episode = Episode.objects.filter(
+            title=OuterRef("pk"), air_at__gt=now, season_number=1
+        ).order_by("air_at")
         return annotate_rating_aggregates(
             Title.objects.filter(status="ongoing")
             .annotate(
@@ -322,7 +324,9 @@ class TitleDetailView(PublicCacheMixin, RetrieveAPIView):
     # Episodes are fetched by the serializer as a paginated queryset, so the
     # detail view never loads the full episode list of a long-running series.
     queryset = annotate_rating_aggregates(
-        Title.objects.annotate(episodes_count=Count("episodes", distinct=True)).select_related(
+        Title.objects.annotate(
+            episodes_count=Count("episodes", distinct=True, filter=Q(episodes__season_number=1))
+        ).select_related(
             "franchise"
         ).prefetch_related(
             "translations", "franchise__translations", "genres", "genres__translations",

@@ -39,6 +39,7 @@ class Command(BaseCommand):
                         title,
                         max_pages=options["max_pages"],
                         fallback_first=options["fallback_first"],
+                        include_specials=True,
                     )
                     if not options["apply"]:
                         transaction.set_rollback(True)
