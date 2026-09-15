@@ -121,6 +121,17 @@
   --border-muted: rgba(116, 97, 81, .35);
   --accent-text: #743047;
   --focus-ring: #743047;
+  /* Light theme cannot reuse the dark theme's orange: #F3A51B on the cream
+     page is 1.71:1, far under the 3:1 WCAG 1.4.11 floor for a control's
+     boundary, so the primary button had almost no figure-ground separation.
+     Darkening it alone is not enough -- the only value clearing both 3:1
+     against the page and 4.5:1 for the dark --on-primary text is #B8760A,
+     which leaves no room for a distinct hover. Pairing a darker amber with
+     light text resolves both: 4.91 page / 5.91 card / 5.60 text, with
+     --primary-hover dark enough to read as a state change. */
+  --primary: #8A5A12;
+  --primary-hover: #6F470E;
+  --on-primary: #FFF8EC;
   /* #26734D measured 4.37:1 on --surface-control-hover, just under the 4.5:1
      floor. Darkened to #226844: 5.57 background / 6.71 card / 5.09 control-hover. */
   --success: #226844;
