@@ -322,3 +322,55 @@ def test_prune_refuses_a_row_that_is_not_a_shifted_copy(tmp_path):
     with pytest.raises(CommandError, match="not named after a local episode"):
         call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
     assert title.episodes.count() == 2
+
+
+@pytest.mark.django_db
+def test_name_repair_restores_a_misplaced_provider_name(tmp_path):
+    """Row 1 holds episode 2's label while its players are episode 1's."""
+    title = Title.objects.create(name="Bebop", slug="1-bebop")
+    first = Episode.objects.create(title=title, number=1, name="Stray Dog Strut")
+    EpisodeTranslation.objects.create(episode=first, language="ja", name="野良犬のストラット")
+    Episode.objects.create(title=title, number=2, name="Stray Dog Strut")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 1}, "episodes": {
+        "1": {"title": {"en": "Asteroid Blues", "ja": "アステロイド・ブルース"}},
+        "2": {"title": {"en": "Stray Dog Strut", "ja": "野良犬のストラット"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_names", title.slug, str(mapping), apply=True, stdout=output)
+    assert "APPLIED: renamed=1" in output.getvalue()
+    first.refresh_from_db()
+    assert first.name == "Asteroid Blues"
+    assert first.translations.get(language="ja").name == "アステロイド・ブルース"
+    # The row that was already right is untouched.
+    assert Episode.objects.get(title=title, number=2).name == "Stray Dog Strut"
+
+
+@pytest.mark.django_db
+def test_name_repair_refuses_text_the_provider_never_supplied(tmp_path):
+    """Spelling drift is not a misplaced copy, so it must not be overwritten."""
+    title = Title.objects.create(name="Brotherhood", slug="5114-brotherhood")
+    Episode.objects.create(title=title, number=1, name="Envoy From the East")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 5114}, "episodes": {
+        "1": {"title": {"en": "The Envoy from the East"}},
+    }}))
+    with pytest.raises(CommandError, match="not a provider title"):
+        call_command("repair_episode_names", title.slug, str(mapping), apply=True, stdout=StringIO())
+    assert Episode.objects.get(title=title, number=1).name == "Envoy From the East"
+
+
+@pytest.mark.django_db
+def test_name_repair_dry_run_writes_nothing(tmp_path):
+    title = Title.objects.create(name="Bebop", slug="1-bebop")
+    Episode.objects.create(title=title, number=1, name="Stray Dog Strut")
+    Episode.objects.create(title=title, number=2, name="Stray Dog Strut")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 1}, "episodes": {
+        "1": {"title": {"en": "Asteroid Blues"}},
+        "2": {"title": {"en": "Stray Dog Strut"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_names", title.slug, str(mapping), stdout=output)
+    assert "DRY-RUN: renamed=1" in output.getvalue()
+    assert Episode.objects.get(title=title, number=1).name == "Stray Dog Strut"
