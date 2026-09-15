@@ -290,41 +290,6 @@ def test_prune_dry_run_deletes_nothing(tmp_path):
 
 
 @pytest.mark.django_db
-def test_prune_refuses_a_row_that_carries_a_player(tmp_path):
-    """A row with a player is not disposable; it needs re-pointing first."""
-    title = Title.objects.create(name="Sourced", slug="200-sourced")
-    Episode.objects.create(title=title, number=1, name="Alpha")
-    Episode.objects.create(title=title, number=2, name="Beta")
-    artifact = Episode.objects.create(title=title, number=3, name="Alpha")
-    Source.objects.create(
-        episode=artifact, name="Kodik · AniDUB", url="https://kodikplayer.com/seria/1/x/720p"
-    )
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 200}, "episodes": {
-        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
-        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
-    }}))
-    with pytest.raises(CommandError, match="needs re-pointing"):
-        call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
-    assert title.episodes.count() == 3
-
-
-@pytest.mark.django_db
-def test_prune_refuses_a_row_that_is_not_a_shifted_copy(tmp_path):
-    """A row above the local run may be a genuine special, so never delete it blind."""
-    title = Title.objects.create(name="Special", slug="300-special")
-    Episode.objects.create(title=title, number=1, name="Alpha")
-    Episode.objects.create(title=title, number=2, name="Recap Special")
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 300}, "episodes": {
-        "1": {"absoluteEpisodeNumber": 2, "title": {"en": "Alpha"}},
-    }}))
-    with pytest.raises(CommandError, match="not named after a local episode"):
-        call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
-    assert title.episodes.count() == 2
-
-
-@pytest.mark.django_db
 def test_name_repair_restores_a_misplaced_provider_name(tmp_path):
     """Row 1 holds episode 2's label while its players are episode 1's."""
     title = Title.objects.create(name="Bebop", slug="1-bebop")
@@ -374,3 +339,62 @@ def test_name_repair_dry_run_writes_nothing(tmp_path):
     call_command("repair_episode_names", title.slug, str(mapping), stdout=output)
     assert "DRY-RUN: renamed=1" in output.getvalue()
     assert Episode.objects.get(title=title, number=1).name == "Stray Dog Strut"
+
+
+@pytest.mark.django_db
+def test_prune_keeps_a_row_that_carries_a_player(tmp_path):
+    """A row with a player is not disposable; it is kept and reported."""
+    title = Title.objects.create(name="Sourced", slug="200-sourced")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Beta")
+    artifact = Episode.objects.create(title=title, number=3, name="Alpha")
+    Source.objects.create(
+        episode=artifact, name="Kodik · AniDUB", url="https://kodikplayer.com/seria/1/x/720p"
+    )
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 200}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
+    assert "pruned=0 kept=1" in output.getvalue()
+    assert title.episodes.count() == 3
+
+
+@pytest.mark.django_db
+def test_prune_keeps_a_row_that_is_not_a_shifted_copy(tmp_path):
+    """A row above the local run may be a genuine special, so never delete it blind."""
+    title = Title.objects.create(name="Special", slug="300-special")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Recap Special")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 300}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 2, "title": {"en": "Alpha"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
+    assert "pruned=0 kept=1" in output.getvalue()
+    assert title.episodes.count() == 2
+
+
+@pytest.mark.django_db
+def test_prune_decides_per_row_not_per_title(tmp_path):
+    """One row that must stay does not protect the clean rows beside it."""
+    title = Title.objects.create(name="Mixed", slug="400-mixed")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Beta")
+    Episode.objects.create(title=title, number=3, name="Alpha")
+    kept = Episode.objects.create(title=title, number=4, name="Beta")
+    Source.objects.create(
+        episode=kept, name="Kodik · X", url="https://kodikplayer.com/seria/9/x/720p"
+    )
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 400}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
+    assert "pruned=1 kept=1" in output.getvalue()
+    assert list(title.episodes.order_by("number").values_list("number", flat=True)) == [1, 2, 4]

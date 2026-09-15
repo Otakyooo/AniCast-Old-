@@ -5,18 +5,20 @@ season continuing a franchise's numbering gained a second row for episodes it
 already had. Those rows sit above the work's local episode count and are what
 still shows up as duplicate episode names.
 
-This deletes them, but only where it can prove they are artifacts:
+A row is deleted only when it is provably an artifact of another row:
 
-* every row above the local count must carry no related records at all beyond
-  translations. A row with a player, progress or a delivery is not disposable —
-  it needs re-pointing first, and this refuses instead;
-* every such row must be named after one of the work's own local episodes. A row
-  named something else may be a genuine special that belongs there, so it is
-  refused rather than deleted;
-* the work's highest local row must carry the name the provider gives that
-  episode before anything is deleted, otherwise its correct name is living on one
-  of the rows about to go and the deletion would lose it. When the correct name
-  does live there, it is copied onto the local row first.
+* it carries no related records at all beyond translations. A row with a player,
+  progress or a delivery is not disposable — it holds something the catalogue
+  would lose, and the provider's later packs give those rows URLs the canonical
+  row does not have, so it is kept and reported rather than deleted;
+* it is named after one of the work's own local episodes. A row named something
+  else may be a genuine special that belongs there, so it is kept too.
+
+Decisions are per row, not per title: one row that must be kept does not make its
+neighbours unsafe, and leaving them is just incomplete rather than inconsistent.
+The work's highest local episode can have its correct name sitting on a row about
+to be deleted; that name and its translations move down first, and only from a row
+that is itself being deleted, so a name is never lost.
 
 Dry-run by default; nothing is written without `--apply`.
 """
@@ -84,36 +86,44 @@ class Command(BaseCommand):
             episodes = {e.number: e for e in Episode.objects.select_for_update().filter(title=title)}
             beyond = sorted(number for number in episodes if number > local_max)
             if not beyond:
-                self.stdout.write(f"DRY-RUN: nothing above local {local_max}; pruned=0")
+                self.stdout.write(f"DRY-RUN: nothing above local {local_max}; pruned=0 kept=0")
                 return
 
+            deletable: list[int] = []
             for number in beyond:
                 attached = _attached(episodes[number])
                 if attached:
-                    raise CommandError(
-                        f"Episode {number} has related records {sorted(attached)}; needs re-pointing"
+                    self.stdout.write(
+                        f"keeping {number}: carries {sorted(attached)}; needs re-pointing"
                     )
+                    continue
                 if _identity_key(episodes[number].name) not in known_names:
-                    raise CommandError(f"Episode {number} is not named after a local episode")
+                    self.stdout.write(
+                        f"keeping {number}: {episodes[number].name!r} is not named after a local episode"
+                    )
+                    continue
+                deletable.append(number)
 
-            # The local maximum is the one episode whose correct name may be
-            # sitting on a row about to be deleted, because the shifted import
-            # wrote local 1..local_max as absolute numbers.
             local_row = episodes.get(local_max)
             if local_row is None:
                 raise CommandError(f"Local episode {local_max} is missing")
             wanted = _identity_key(local_names[local_max])
             donor_number = None
             if _identity_key(local_row.name) != wanted:
-                donors = [n for n in beyond if _identity_key(episodes[n].name) == wanted]
-                if len(donors) != 1:
+                donors = [n for n in deletable if _identity_key(episodes[n].name) == wanted]
+                if len(donors) > 1:
                     raise CommandError(
                         f"Expected one row carrying the name of local {local_max}, found {len(donors)}"
                     )
-                donor_number = donors[0]
-                self.stdout.write(
-                    f"name {episodes[donor_number].name!r} moves from {donor_number} to {local_max}"
-                )
+                if donors:
+                    donor_number = donors[0]
+                    self.stdout.write(
+                        f"name {episodes[donor_number].name!r} moves from {donor_number} to {local_max}"
+                    )
+                else:
+                    self.stdout.write(
+                        f"local {local_max} keeps {local_row.name!r}: the row holding its name is kept"
+                    )
 
             if options["apply"]:
                 if donor_number is not None:
@@ -129,12 +139,13 @@ class Command(BaseCommand):
                         dest.save()
                     local_row.name = donor.name
                     local_row.save(update_fields=["name"])
-                for number in beyond:
+                for number in deletable:
                     self.stdout.write(f"deleting {number}")
                     episodes[number].delete()
             else:
                 transaction.set_rollback(True)
 
         self.stdout.write(
-            f"{'APPLIED' if options['apply'] else 'DRY-RUN'}: pruned={len(beyond)}"
+            f"{'APPLIED' if options['apply'] else 'DRY-RUN'}: pruned={len(deletable)} "
+            f"kept={len(beyond) - len(deletable)}"
         )
