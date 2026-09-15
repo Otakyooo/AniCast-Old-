@@ -201,6 +201,11 @@ summary:focus-visible {
   .primary-nav > a.nav-secondary { font-size: 13.5px }
 }
 
+/* The links stretch to the header's full height, so the global 2px outline
+   offset would draw the focus ring outside the header and over its bottom
+   border. The mobile bottom nav already insets its ring for the same reason. */
+.primary-nav > a:focus-visible { outline-offset: -2px }
+
 .primary-nav > a:hover { color: var(--text) }
 .primary-nav > a.active { color: var(--text) }
 
@@ -231,6 +236,11 @@ summary:focus-visible {
 
 .global-search:hover { border-color: var(--muted-2) }
 .global-search:focus-within { border-color: var(--primary); background: var(--surface-card) }
+
+/* The wrapper's own border is the focus indicator. The field inside it must not
+   draw a second ring, which the global :focus-visible rule would otherwise add
+   on top of that border -- two rings, one inside the other. */
+:root[data-theme] .global-search input:focus-visible { outline: 0 }
 
 .global-search input {
   min-width: 0;

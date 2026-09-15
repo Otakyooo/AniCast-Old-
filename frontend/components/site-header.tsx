@@ -11,14 +11,15 @@ export type NavSection =
   | "home" | "catalog" | "schedule" | "franchises" | "collections" | "characters"
   | "media" | "community" | "profile" | "library";
 
-// The desktop header carries the four watching routes and nothing else. The
+// The desktop header carries the three watching routes and nothing else. The
 // secondary links (franchises / collections / community) were removed from the
 // header on purpose, so no dropdown is left behind it: community lives in the
 // footer, and franchises/collections stay reachable from the catalog and from
 // title pages.
 //
-// Personal routes highlight nothing in the desktop top nav by design: the
-// library lives inside the profile (design freeze v0.2, acceptance #2).
+// Personal routes are not in the top nav by design, and the library is not
+// either: it lives inside the profile (design freeze v0.2, acceptance #2) and
+// the account menu links it directly, so a header entry only repeated it.
 export async function SiteHeader({ active }: { active: NavSection }) {
   const { t } = await getI18n();
   // Presence of the session cookie decides the first paint only. The client
@@ -34,7 +35,6 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("home")} href="/">{t("nav.home")}</Link>
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
-          <Link className={linkClass("library")} href="/library">{t("nav.libraryShort")}</Link>
         </nav>
         <div className="header-search"><GlobalSearch /></div>
         <div className="global-actions">
