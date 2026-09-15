@@ -54,6 +54,11 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // One backend address: INTERNAL_API_BASE_URL is the SSR base including
     // /api/v1, API_INTERNAL_URL is the bare host fallback for rewrites.
+    // These destinations are serialized into .next/routes-manifest.json at
+    // build time, so API_INTERNAL_URL must be a build argument (see
+    // frontend/Dockerfile and .github/workflows/publish.yml) -- setting it
+    // only in the container environment has no effect. The 127.0.0.1
+    // default is for local development only.
     const ssrBase = process.env.INTERNAL_API_BASE_URL?.replace(/\/+$/, "");
     const backend = process.env.API_INTERNAL_URL
       ?? (ssrBase ? ssrBase.replace(/\/api\/v1$/, "") : "http://127.0.0.1:8000");

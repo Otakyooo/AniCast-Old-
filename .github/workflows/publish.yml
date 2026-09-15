@@ -15,6 +15,9 @@ env:
   # Public by design: embedded into the client bundle on every build.
   NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: anicast_auth_bot
   NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME: anicast_push_bot
+  # Baked into the frontend rewrites at build time; the backend is only
+  # reachable at this tunnel address from the VPS.
+  API_INTERNAL_URL: http://10.78.0.2:8000
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -86,6 +89,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME }}
             NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME }}
+            API_INTERNAL_URL=${{ env.API_INTERNAL_URL }}
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.ref_name == 'main' && 'main' || github.ref_name }}
             ${{ env.FRONTEND_IMAGE }}:sha-${{ github.sha }}
