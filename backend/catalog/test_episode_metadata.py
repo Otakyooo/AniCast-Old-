@@ -424,3 +424,71 @@ def test_prune_keeps_a_row_carrying_user_data(tmp_path):
     call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
     assert "repaired=0 kept=1" in output.getvalue()
     assert title.episodes.count() == 3
+
+@pytest.mark.django_db
+def test_specials_repair_names_and_marks_rows_from_both_providers(tmp_path, monkeypatch):
+    """Kodik says which rows are specials, the mapping says what they are called.
+
+    The row's own players decide it: every pack id it holds has to appear in
+    Kodik's season zero, and they all have to agree on one special number.
+    """
+    from catalog.kodik import KodikSearchResult
+
+    title = Title.objects.create(name="Punch", slug="30276-punch")
+    Episode.objects.create(title=title, number=1, name="The Strongest Man")
+    special = Episode.objects.create(title=title, number=13, name="Unyielding Justice")
+    Source.objects.create(
+        episode=special, name="Kodik · A", url="https://kodikplayer.com/seria/852617/aaa/720p"
+    )
+    Source.objects.create(
+        episode=special, name="Kodik · B", url="https://kodikplayer.com/seria/581632/bbb/720p"
+    )
+    monkeypatch.setattr(
+        "catalog.management.commands.repair_episode_specials.search_by_shikimori",
+        lambda mal_id, **kwargs: KodikSearchResult(total=2, results=[
+            {"seasons": {0: {"episodes": {"1": {"link": "//kodikplayer.com/seria/852617/aaa/720p"}}},
+                         1: {"episodes": {"1": {"link": "//kodikplayer.com/seria/143759/ccc/720p"}}}}},
+            {"seasons": {0: {"episodes": {"1": {"link": "//kodikplayer.com/seria/581632/bbb/720p"}}}}},
+        ]),
+    )
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 30276}, "episodes": {
+        "1": {"title": {"en": "The Strongest Man"}},
+        "S1": {"title": {"en": "The Shadow That Snuck Up Too Close", "ja": "影の近づく"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_specials", title.slug, str(mapping), apply=True, stdout=output)
+    assert "APPLIED: specials=1" in output.getvalue()
+    special.refresh_from_db()
+    assert special.name == "The Shadow That Snuck Up Too Close"
+    assert special.season_number == 0
+    assert special.translations.get(language="ja").name == "影の近づく"
+    # The regular episode keeps its season.
+    assert Episode.objects.get(title=title, number=1).season_number == 1
+
+
+@pytest.mark.django_db
+def test_specials_repair_leaves_a_row_whose_packs_disagree(tmp_path, monkeypatch):
+    """Not provably one special, so it is left exactly as it was."""
+    from catalog.kodik import KodikSearchResult
+
+    title = Title.objects.create(name="Punch", slug="30276-punch")
+    row = Episode.objects.create(title=title, number=13, name="Unyielding Justice")
+    Source.objects.create(episode=row, name="Kodik · A", url="https://kodikplayer.com/seria/852617/aaa/720p")
+    Source.objects.create(episode=row, name="Kodik · B", url="https://kodikplayer.com/seria/999999/zzz/720p")
+    monkeypatch.setattr(
+        "catalog.management.commands.repair_episode_specials.search_by_shikimori",
+        lambda mal_id, **kwargs: KodikSearchResult(total=1, results=[
+            {"seasons": {0: {"episodes": {"1": {"link": "//kodikplayer.com/seria/852617/aaa/720p"}}}}},
+        ]),
+    )
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 30276}, "episodes": {
+        "S1": {"title": {"en": "The Shadow That Snuck Up Too Close"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_specials", title.slug, str(mapping), apply=True, stdout=output)
+    assert "specials=0" in output.getvalue()
+    row.refresh_from_db()
+    assert row.name == "Unyielding Justice"
+    assert row.season_number == 1

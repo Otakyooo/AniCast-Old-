@@ -139,6 +139,12 @@ class TitleTranslation(models.Model):
 class Episode(models.Model):
     title = models.ForeignKey(Title, related_name="episodes", on_delete=models.CASCADE)
     number = models.PositiveIntegerField()
+    # Kodik, TVDB and TMDB all keep a work's specials in their own season zero,
+    # and so does this. Without it the only home for a special is the regular
+    # episode numbers, where it collides with a real episode. It is a
+    # classification rather than a second key: `number` stays unique per title, so
+    # watch URLs, progress and history are unaffected.
+    season_number = models.PositiveSmallIntegerField(default=1)
     name = models.CharField(max_length=240, blank=True)
     synopsis = models.TextField(blank=True)
     air_date = models.DateField(null=True, blank=True)
@@ -150,7 +156,11 @@ class Episode(models.Model):
     class Meta:
         ordering = ["number"]
         constraints = [models.UniqueConstraint(fields=["title", "number"], name="unique_title_episode_number")]
-        indexes = [models.Index(fields=["air_date"]), models.Index(fields=["air_at"])]
+        indexes = [
+            models.Index(fields=["air_date"]),
+            models.Index(fields=["air_at"]),
+            models.Index(fields=["title", "season_number"]),
+        ]
         verbose_name = "Эпизод"
         verbose_name_plural = "Эпизоды"
 

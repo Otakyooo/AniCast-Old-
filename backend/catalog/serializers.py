@@ -100,7 +100,7 @@ class EpisodeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Episode
-        fields = ["id", "number", "name", "synopsis", "air_date", "air_at", "sources"]
+        fields = ["id", "number", "season_number", "name", "synopsis", "air_date", "air_at", "sources"]
 
 
 class EpisodeSummarySerializer(serializers.ModelSerializer):
