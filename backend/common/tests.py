@@ -14,7 +14,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from common import availability
-from common.logging import JsonFormatter
+from common.logging import SAFE_FIELDS, JsonFormatter
 from common.models import AvailabilitySample, DailyVisitStat
 from common.security import constant_time_equals
 from common.throttling import (
@@ -335,6 +335,23 @@ def test_json_formatter_uses_allowlist_and_omits_message():
     assert payload["event"] == "http_request_completed"
     assert "secret" not in json.dumps(payload)
     assert "message" not in payload
+
+
+def test_every_safe_field_can_be_passed_as_extra():
+    """The allowlist must only name fields a caller can actually set.
+
+    makeRecord refuses an extra key that would overwrite an attribute the
+    record already carries, and every LogRecord has a ``created`` timestamp.
+    Listing it advertised a field that could never be logged, and the one task
+    that tried raised KeyError on its final line — after doing its work, so the
+    hourly character sync was reported as failed every time.
+    """
+    logger = logging.getLogger("anicast.allowlist-check")
+    for field in SAFE_FIELDS:
+        record = logger.makeRecord(
+            logger.name, logging.INFO, __file__, 1, "m", (), None, extra={field: 1}
+        )
+        assert getattr(record, field) == 1, field
 
 
 # ---------- Availability tracking ----------

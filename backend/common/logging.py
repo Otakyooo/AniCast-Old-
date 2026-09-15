@@ -31,7 +31,12 @@ SAFE_FIELDS = (
     "named",
     "dated",
     "discovered",
-    "created",
+    # NOT "created": logging refuses an extra key that would overwrite an
+    # attribute the record already carries, and every LogRecord has a
+    # ``created`` timestamp. A counter passed under that name raised
+    # KeyError("Attempt to overwrite 'created' in LogRecord") instead of
+    # logging, which is what killed the hourly character sync.
+    "created_count",
     "linked",
     "pruned",
     "users",

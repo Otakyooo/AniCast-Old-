@@ -145,7 +145,10 @@ def sync_character_library(limit: int = 5) -> dict[str, int]:
     if not titles:
         cursor = 0
         titles = list(Title.objects.order_by("id")[:batch_limit])
-    totals = {"titles": 0, "failed": 0, "discovered": 0, "created": 0, "linked": 0}
+    # "created_count", not "created": the totals dict is splatted into a log
+    # record, and "created" is an attribute every LogRecord already has, so
+    # logging refused it and the task failed after doing its work.
+    totals = {"titles": 0, "failed": 0, "discovered": 0, "created_count": 0, "linked": 0}
     deadline = time.monotonic() + 440
     for title in titles:
         if time.monotonic() >= deadline:
@@ -159,8 +162,11 @@ def sync_character_library(limit: int = 5) -> dict[str, int]:
             cache.set("catalog:character-sync-cursor", cursor, timeout=None)
             continue
         totals["titles"] += 1
-        for key in ("discovered", "created", "linked"):
-            totals[key] += getattr(result, key)
+        # The result attribute keeps its name; only the log-facing total is
+        # renamed, so the mapping is explicit rather than a key-by-key loop.
+        totals["discovered"] += result.discovered
+        totals["created_count"] += result.created
+        totals["linked"] += result.linked
         cursor = title.id
         cache.set("catalog:character-sync-cursor", cursor, timeout=None)
     logger.info("Character slice synchronized", extra={"event": "character_sync_completed", **totals})
