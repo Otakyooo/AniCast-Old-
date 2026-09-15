@@ -459,7 +459,13 @@ summary:focus-visible {
   text-overflow: ellipsis;
 }
 
-.catalog-card .card-availability { color: var(--muted-2) }
+/* Three-step hierarchy in the card meta block. All three rows used to share
+   one colour, so "2025 · 24 серий" and the genre list were indistinguishable
+   and the block read as a single gray slab. Facts lead, the genre list
+   recedes, and availability -- the line that answers "can I watch this" -- is
+   the only emphasised row. */
+.catalog-card .card-genres { color: var(--muted-2) }
+.catalog-card .card-availability { color: var(--muted); font-weight: 600 }
 
 .catalog-card-media { background: transparent }
 

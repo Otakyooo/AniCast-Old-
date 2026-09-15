@@ -104,7 +104,11 @@
   --background-translucent: rgba(241, 233, 221, .88);
   --text: #211A16;
   --muted: #665647;
-  --muted-2: #7A685A;
+  /* #7A685A measured 4.41:1 against the page background (#F1E9DD) -- under the
+     4.5:1 AA floor for the 13px meta text that uses this token, and catalogue
+     cards are transparent so their meta sits directly on that background.
+     Darkened within the same hue family to clear AA (5.46:1). */
+  --muted-2: #6B5A4C;
   --border: #D8C8B5;
   --border-control: #C9B9A5;
   --border-media: rgba(33, 26, 22, .18);
