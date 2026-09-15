@@ -179,7 +179,17 @@ function CardLibraryControls({ slug }: { slug: string }) {
   );
 }
 
-export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; variant?: "default" | "media" }) {
+export function CatalogCard({
+  item,
+  variant = "default",
+  libraryControls = true,
+}: {
+  item: CatalogItem;
+  variant?: "default" | "media";
+  /** False renders the card without the library toggle. Shelves that are pure
+   *  browsing (the home "newest" rail) ask for this; the catalog keeps it. */
+  libraryControls?: boolean;
+}) {
   const { t, locale } = useI18n();
   const rating = titleRating(item);
   const typeLabel = informativeTitleType(item.title_type) ? t(`type.${item.title_type}`) : null;
@@ -231,7 +241,7 @@ export function CatalogCard({ item, variant = "default" }: { item: CatalogItem; 
       </Link>
       {/* Library toggle: visible even on hover-free pointers, outside the
           click area of the card link itself. */}
-      <CardLibraryControls slug={item.slug} />
+      {libraryControls && <CardLibraryControls slug={item.slug} />}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import Image from "next/image";
 import type { Metadata } from "next";
 import { CatalogCard } from "../components/catalog-card";
 import { ContinueWatchingBlock } from "../components/continue-watching-block";
@@ -14,11 +13,9 @@ import {
   emptyPage,
   getAiringTitles,
   getCatalog,
-  getFranchises,
   getRecentEpisodes,
   getSchedule,
   type CatalogItem,
-  type FranchiseSummary,
   type ScheduleItem,
   type ScheduleResponse,
 } from "../lib/api";
@@ -31,7 +28,6 @@ import styles from "./home.module.css";
 export const dynamic = "force-dynamic";
 
 const SHELF_SIZE = 12;
-const FRANCHISE_SHELF_SIZE = 8;
 /** Below this size a shelf reads as abandoned rather than curated. */
 const MIN_FULL_SHELF = 6;
 /** A shelf with fewer cards is dropped: a titled one-card strip looks broken. */
@@ -55,6 +51,7 @@ function CatalogShelf({
   href,
   linkLabel,
   emptyLabel,
+  showLibraryControls = true,
 }: {
   title: string;
   subtitle: string;
@@ -62,6 +59,9 @@ function CatalogShelf({
   href: string;
   linkLabel: string;
   emptyLabel: string;
+  /** Set false to render plain cards. The shelf below decides whether its
+   *  cards carry the library toggle; the catalog keeps it. */
+  showLibraryControls?: boolean;
 }) {
   return (
     <section className="section">
@@ -73,40 +73,11 @@ function CatalogShelf({
         <Link href={href}>{linkLabel}</Link>
       </div>
       {items.length ? (
-        <RailScroller railClassName={styles.posterRail}>{items.map((item) => <CatalogCard item={item} key={item.slug} variant="media" />)}</RailScroller>
+        <RailScroller railClassName={styles.posterRail}>{items.map((item) => <CatalogCard item={item} key={item.slug} variant="media" libraryControls={showLibraryControls} />)}</RailScroller>
       ) : (
         <div className="empty-state" role="status"><strong>{emptyLabel}</strong></div>
       )}
     </section>
-  );
-}
-
-function FranchiseCard({
-  item,
-  countLabel,
-  yearsLabel,
-}: {
-  item: FranchiseSummary;
-  countLabel: string;
-  yearsLabel: string;
-}) {
-  const posters = item.poster_urls.slice(0, 3);
-  return (
-    <Link className={styles.franchiseCard} href={`/franchises/${item.slug}`} title={item.name}>
-      {/* Three-poster strip: a franchise is many works, and the collage says
-          so before any text does. */}
-      <span className={styles.franchiseStrip} aria-hidden="true">
-        {posters.length ? posters.map((url) => (
-          <span className={styles.franchiseStripFrame} key={url}>
-            <Image src={url} alt="" fill sizes="120px" quality={92} referrerPolicy="no-referrer" />
-          </span>
-        )) : <span className={styles.franchiseFallback}>{item.name.slice(0, 1).toUpperCase()}</span>}
-      </span>
-      <span className={styles.franchiseBody}>
-        <strong>{item.name}</strong>
-        <small>{[countLabel, yearsLabel].filter(Boolean).join(" · ")}</small>
-      </span>
-    </Link>
   );
 }
 
@@ -115,11 +86,10 @@ export default async function HomePage() {
   // Every block degrades to an empty shelf instead of a 500 when the API is
   // briefly unreachable, which also keeps the container healthcheck independent
   // from the Caddy -> API chain during cold starts.
-  const [airing, popular, newest, franchises, schedule, recentEpisodes, { locale, t }] = await Promise.all([
+  const [airing, popular, newest, schedule, recentEpisodes, { locale, t }] = await Promise.all([
     getAiringTitles().catch((): CatalogItem[] => []),
     getCatalog({ ordering: "popular", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
     getCatalog({ ordering: "recent", pageSize: SHELF_SIZE }).catch(() => emptyPage<CatalogItem>()),
-    getFranchises(1, "", FRANCHISE_SHELF_SIZE).catch(() => emptyPage<FranchiseSummary>()),
     getSchedule(todayKey, addDays(todayKey, 2)).catch((): ScheduleResponse => emptyPage()),
     getRecentEpisodes(RECENT_EPISODE_DAYS).catch((): ScheduleItem[] => []),
     getI18n(),
@@ -172,37 +142,9 @@ export default async function HomePage() {
           the shelf never adds a titled empty block. */}
       <RecommendationShelf />
 
-      {/* Franchises are pure discovery: whole universes instead of single
-          titles, and by construction they never duplicate the shelves above. */}
-      {franchises.results.length >= MIN_VISIBLE_SHELF && (
-        <section className="section">
-          <div className="section-heading">
-            <div className={styles.shelfHeading}>
-              <h2>{t("nav.franchises")}</h2>
-              <p>{t("franchise.subtitle")}</p>
-            </div>
-            <Link href="/franchises">{t("home.showAll")}</Link>
-          </div>
-          <RailScroller railClassName={styles.franchiseRail}>
-            {franchises.results.map((franchise) => (
-              <FranchiseCard
-                item={franchise}
-                key={franchise.slug}
-                countLabel={t("franchise.titlesCount", { count: franchise.title_count })}
-                yearsLabel={
-                  franchise.year_from
-                    ? franchise.year_to && franchise.year_to !== franchise.year_from
-                      ? `${franchise.year_from}–${franchise.year_to}`
-                      : franchise.year_to === franchise.year_from
-                        ? String(franchise.year_from)
-                        : t("title.yearsOngoing", { year: franchise.year_from })
-                    : ""
-                }
-              />
-            ))}
-          </RailScroller>
-        </section>
-      )}
+      {/* The franchise rail used to sit here. Franchises are still part of the
+          product — they are reachable from the catalog and from title pages —
+          but as a home shelf they pushed the next real shelf below the fold. */}
 
       {newestShelfItems.length >= MIN_VISIBLE_SHELF && <CatalogShelf
         title={t("home.newest")}
@@ -211,6 +153,7 @@ export default async function HomePage() {
         href="/catalog"
         linkLabel={t("home.showAll")}
         emptyLabel={t("home.sectionEmpty")}
+        showLibraryControls={false}
       />}
     </div>
   </PageShell>;

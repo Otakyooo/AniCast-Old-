@@ -51,6 +51,18 @@ export function resumeEpisode(entry: ContinueWatchingEntry): Episode | null {
   return entry.resume_episode ?? entry.next_episode;
 }
 
+/**
+ * True when the episode the shelf would resume was actually started.
+ *
+ * The backend reports a playback position only for the episode the viewer
+ * opened; a resume target further ahead (the next unwatched episode) reports
+ * zero. Both the label and the progress bar key off this, so a title queued for
+ * its next episode never claims progress it does not have.
+ */
+export function resumeEpisodeStarted(entry: ContinueWatchingEntry): boolean {
+  return (entry.resume_at_seconds ?? 0) > 0;
+}
+
 export class ContinueWatchingApiError extends Error {
   status: number;
 

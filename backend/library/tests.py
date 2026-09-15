@@ -8,7 +8,6 @@ from catalog.models import Episode, Franchise, Genre, Provider, Source, Title, T
 from django.utils import timezone
 
 from library.models import EpisodeProgress, LibraryEntry, TitleCollection, TitleCollectionItem, TitleNote
-from library.views import ContinueWatchingView
 
 
 @pytest.fixture
@@ -500,12 +499,12 @@ def test_notes_list_serializes_a_full_page_within_a_query_budget(users, django_a
 def test_continue_watching_cost_follows_the_shelf_cap_not_the_history_size(
     users, django_assert_max_num_queries
 ):
-    """The shelf resolves a resume source per shelf title, and nothing more.
+    """The whole shelf resolves its resume targets in one query.
 
-    Finding the first authorized episode is one bounded lookup per shelf title
-    by design, so the cost scales with ``title_limit`` — not with how much
-    history the viewer has, and not with the localized fields each row renders.
-    Twice the progress rows must leave the count unchanged.
+    The shelf used to stop at twelve titles and pay one source lookup per title.
+    Both are gone: every started, unfinished title is returned, and the targets
+    are resolved together. The budget is the one the capped shelf already met,
+    so returning twice as many entries must not exceed it.
     """
     opened_at = timezone.now()
     for index, (_, episode) in enumerate(_personal_shelf_fixture(users[0], 24, with_progress=True)):
@@ -515,17 +514,67 @@ def test_continue_watching_cost_follows_the_shelf_cap_not_the_history_size(
     client = APIClient()
     client.force_login(users[0])
 
-    # Three extra constant queries joined the shelf payload: the hidden-titles
-    # filter, the franchise siblings (next-part payload) and their localized
-    # names — none of them scale with history size or shelf width.
+    # Constant queries joined the shelf payload: the hidden-titles filter, the
+    # completed-titles filter, the franchise siblings (next-part payload) and
+    # their localized names — none of them scale with history size.
     with django_assert_max_num_queries(42):
         response = client.get("/api/v1/continue-watching/", HTTP_ACCEPT_LANGUAGE="ru")
 
     assert response.status_code == 200
     entries = response.json()
-    assert len(entries) == ContinueWatchingView.title_limit
+    assert len(entries) == 24
     assert entries[0]["resume_episode"]["name"].startswith("Эпизод")
     assert entries[0]["title"]["name"].startswith("Полка")
+
+
+@pytest.mark.django_db
+def test_continue_watching_drops_a_title_marked_watched_by_hand(users, titles):
+    """A manual "Просмотрено" outranks leftover playback progress.
+
+    Deactivation and completion are different claims: the library status is the
+    viewer's own statement about the title, so the resume shelf must not keep
+    offering an episode of it just because a progress row still exists.
+    """
+    for number in (1, 2, 3):
+        make_playable(Episode.objects.create(title=titles[0], number=number))
+    make_playable(Episode.objects.create(title=titles[1], number=1))
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+    client.post("/api/v1/episodes/second/1/progress/")
+
+    assert {entry["title"]["slug"] for entry in client.get("/api/v1/continue-watching/").json()} == {
+        "first",
+        "second",
+    }
+
+    LibraryEntry.objects.create(user=users[0], title=titles[0], status=LibraryEntry.Status.COMPLETED)
+
+    assert [
+        entry["title"]["slug"] for entry in client.get("/api/v1/continue-watching/").json()
+    ] == ["second"]
+
+    # The progress row is untouched: marking a title watched is not a delete.
+    assert EpisodeProgress.objects.filter(user=users[0], episode__title=titles[0]).exists()
+
+
+@pytest.mark.django_db
+def test_continue_watching_keeps_a_title_that_is_merely_planned_or_on_hold(users, titles):
+    """Only "completed" removes a title; other library statuses must not.
+
+    "В планах" and "Отложено" say nothing about finishing, and a viewer who
+    parked a title still expects to resume it.
+    """
+    make_playable(Episode.objects.create(title=titles[0], number=1))
+    client = APIClient()
+    client.force_login(users[0])
+    client.post("/api/v1/episodes/first/1/progress/")
+
+    for status in (LibraryEntry.Status.PLANNED, LibraryEntry.Status.ON_HOLD, LibraryEntry.Status.DROPPED):
+        LibraryEntry.objects.update_or_create(user=users[0], title=titles[0], defaults={"status": status})
+        assert [
+            entry["title"]["slug"] for entry in client.get("/api/v1/continue-watching/").json()
+        ] == ["first"], f"{status} must not remove the title from the shelf"
 
 
 @pytest.mark.django_db

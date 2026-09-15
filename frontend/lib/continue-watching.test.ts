@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resumeEpisode, resumeProgressPercent, type ContinueWatchingEntry } from "./continue-watching.ts";
+import { resumeEpisode, resumeEpisodeStarted, resumeProgressPercent, type ContinueWatchingEntry } from "./continue-watching.ts";
 
 
 function entry(overrides: Partial<ContinueWatchingEntry> = {}): ContinueWatchingEntry {
@@ -44,4 +44,18 @@ test("resumeProgressPercent falls back to watched episodes and never invents pro
   assert.equal(resumeProgressPercent(entry({ resume_at_seconds: 48, duration_seconds: null })), 0);
   assert.equal(resumeProgressPercent(entry({ resume_at_seconds: 0, duration_seconds: 120 })), 0);
   assert.equal(resumeProgressPercent(entry()), 0);
+});
+
+
+test("resumeEpisodeStarted is true only for an episode with a real position", () => {
+  assert.equal(resumeEpisodeStarted(entry({ resume_at_seconds: 48, duration_seconds: 120 })), true);
+  // Opened but never played: the shelf must not claim progress.
+  assert.equal(resumeEpisodeStarted(entry({ resume_at_seconds: 0, duration_seconds: 120 })), false);
+  assert.equal(resumeEpisodeStarted(entry()), false);
+  // A finished episode hands over to the next one, which has no position yet,
+  // so the card offers "Смотреть серию N" rather than "Продолжить серию N".
+  assert.equal(
+    resumeEpisodeStarted(entry({ is_watched: true, resume_at_seconds: 0, duration_seconds: null })),
+    false,
+  );
 });

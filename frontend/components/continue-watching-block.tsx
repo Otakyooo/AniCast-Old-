@@ -10,6 +10,7 @@ import {
   getContinueWatching,
   hideFromContinueWatching,
   resumeEpisode,
+  resumeEpisodeStarted,
   resumeProgressPercent,
   unhideFromContinueWatching,
   type ContinueWatchingEntry,
@@ -53,14 +54,17 @@ function voiceLabel(entry: ContinueWatchingEntry, t: (key: string, values?: Reco
   return `${kindLabel}: ${entry.source_name}`;
 }
 
-/** Single line describing the resume state ("Серия 4 · 08:32 / 24:10" etc). */
+/** Single line describing the resume state ("Серия 4 · 08:32 / 24:10" etc).
+ *
+ *  The line follows what actually happens when the viewer presses play: an
+ *  episode with a real position shows where it stopped, an episode that was
+ *  never started is announced as the one to begin with. */
 function resumeFactLine(
   entry: ContinueWatchingEntry,
   t: (key: string, values?: Record<string, string | number>) => string,
 ): string {
   const target = resumeEpisode(entry);
   if (!target) return "";
-  if (entry.is_watched) return t("home.nextEpisodeResume", { number: target.number });
   const position = entry.resume_at_seconds ?? 0;
   if (position > 0) {
     const duration = typeof entry.duration_seconds === "number" && entry.duration_seconds > 0
@@ -210,13 +214,14 @@ export function ResumeCard({
 
   const title = entry.title;
   const playHref = titleWatchHref(title.slug, target.number, entry.source_selection_key || undefined);
-  // The play button must name what actually starts: the next episode or the
-  // currently watched one at its real position, in the played voice variant.
-  const playLabel = target.number === 1
-    ? t("home.startEpisode", { number: 1 })
-    : entry.is_watched
-      ? t("home.nextEpisodeResume", { number: target.number })
-      : t("home.continueEpisode", { number: target.number });
+  // The play button must name what actually starts: an episode with a saved
+  // position is continued, an episode that was never started is one to begin
+  // with. `is_watched` is not the signal — a finished episode hands over to the
+  // next one, which has no position of its own either.
+  const started = resumeEpisodeStarted(entry);
+  const playLabel = started
+    ? t("home.continueEpisode", { number: target.number })
+    : t("home.startEpisode", { number: target.number });
   const factLine = resumeFactLine(entry, t);
   const countLine = resumeCountLine(entry, locale, t);
   const voiceLine = voiceLabel(entry, t);
@@ -252,9 +257,13 @@ export function ResumeCard({
         <span className={styles.continueFact}>{factLine}</span>
         {countLine !== "" && <span className={styles.continueMeta}>{countLine}</span>}
         {voiceLine !== "" && <span className={styles.continueVoice}>{voiceLine}</span>}
-        <span className={styles.continueProgressTrack} aria-hidden="true">
-          <span className={styles.continueProgressBar} style={{ width: `${resumeProgressPercent(entry)}%` }} />
-        </span>
+        {/* No track without a started episode: an empty bar under "Смотреть
+            серию N" reads as lost progress rather than as a fresh episode. */}
+        {started && (
+          <span className={styles.continueProgressTrack} aria-hidden="true">
+            <span className={styles.continueProgressBar} style={{ width: `${resumeProgressPercent(entry)}%` }} />
+          </span>
+        )}
       </div>
       <div className={styles.continueActions}>
         <Link className={`primary ${styles.continuePlay}`} href={playHref}>

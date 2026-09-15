@@ -3,7 +3,7 @@ import type { Locale } from "./config";
 const ru: Record<string, string> = {
   "meta.homeTitle":"Anicast — аниме-каталог, расписание и сообщество","meta.homeDescription":"Каталог аниме с описаниями, персонажами, расписанием новых серий, оценками и личной библиотекой.","meta.catalogDescription":"Каталог аниме Anicast: поиск по названию, жанрам, формату и статусу выхода.","meta.communityDescription":"Оценки и одобренные рецензии зрителей Anicast без скрытых спойлеров.","meta.mediaDescription":"Трейлеры, промо-материалы и изображения аниме с подтверждённой атрибуцией прав.","meta.franchisesDescription":"Франшизы аниме на Anicast: связанные сезоны, фильмы и спешлы одной вселенной.",
   "meta.description":"Wiki, библиотека и просмотр аниме","common.login":"Войти","common.retry":"Повторить","common.loadFailed":"Не удалось загрузить данные","common.loadFailedText":"Попробуйте ещё раз. Выбранные параметры сохранены.","common.pagination":"Страницы результатов","common.pageMissing":"На этой странице больше нет записей","common.firstPage":"На первую страницу","catalog.randomFailed":"Не удалось выбрать тайтл. Попробуйте ещё раз.","common.loading":"Загрузка...","common.apiUnavailable":"Сайт временно недоступен","common.apiUnavailableText":"Сервис вернётся через несколько минут — мы уже знаем о проблеме.","common.back":"← Назад","common.next":"Вперёд →","common.save":"Сохранить","common.delete":"Удалить","common.cancel":"Отмена","common.search":"Найти","common.error":"Не удалось выполнить запрос.",
-  "nav.main":"Основная навигация","nav.home":"Главная","nav.catalog":"Каталог","nav.schedule":"Расписание","nav.franchises":"Франшизы","nav.community":"Сообщество","nav.more":"Ещё","nav.profile":"Профиль","nav.notifications":"Уведомления","nav.libraryShort":"Библиотека","nav.library":"МОЯ БИБЛИОТЕКА","nav.watching":"Смотрю","nav.planned":"Запланировано","nav.completed":"Просмотрено","nav.favorites":"Избранное","language.label":"Язык интерфейса",
+  "nav.main":"Основная навигация","nav.home":"Главная","nav.catalog":"Каталог","nav.schedule":"Расписание","nav.franchises":"Франшизы","nav.community":"Сообщество","nav.profile":"Профиль","nav.notifications":"Уведомления","nav.libraryShort":"Библиотека","nav.library":"МОЯ БИБЛИОТЕКА","nav.watching":"Смотрю","nav.planned":"Запланировано","nav.completed":"Просмотрено","nav.favorites":"Избранное","language.label":"Язык интерфейса",
   "home.title":"Продолжи свой путь","home.subtitle":"Изучай миры, сохраняй личный контекст и возвращайся к просмотру.","home.openCatalog":"Открыть каталог","home.catalogCount":"{count} аниме уже в каталоге",
   "catalog.eyebrow":"КОЛЛЕКЦИЯ ANICAST","catalog.title":"Каталог","catalog.searchLabel":"Поиск по каталогу","catalog.searchPlaceholder":"Название тайтла...","catalog.format":"Формат","catalog.allFormats":"Все форматы","catalog.series":"Сериал","catalog.movie":"Фильм","catalog.special":"Спешл","catalog.status":"Статус выпуска","catalog.anyStatus":"Любой статус","catalog.apply":"Применить","catalog.reset":"Сбросить","catalog.notFound":"Ничего не найдено","catalog.empty":"Каталог пока пуст","catalog.changeFilters":"Попробуй изменить параметры или посмотреть всю коллекцию.","catalog.emptyText":"Скоро здесь появятся тайтлы Anicast.","catalog.resetFilters":"Сбросить фильтры","catalog.page":"Страница {current} из {total}","catalog.found":"Найдено: {count}","catalog.sortLabel":"Сортировка","catalog.sortDefault":"Рекомендуемое","catalog.sortPopular":"По популярности","catalog.sortRecent":"Сначала новые","catalog.sortName":"По алфавиту","catalog.genre":"Жанр","catalog.allGenres":"Все жанры","catalog.random":"Случайный тайтл","catalog.seasonsSeparate":"Показывать сезоны отдельно","catalog.seasonsGrouped":"Группировать по франшизам","card.playableOf":"Доступно {available} из {total} серий","card.playableOfOngoing":"Доступно {available} из {total} серий · выходит","card.playableOnly":"Доступно серий: {available}","card.noPlayable":"Нет доступных серий","card.addToLibrary":"+ В планы","card.removeFromLibrary":"Убрать из библиотеки",
   "status.ongoing":"Выходит","status.finished":"Завершено","status.planned":"Скоро","status.unknown":"Статус уточняется","type.anime":"Аниме","type.movie":"Фильм","type.ova":"OVA","type.special":"Спешл","year.unknown":"Год не указан",
@@ -25,7 +25,7 @@ const en: Record<string, string> = {
   ...ru,
   "meta.homeTitle":"Anicast — anime catalog, schedule and community","meta.homeDescription":"Explore anime descriptions, characters, upcoming episode schedules, viewer ratings and your personal library.","meta.catalogDescription":"Browse the Anicast anime catalog by title, genre, format and release status.","meta.communityDescription":"Ratings and moderated reviews from Anicast viewers, with spoilers kept under your control.","meta.mediaDescription":"Anime trailers, promotional materials and images with verified rights attribution.","meta.franchisesDescription":"Anime franchises on Anicast: related seasons, films and specials from one universe.",
   "meta.description":"Anime wiki, library and viewing","common.login":"Sign in","common.retry":"Try again","common.loadFailed":"Could not load data","common.loadFailedText":"Try again. Your selected filters are preserved.","common.pagination":"Result pages","common.pageMissing":"This page no longer has any entries","common.firstPage":"Go to the first page","catalog.randomFailed":"Could not pick a title. Try again.","common.loading":"Loading...","common.apiUnavailable":"The site is temporarily unavailable","common.apiUnavailableText":"The service will be back in a few minutes — we already know about it.","common.back":"← Back","common.next":"Next →","common.save":"Save","common.delete":"Delete","common.cancel":"Cancel","common.search":"Search","common.error":"Request failed.",
-  "nav.main":"Main navigation","nav.home":"Home","nav.catalog":"Catalog","nav.schedule":"Schedule","nav.franchises":"Franchises","nav.community":"Community","nav.more":"More","nav.profile":"Profile","nav.notifications":"Notifications","nav.libraryShort":"Library","nav.library":"MY LIBRARY","nav.watching":"Watching","nav.planned":"Planned","nav.completed":"Completed","nav.favorites":"Favorites","language.label":"Interface language",
+  "nav.main":"Main navigation","nav.home":"Home","nav.catalog":"Catalog","nav.schedule":"Schedule","nav.franchises":"Franchises","nav.community":"Community","nav.profile":"Profile","nav.notifications":"Notifications","nav.libraryShort":"Library","nav.library":"MY LIBRARY","nav.watching":"Watching","nav.planned":"Planned","nav.completed":"Completed","nav.favorites":"Favorites","language.label":"Interface language",
   "home.title":"Continue your journey","home.subtitle":"Explore worlds, keep your personal context and return to watching.","home.openCatalog":"Open catalog","home.catalogCount":"{count} anime already in the catalog",
   "catalog.eyebrow":"ANICAST COLLECTION","catalog.title":"Catalog","catalog.searchLabel":"Search catalog","catalog.searchPlaceholder":"Title name...","catalog.format":"Format","catalog.allFormats":"All formats","catalog.series":"Series","catalog.movie":"Movie","catalog.special":"Special","catalog.status":"Release status","catalog.anyStatus":"Any status","catalog.apply":"Apply","catalog.reset":"Reset","catalog.notFound":"Nothing found","catalog.empty":"Catalog is empty","catalog.changeFilters":"Change the filters or browse the full collection.","catalog.emptyText":"Anicast titles will appear here soon.","catalog.resetFilters":"Reset filters","catalog.page":"Page {current} of {total}","catalog.found":"Found: {count}","catalog.sortLabel":"Sort by","catalog.sortDefault":"Recommended","catalog.sortPopular":"Most popular","catalog.sortRecent":"Newest first","catalog.sortName":"Alphabetical","catalog.genre":"Genre","catalog.allGenres":"All genres","catalog.random":"Random title","catalog.seasonsSeparate":"Show seasons separately","catalog.seasonsGrouped":"Group franchises","card.playableOf":"{available} of {total} episodes playable","card.playableOfOngoing":"{available} of {total} playable · airing","card.playableOnly":"{available} episodes playable","card.noPlayable":"No playable episodes","card.addToLibrary":"+ My list","card.removeFromLibrary":"Remove from library",
   "status.ongoing":"Airing","status.finished":"Completed","status.planned":"Coming soon","status.unknown":"Status unknown","type.anime":"Anime","type.movie":"Movie","type.ova":"OVA","type.special":"Special","year.unknown":"Year not specified",
@@ -78,7 +78,7 @@ Object.assign(ru, {
   // Главная: hero-прогресс и элементы полки.
   "home.removeHistory":"Убрать из истории","home.removeHistoryFailed":"Не удалось убрать тайтл из истории.",
   "home.shelfMeta.episode":"{count} серия","home.shelfMeta.few":"{count} серии","home.shelfMeta.many":"{count} серий",
-  "footer.about":"О проекте Anicast","footer.aboutText":"Anicast — независимый каталог аниме: расписания, оценки и личная библиотека. Напишите нам, если нашли неточность или хотите помочь проекту: support@anicast.online."
+  "footer.about":"О проекте Anicast","footer.aboutText":"Anicast — независимый каталог аниме: расписания, оценки и личная библиотека.","footer.support":"Поддержка",
 });
 
 Object.assign(en, {
@@ -100,7 +100,7 @@ Object.assign(en, {
 Object.assign(en, {
   "home.removeHistory":"Remove from history","home.removeHistoryFailed":"Could not remove the title from history.",
   "home.shelfMeta.episode":"{count} episode","home.shelfMeta.few":"{count} episodes","home.shelfMeta.many":"{count} episodes",
-  "footer.about":"About Anicast","footer.aboutText":"Anicast is an independent anime catalog: schedules, ratings and a personal library. Email support@anicast.online if you spotted an inaccuracy or want to help the project."
+  "footer.about":"About Anicast","footer.aboutText":"Anicast is an independent anime catalog: schedules, ratings and a personal library.","footer.support":"Support",
 });
 
 Object.assign(ru, {
@@ -132,7 +132,7 @@ Object.assign(ru, {
   "account.sectionLibraryHint":"{count} в списке",
   "account.recentNotes":"Последние заметки","account.collectionsHeading":"Мои коллекции","account.recommendedHeading":"Вам может понравиться",
   "account.watchingHeading":"Смотрю","account.plannedHeading":"В планах","account.newEpisodesHeading":"Новые серии",
-  "home.heroEyebrow":"Продолжить просмотр","home.continueEpisode":"Продолжить {number} серию",
+  "home.heroEyebrow":"Продолжить просмотр","home.continueEpisode":"Продолжить серию {number}",
   "profile.tabOverview":"Обзор","profile.tabLibrary":"Библиотека","profile.tabHistory":"История",
   "profile.statsHours":"Часы","profile.statsAvgRating":"Средняя оценка","profile.genreToCatalog":"Открыть в каталоге",
   "profile.favoriteGenres":"Любимые жанры",
@@ -438,7 +438,7 @@ Object.assign(ru, {
   // Продолжение просмотра: единый формат строк и меню карточки.
   "home.continueWatchingText":"Серия, точка остановки и выбранная озвучка.",
   "home.allStarted":"Все начатые","home.startEp":"Смотреть {number} серию",
-  "home.nextEpisodeResume":"Далее — серия {number}","home.startEpisode":"Начать с серии {number}",
+  "home.startEpisode":"Смотреть серию {number}",
   "home.episodeProgressLine":"Серия {number} · {time}",
   "home.episodesWatched":"просмотрено {count} из {total}",
   "home.removeFromContinue":"Убрать из продолжения","home.continueRemoved":"Убрано из продолжения",
@@ -452,7 +452,7 @@ Object.assign(en, {
   "nav.preferences":"Preferences","nav.openPrefs":"Open preferences","theme.label":"Theme",
   "home.continueWatchingText":"Episode, resume point and chosen voice track.",
   "home.allStarted":"All started","home.startEp":"Watch episode {number}",
-  "home.nextEpisodeResume":"Next — episode {number}","home.startEpisode":"Start with episode {number}",
+  "home.startEpisode":"Watch episode {number}",
   "home.episodeProgressLine":"Episode {number} · {time}",
   "home.episodesWatched":"watched {count} of {total}",
   "home.removeFromContinue":"Remove from continue watching","home.continueRemoved":"Removed from continue watching",

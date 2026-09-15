@@ -4,7 +4,6 @@ import { getI18n } from "../i18n/server";
 import { BrandLockup } from "./brand-lockup";
 import { GlobalSearch } from "./global-search";
 import { MobileSearchLink } from "./mobile-search-link";
-import { NavMoreMenu } from "./nav-more-menu";
 import { UserMenu } from "./user-menu";
 import { CalendarDots, House, SquaresFour, UserCircle } from "@phosphor-icons/react/dist/ssr";
 
@@ -12,6 +11,12 @@ export type NavSection =
   | "home" | "catalog" | "schedule" | "franchises" | "collections" | "characters"
   | "media" | "community" | "profile" | "library";
 
+// The desktop header carries the four watching routes and nothing else. The
+// secondary links (franchises / collections / community) were removed from the
+// header on purpose, so no dropdown is left behind it: community lives in the
+// footer, and franchises/collections stay reachable from the catalog and from
+// title pages.
+//
 // Personal routes highlight nothing in the desktop top nav by design: the
 // library lives inside the profile (design freeze v0.2, acceptance #2).
 export async function SiteHeader({ active }: { active: NavSection }) {
@@ -30,7 +35,6 @@ export async function SiteHeader({ active }: { active: NavSection }) {
           <Link className={linkClass("catalog")} href="/catalog">{t("nav.catalog")}</Link>
           <Link className={linkClass("schedule")} href="/schedule">{t("nav.schedule")}</Link>
           <Link className={linkClass("library")} href="/library">{t("nav.libraryShort")}</Link>
-          <NavMoreMenu />
         </nav>
         <div className="header-search"><GlobalSearch /></div>
         <div className="global-actions">

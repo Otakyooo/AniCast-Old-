@@ -10,6 +10,7 @@ from django.db.models import (
     IntegerField,
     OuterRef,
     Prefetch,
+    Q,
     Subquery,
     Sum,
     Value,
@@ -408,32 +409,46 @@ class ContinueWatchingView(APIView):
     have an authorized source; completed and currently unplayable titles do not
     become dead cards on the home page. Titles hidden through the shelf menu
     stay out until explicitly restored; hiding never removes history.
+
+    The shelf is uncapped on purpose: every title the viewer started and has not
+    finished belongs here. The resume target is resolved for the whole shelf in
+    a single query, so removing the cap does not turn the page into one lookup
+    per title.
     """
 
     permission_classes = [IsAuthenticated]
-    title_limit = 12
 
     def get(self, request):
         hidden_ids = set(
             ContinueWatchingHidden.objects.filter(user=request.user).values_list("title_id", flat=True)
         )
+        # A title marked watched by hand leaves the shelf even while playback
+        # rows still exist: the explicit library status is the stronger signal,
+        # and a "Просмотрено" card inside "Продолжить просмотр" contradicts
+        # itself. Hiding stays separate — it never touched the library entry.
+        completed_ids = set(
+            LibraryEntry.objects.filter(
+                user=request.user, status=LibraryEntry.Status.COMPLETED
+            ).values_list("title_id", flat=True)
+        )
+        excluded_ids = hidden_ids | completed_ids
         progress_entries = list(
             EpisodeProgress.objects.filter(user=request.user)
-            .exclude(episode__title_id__in=hidden_ids)
+            .exclude(episode__title_id__in=excluded_ids)
             .select_related("episode", "episode__title", "episode__title__franchise")
             .prefetch_related(
                 *episode_payload_prefetch("episode"),
                 *title_payload_prefetch("episode__title"),
             )
-            .order_by("-last_opened_at", "-id")[: self.title_limit * 20]
+            .order_by("-last_opened_at", "-id")
         )
         latest_by_title: dict[int, EpisodeProgress] = {}
         highest_watched: dict[int, int] = {}
         for entry in progress_entries:
             title_id = entry.episode.title_id
-            if title_id not in latest_by_title and len(latest_by_title) < self.title_limit:
+            if title_id not in latest_by_title:
                 latest_by_title[title_id] = entry
-            if title_id in latest_by_title and entry.is_watched:
+            if entry.is_watched:
                 highest_watched[title_id] = max(highest_watched.get(title_id, 0), entry.episode.number)
         if not latest_by_title:
             return Response([])
@@ -447,8 +462,10 @@ class ContinueWatchingView(APIView):
             ).values("episode__title_id").annotate(count=Count("id"))
         }
         # An opened-but-unwatched episode resumes on itself; a watched one starts
-        # after the highest watched number. The source query is bounded to the
-        # user's latest titles and stops at the first authorized candidate.
+        # after the highest watched number. One OR of per-title thresholds
+        # resolves the whole shelf, ordered so the first authorized source per
+        # title wins; the per-title loop this replaces was bounded by the shelf
+        # cap, which no longer exists.
         resume_after = {
             title_id: (
                 highest_watched.get(title_id, entry.episode.number)
@@ -458,15 +475,21 @@ class ContinueWatchingView(APIView):
             for title_id, entry in latest_by_title.items()
         }
         resume_by_title: dict[int, Episode] = {}
+        resume_after_filter = Q()
         for title_id, threshold in resume_after.items():
-            sources = playback_source_queryset().filter(
-                episode__title_id=title_id,
-                episode__number__gt=threshold,
-            ).order_by("episode__number", "id")
-            for source in sources.iterator(chunk_size=100):
+            resume_after_filter |= Q(episode__title_id=title_id, episode__number__gt=threshold)
+        if resume_after_filter:
+            candidates = (
+                playback_source_queryset()
+                .filter(resume_after_filter)
+                .order_by("episode__title_id", "episode__number", "id")
+            )
+            for source in candidates.iterator(chunk_size=500):
+                title_id = source.episode.title_id
+                if title_id in resume_by_title:
+                    continue
                 if playback_available(source):
                     resume_by_title[title_id] = source.episode
-                    break
         # The source queryset joins the episode but not its translations, and
         # every resume episode is serialized twice below. Re-hydrating them in
         # one query keeps the localized name out of the per-row path.
