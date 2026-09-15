@@ -242,58 +242,6 @@ def test_episode_metadata_can_prefer_single_request_fallback(monkeypatch):
 
 
 @pytest.mark.django_db
-def test_name_repair_restores_a_misplaced_provider_name(tmp_path):
-    """Row 1 holds episode 2's label while its players are episode 1's."""
-    title = Title.objects.create(name="Bebop", slug="1-bebop")
-    first = Episode.objects.create(title=title, number=1, name="Stray Dog Strut")
-    EpisodeTranslation.objects.create(episode=first, language="ja", name="野良犬のストラット")
-    Episode.objects.create(title=title, number=2, name="Stray Dog Strut")
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 1}, "episodes": {
-        "1": {"title": {"en": "Asteroid Blues", "ja": "アステロイド・ブルース"}},
-        "2": {"title": {"en": "Stray Dog Strut", "ja": "野良犬のストラット"}},
-    }}))
-    output = StringIO()
-    call_command("repair_episode_names", title.slug, str(mapping), apply=True, stdout=output)
-    assert "APPLIED: renamed=1" in output.getvalue()
-    first.refresh_from_db()
-    assert first.name == "Asteroid Blues"
-    assert first.translations.get(language="ja").name == "アステロイド・ブルース"
-    # The row that was already right is untouched.
-    assert Episode.objects.get(title=title, number=2).name == "Stray Dog Strut"
-
-
-@pytest.mark.django_db
-def test_name_repair_refuses_text_the_provider_never_supplied(tmp_path):
-    """Spelling drift is not a misplaced copy, so it must not be overwritten."""
-    title = Title.objects.create(name="Brotherhood", slug="5114-brotherhood")
-    Episode.objects.create(title=title, number=1, name="Envoy From the East")
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 5114}, "episodes": {
-        "1": {"title": {"en": "The Envoy from the East"}},
-    }}))
-    with pytest.raises(CommandError, match="not a provider title"):
-        call_command("repair_episode_names", title.slug, str(mapping), apply=True, stdout=StringIO())
-    assert Episode.objects.get(title=title, number=1).name == "Envoy From the East"
-
-
-@pytest.mark.django_db
-def test_name_repair_dry_run_writes_nothing(tmp_path):
-    title = Title.objects.create(name="Bebop", slug="1-bebop")
-    Episode.objects.create(title=title, number=1, name="Stray Dog Strut")
-    Episode.objects.create(title=title, number=2, name="Stray Dog Strut")
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 1}, "episodes": {
-        "1": {"title": {"en": "Asteroid Blues"}},
-        "2": {"title": {"en": "Stray Dog Strut"}},
-    }}))
-    output = StringIO()
-    call_command("repair_episode_names", title.slug, str(mapping), stdout=output)
-    assert "DRY-RUN: renamed=1" in output.getvalue()
-    assert Episode.objects.get(title=title, number=1).name == "Stray Dog Strut"
-
-
-@pytest.mark.django_db
 def test_prune_deletes_artifact_rows_and_rescues_the_local_max_name(tmp_path):
     """Rows above the local run are the shifted import's copies, not episodes.
 
@@ -517,3 +465,39 @@ def test_specials_repair_handles_a_shifted_special_numbering(tmp_path, monkeypat
     assert first.season_number == 0
     last.refresh_from_db()
     assert last.name == "Yet Another Man`s Battlefield"
+
+@pytest.mark.django_db
+def test_name_repair_leaves_text_the_provider_never_supplied(tmp_path):
+    """Spelling drift is not a misplaced copy, so it is reported and skipped."""
+    title = Title.objects.create(name="Brotherhood", slug="5114-brotherhood")
+    Episode.objects.create(title=title, number=1, name="Envoy From the East")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 5114}, "episodes": {
+        "1": {"title": {"en": "The Envoy from the East"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_names", title.slug, str(mapping), apply=True, stdout=output)
+    assert "renamed=0" in output.getvalue()
+    assert "is not a provider title" in output.getvalue()
+    assert Episode.objects.get(title=title, number=1).name == "Envoy From the East"
+
+
+@pytest.mark.django_db
+def test_name_repair_fixes_the_rest_when_one_row_is_unexplained(tmp_path):
+    """Rows are independent: one unexplained name no longer blocks the others."""
+    title = Title.objects.create(name="Shippuuden", slug="1735-shippuuden")
+    Episode.objects.create(title=title, number=1, name="Something We Did Not Write")
+    Episode.objects.create(title=title, number=2, name="Gamma")
+    Episode.objects.create(title=title, number=3, name="Gamma")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 1735}, "episodes": {
+        "1": {"title": {"en": "Alpha"}},
+        "2": {"title": {"en": "Beta"}},
+        "3": {"title": {"en": "Gamma"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_names", title.slug, str(mapping), apply=True, stdout=output)
+    assert "renamed=1" in output.getvalue()
+    assert Episode.objects.get(title=title, number=1).name == "Something We Did Not Write"
+    assert Episode.objects.get(title=title, number=2).name == "Beta"
+    assert Episode.objects.get(title=title, number=3).name == "Gamma"

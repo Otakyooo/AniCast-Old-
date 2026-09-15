@@ -10,16 +10,19 @@ labels are not.
 
 The mapping's keys *are* the MAL episode numbers and its `title` carries `en` and
 `ja`, which is exactly what the catalog stores, so the names can be restored from
-it. Two guards keep this from becoming a rewrite of editorial text:
+it. One guard keeps this from becoming a rewrite of editorial text: a name is only
+replaced when the current one is provably a misplaced copy, because it equals
+another episode's provider title. Text that merely differs is left alone, which is
+why spelling drift such as "Envoy From the East" against the provider's "The
+Envoy from the East" is not touched, and a name matching no provider title at all
+is left alone too, because that is text we did not write.
 
-* a name is only replaced when the current one is provably a misplaced copy --
-  it equals another episode's provider title. Text that merely differs is left
-  alone, which is why spelling drift like "Envoy From the East" against the
-  provider's "The Envoy from the East" is not touched;
-* a name matching no provider title at all is refused outright, because that is
-  text we did not write.
+Refusal is per row. It used to be per title, which meant one unexplained name
+blocked the repair of every other episode in the work -- Naruto Shippuuden's row
+2 stopped row 458 from being corrected. Rows are independent, so a row that cannot
+be explained is reported and skipped, and the rest still get fixed.
 
-Refusing is per title, so a title is never left half-renamed. Dry-run by default.
+Dry-run by default.
 """
 
 from __future__ import annotations
@@ -76,7 +79,7 @@ class Command(BaseCommand):
             for language in LANGUAGES
         }
 
-        renames: list[tuple[Episode, str, dict[str, str]]] = []
+        renames: list[tuple[Episode, dict[str, str]]] = []
         with transaction.atomic():
             title = Title.objects.select_for_update().get(slug=slug)
             episodes = list(Episode.objects.select_for_update().filter(title=title).order_by("number"))
@@ -85,34 +88,37 @@ class Command(BaseCommand):
                 if not wanted:
                     continue
                 changes: dict[str, str] = {}
+                unexplained = ""
                 if "en" in wanted and _identity_key(episode.name) != _identity_key(wanted["en"]):
-                    if _identity_key(episode.name) not in known["en"]:
-                        raise CommandError(
-                            f"Episode {episode.number} name {episode.name!r} is not a provider title; "
-                            "refusing to overwrite text we did not write"
-                        )
-                    changes["en"] = wanted["en"]
-                for translation in episode.translations.all():
-                    language = translation.language
-                    if language not in wanted or language not in known:
-                        continue
-                    if _identity_key(translation.name) == _identity_key(wanted[language]):
-                        continue
-                    if _identity_key(translation.name) not in known[language]:
-                        raise CommandError(
-                            f"Episode {episode.number} {language} name {translation.name!r} is not a "
-                            "provider title; refusing to overwrite text we did not write"
-                        )
-                    changes[language] = wanted[language]
+                    if _identity_key(episode.name) in known["en"]:
+                        changes["en"] = wanted["en"]
+                    else:
+                        unexplained = episode.name
+                if not unexplained:
+                    for translation in episode.translations.all():
+                        language = translation.language
+                        if language not in wanted or language not in known:
+                            continue
+                        if _identity_key(translation.name) == _identity_key(wanted[language]):
+                            continue
+                        if _identity_key(translation.name) not in known[language]:
+                            unexplained = translation.name
+                            break
+                        changes[language] = wanted[language]
+                if unexplained:
+                    self.stdout.write(
+                        f"keeping {episode.number}: {unexplained!r} is not a provider title"
+                    )
+                    continue
                 if changes:
-                    renames.append((episode, changes["en"] if "en" in changes else "", changes))
+                    renames.append((episode, changes))
 
-            for episode, new_name, changes in renames:
+            for episode, changes in renames:
                 self.stdout.write(f"{episode.number}: {episode.name!r} -> {changes}")
             if options["apply"]:
-                for episode, new_name, changes in renames:
-                    if new_name:
-                        episode.name = new_name
+                for episode, changes in renames:
+                    if "en" in changes:
+                        episode.name = changes["en"]
                         episode.save(update_fields=["name"])
                     for translation in episode.translations.all():
                         if translation.language in changes:
