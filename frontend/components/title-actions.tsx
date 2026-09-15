@@ -141,9 +141,7 @@ function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: Title
               : t("watch.title")}
           </Link>
         )}
-        {guest ? (
-          <Link className={styles.secondaryAction} href="/login">{t("common.login")}</Link>
-        ) : (
+        {!guest && (
           <>
             <label className={styles.listControl}>
               <span>{t("title.listLabel")}</span>
@@ -189,6 +187,11 @@ function TitleActionsContent({ slug, watchHref, explicitEpisode = false }: Title
         </p>
       )}
 
+      {/* A guest saw a sign-in button here and this sentence under it: two
+          invitations to the same thing, with the header already offering the
+          button. The sentence says why signing in helps, so it stays as the
+          hero's only sign-in note; the player reports the same state in its own
+          line, where it belongs. */}
       {guest && <p className={styles.actionHint}>{t("title.actionsGuest")}</p>}
       {error && <p className={styles.actionError} role="alert">{error}</p>}
     </div>

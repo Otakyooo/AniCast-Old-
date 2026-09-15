@@ -227,7 +227,6 @@
 }
 
 .watch,
-.secondaryAction,
 .favoriteActive {
   display: inline-flex;
   align-items: center;
@@ -254,10 +253,6 @@
 .watch:hover:not(:disabled) { background: var(--primary-hover) }
 .watch:active:not(:disabled) { transform: scale(.985) }
 
-.secondaryAction:hover:not(:disabled) { border-color: var(--border-emphasis); background: var(--surface-1) }
-
-.secondaryAction:active:not(:disabled) { background: var(--surface-2) }
-
 .favoriteActive {
   border-color: var(--favorite-border);
   background: var(--favorite-surface);
@@ -265,7 +260,6 @@
 }
 
 .watch:disabled,
-.secondaryAction:disabled,
 .favoriteActive:disabled {
   border-color: var(--border);
   background: var(--surface-1);
