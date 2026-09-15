@@ -409,6 +409,8 @@ class EpisodeDetailView(PublicCacheMixin, APIView):
             ),
             title__slug=slug,
             number=number,
+            # A special can share the number; this endpoint is the work's run.
+            season_number=1,
         )
         return Response(EpisodeDetailSerializer(episode, context={"request": request}).data)
 

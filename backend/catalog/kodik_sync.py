@@ -138,7 +138,12 @@ def sync_title(
         title.save(update_fields=["duration_minutes"])
     outcome.credits = _sync_credits(title, material)
 
-    episodes = {episode.number: episode for episode in Episode.objects.filter(title=title)}
+    # Keyed by number, so it must hold one run only: a special can share a
+    # number and would otherwise take the regular episode's player.
+    episodes = {
+        episode.number: episode
+        for episode in Episode.objects.filter(title=title, season_number=1)
+    }
     authoritative_episode_ceiling = max(episodes, default=0) if title.status == "finished" else 0
     active_source_ids: list[int] = []
     for item in results:
@@ -254,7 +259,9 @@ def sync_title(
         moment = timezone.make_aware(moment)
     if moment and isinstance(episodes_aired, int) and episodes_aired >= 0:
         number = episodes_aired + 1
-        episode, created = Episode.objects.get_or_create(title=title, number=number)
+        episode, created = Episode.objects.get_or_create(
+            title=title, number=number, season_number=1
+        )
         if created:
             outcome.created_episodes += 1
         if episode.air_at != moment:

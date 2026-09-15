@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from community.models import TitleRating
-from library.models import LibraryEntry
+from library.models import EpisodeProgress, LibraryEntry
 from catalog.models import (
     Episode,
     EpisodeTranslation,
@@ -1557,3 +1557,28 @@ def test_import_catalog_drops_shikimori_placeholder_images():
     assert Character.objects.get(slug="no-art").image_origin_url == ""
     assert Title.objects.get(slug="no-poster").poster_url == ""
     assert Title.objects.get(slug="no-poster").poster_origin_url == ""
+
+
+@pytest.mark.django_db
+def test_a_special_sharing_a_number_does_not_break_the_episode_endpoints():
+    """A special may hold the same number as a regular episode.
+
+    Addressing an episode by number alone then matches two rows. Both the episode
+    page and watch progress did exactly that and returned 500 until each said which
+    run it meant.
+    """
+    title = Title.objects.create(name="Shared", slug="9999-shared")
+    regular = Episode.objects.create(title=title, number=1, name="Regular")
+    Episode.objects.create(title=title, number=1, season_number=0, name="Special")
+
+    response = APIClient().get(f"/api/v1/titles/{title.slug}/episodes/1/")
+    assert response.status_code == 200
+    assert response.json()["name"] == "Regular"
+
+    user = User.objects.create_user(email="shared@example.com", password="A-strong-passphrase-2042")
+    EpisodeProgress.objects.create(user=user, episode=regular, last_opened_at=timezone.now())
+    client = APIClient()
+    client.force_authenticate(user)
+    progress = client.get(f"/api/v1/episodes/{title.slug}/1/progress/")
+    assert progress.status_code == 200
+    assert progress.json()["episode"]["number"] == 1

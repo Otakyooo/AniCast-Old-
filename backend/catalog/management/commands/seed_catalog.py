@@ -98,7 +98,10 @@ class Command(BaseCommand):
         ]
         for number, english_name, russian_name, moment in upcoming:
             extra, _ = Episode.objects.update_or_create(
-                title=title, number=number, defaults={"name": english_name, "air_at": moment}
+                title=title,
+                number=number,
+                season_number=1,
+                defaults={"name": english_name, "air_at": moment},
             )
             EpisodeTranslation.objects.update_or_create(
                 episode=extra, language="en", defaults={"name": english_name}

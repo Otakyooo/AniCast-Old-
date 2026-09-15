@@ -248,6 +248,7 @@ class HistoryEntryView(APIView):
             EpisodeProgress.objects.filter(
                 user=request.user,
                 episode__title__slug=slug,
+                episode__season_number=1,
                 is_watched=True,
             )
             .order_by("episode__number")
@@ -272,6 +273,9 @@ class EpisodeProgressView(APIView):
             Episode.objects.select_related("title").prefetch_related(playback_sources_prefetch()),
             title__slug=slug,
             number=number,
+            # A special can share the number, and this endpoint is the
+            # work's own run.
+            season_number=1,
         )
 
     def get_progress(self, request, slug, number):
@@ -286,6 +290,7 @@ class EpisodeProgressView(APIView):
             user=request.user,
             episode__title__slug=slug,
             episode__number=number,
+            episode__season_number=1,
         )
 
     def get(self, request, slug, number):
@@ -477,7 +482,11 @@ class ContinueWatchingView(APIView):
         resume_by_title: dict[int, Episode] = {}
         resume_after_filter = Q()
         for title_id, threshold in resume_after.items():
-            resume_after_filter |= Q(episode__title_id=title_id, episode__number__gt=threshold)
+            resume_after_filter |= Q(
+                episode__title_id=title_id,
+                episode__number__gt=threshold,
+                episode__season_number=1,
+            )
         if resume_after_filter:
             candidates = (
                 playback_source_queryset()
