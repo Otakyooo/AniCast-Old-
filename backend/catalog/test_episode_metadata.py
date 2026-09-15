@@ -114,6 +114,75 @@ def test_number_repair_is_dry_run_idempotent_and_preserves_user_progress(tmp_pat
 
 
 @pytest.mark.django_db
+def test_number_repair_ignores_a_shift_that_only_looks_self_overlapping(tmp_path):
+    """A season shifted by its own length is not a real overlap.
+
+    Noragami Aragoto maps local 1..13 to absolute 13..25, so 13 reads as both a
+    target and a source on paper. The catalog only holds rows up to 24, so the
+    pair needing row 25 does nothing and the rest are unambiguous.
+    """
+    title = Title.objects.create(name="Aragoto", slug="30503-aragoto")
+    Episode.objects.create(title=title, number=1, name="Bearing a Posthumous Name", air_date="2015-10-03")
+    Episode.objects.create(title=title, number=13, name="Bearing a Posthumous Name", air_date="2015-10-03")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 30503}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 13, "title": {"en": "Bearing a Posthumous Name"}},
+        "13": {"absoluteEpisodeNumber": 25, "title": {"en": "The God of Fortune`s Message"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_numbering", title.slug, str(mapping), apply=True, stdout=output)
+    assert "APPLIED: merged=1" in output.getvalue()
+    assert list(title.episodes.values_list("number", flat=True)) == [1]
+
+
+@pytest.mark.django_db
+def test_number_repair_refuses_a_genuine_chain(tmp_path):
+    """When the whole chain is present, one number is both source and target."""
+    title = Title.objects.create(name="Chain", slug="1-chain")
+    for number in (1, 13, 25):
+        Episode.objects.create(title=title, number=number, name="Same Name", air_date="2018-01-01")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 1}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 13, "title": {"en": "Same Name"}},
+        "13": {"absoluteEpisodeNumber": 25, "title": {"en": "Same Name"}},
+    }}))
+    with pytest.raises(CommandError, match="Overlapping number ranges"):
+        call_command("repair_episode_numbering", title.slug, str(mapping), apply=True, stdout=StringIO())
+    assert title.episodes.count() == 3
+
+
+@pytest.mark.django_db
+def test_number_repair_accepts_provider_spelling_drift_when_dates_agree(tmp_path):
+    """Jikan and ani.zip capitalise and punctuate the same episode differently."""
+    title = Title.objects.create(name="Season three", slug="36456-season-three")
+    Episode.objects.create(title=title, number=5, name="Drive it Home, Iron Fist!!!", air_date="2018-05-05")
+    Episode.objects.create(title=title, number=43, name="Drive It Home, Iron Fist!!!", air_date="2018-05-05")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 36456}, "episodes": {
+        "5": {"absoluteEpisodeNumber": 43, "title": {"en": "Drive It Home, Iron Fist!!!"}},
+    }}))
+    output = StringIO()
+    call_command("repair_episode_numbering", title.slug, str(mapping), apply=True, stdout=output)
+    assert "APPLIED: merged=1" in output.getvalue()
+    assert list(title.episodes.values_list("number", flat=True)) == [5]
+
+
+@pytest.mark.django_db
+def test_number_repair_still_refuses_a_fuzzy_name_with_a_different_date(tmp_path):
+    """A normalized name alone must never confirm an identity."""
+    title = Title.objects.create(name="Season three", slug="36456-season-three-b")
+    Episode.objects.create(title=title, number=5, name="Drive it Home, Iron Fist!!!", air_date="2018-05-05")
+    Episode.objects.create(title=title, number=43, name="Drive It Home, Iron Fist!!!", air_date="2018-05-12")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 36456}, "episodes": {
+        "5": {"absoluteEpisodeNumber": 43, "title": {"en": "Drive It Home, Iron Fist!!!"}},
+    }}))
+    with pytest.raises(CommandError, match="Unconfirmed identity"):
+        call_command("repair_episode_numbering", title.slug, str(mapping), apply=True, stdout=StringIO())
+    assert title.episodes.count() == 2
+
+
+@pytest.mark.django_db
 def test_episode_metadata_follows_bounded_pagination(monkeypatch):
     title = Title.objects.create(name="Paged", slug="21-paged")
     calls = []

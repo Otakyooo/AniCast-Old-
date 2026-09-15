@@ -8,6 +8,20 @@ from django.db import transaction
 from catalog.models import Episode, EpisodeTranslation, Title
 
 
+def _identity_key(value: object) -> str:
+    """Case- and punctuation-insensitive episode identity.
+
+    Jikan and ani.zip spell the same episode differently: "Drive it Home, Iron
+    Fist!!!" against "Drive It Home, Iron Fist!!!", "What's" against "What`s".
+    The normalized form catches those without treating two genuinely different
+    episodes as one — which is why it is only ever used together with the air
+    date, never on its own.
+    """
+    if not isinstance(value, str):
+        return ""
+    return "".join(character for character in value.casefold() if character.isalnum())
+
+
 class Command(BaseCommand):
     help = "Merge empty absolute-number duplicates using a reviewed ani.zip mapping file."
 
@@ -33,19 +47,35 @@ class Command(BaseCommand):
                 pairs.append((int(local), absolute, row.get("title", {}).get("en")))
         if len(pairs) > 100 or len({p[1] for p in pairs}) != len(pairs):
             raise CommandError("Ambiguous or oversized mapping")
-        if {p[0] for p in pairs} & {p[1] for p in pairs}:
-            raise CommandError("Overlapping number ranges require manual review")
 
         merged = 0
         with transaction.atomic():
             title = Title.objects.select_for_update().get(slug=slug)
             episodes = {e.number: e for e in Episode.objects.select_for_update().filter(title=title)}
-            for local, absolute, name in pairs:
-                source = episodes.get(absolute)
-                if source is None:
-                    continue  # Already repaired: idempotent.
+            # A pair whose absolute row is absent is already repaired. Dropping
+            # those first keeps the overlap check about rows that exist: a
+            # mapping that shifts a season by its own length (local 1..13,
+            # absolute 13..25) looks self-overlapping, but only the pairs whose
+            # source is really present can touch anything.
+            actionable = [pair for pair in pairs if pair[1] in episodes]
+            if {p[0] for p in actionable} & {p[1] for p in actionable}:
+                raise CommandError("Overlapping number ranges require manual review")
+            for local, absolute, name in actionable:
+                source = episodes[absolute]
                 target = episodes.get(local)
-                if not target or not name or source.name != name or target.name != name:
+                if not target or not name:
+                    raise CommandError(f"Unconfirmed identity: {absolute} -> {local}")
+                # The provider name is the primary evidence. Jikan and ani.zip
+                # spell some episodes differently, so a normalized name is
+                # accepted as well — but only when the air dates agree too, so a
+                # fuzzy name can never confirm an identity on its own.
+                exact = source.name == name and target.name == name
+                fuzzy = (
+                    source.air_date is not None
+                    and source.air_date == target.air_date
+                    and _identity_key(source.name) == _identity_key(name) == _identity_key(target.name)
+                )
+                if not (exact or fuzzy):
                     raise CommandError(f"Unconfirmed identity: {absolute} -> {local}")
                 # Never delete sources, progress, delivery history or future
                 # related models. PostgreSQL row locks also block new FK links.
