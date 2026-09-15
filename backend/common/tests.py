@@ -1,5 +1,7 @@
+import ast
 import json
 import logging
+import pathlib
 from datetime import timedelta
 from typing import Any, cast
 from unittest.mock import patch
@@ -352,6 +354,57 @@ def test_every_safe_field_can_be_passed_as_extra():
             logger.name, logging.INFO, __file__, 1, "m", (), None, extra={field: 1}
         )
         assert getattr(record, field) == 1, field
+
+
+def _extra_keys(node: ast.AST, dicts: dict[str, ast.Dict], seen: frozenset[str] = frozenset()) -> set[str]:
+    """Literal keys of an extra= expression, following **name splats."""
+    keys: set[str] = set()
+    if not isinstance(node, ast.Dict):
+        return keys
+    for key, value in zip(node.keys, node.values):
+        if key is None:
+            if isinstance(value, ast.Name) and value.id in dicts and value.id not in seen:
+                keys |= _extra_keys(dicts[value.id], dicts, seen | {value.id})
+        elif isinstance(key, ast.Constant) and isinstance(key.value, str):
+            keys.add(key.value)
+    return keys
+
+
+def test_no_call_site_logs_a_field_the_allowlist_drops():
+    """A field outside SAFE_FIELDS is discarded, not rejected.
+
+    The formatter emits only the allowlist, so a key it does not name vanishes
+    without a trace: the call site reads as complete and production never sees
+    the field. Four such keys were live in accounts/tasks.py and push/tasks.py.
+    The sibling test above covers the opposite failure — a name that collides
+    with a LogRecord attribute and raises. This one covers silent loss.
+    """
+    backend = pathlib.Path(settings.BASE_DIR)
+    dropped: list[str] = []
+    for path in sorted(backend.rglob("*.py")):
+        if "migrations" in path.parts or path.name == "logging.py" or path.name.startswith("test"):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        dicts = {
+            target.id: node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            owner = node.func.value
+            if not isinstance(owner, ast.Name) or owner.id not in {"logger", "log"}:
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "extra":
+                    continue
+                for key in sorted(_extra_keys(keyword.value, dicts)):
+                    if key not in SAFE_FIELDS:
+                        dropped.append(f"{path.relative_to(backend)}:{node.lineno}: {key}")
+    assert dropped == [], f"extra= fields the formatter drops: {dropped}"
 
 
 # ---------- Availability tracking ----------

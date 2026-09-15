@@ -264,7 +264,8 @@ def send_schedule_digest():
             raise
         except Exception as exc:
             logger.warning("schedule digest failed", extra={
-                "event": "schedule_digest_failed", "channel": channel.pk, "error": type(exc).__name__,
+                "event": "schedule_digest_failed", "channel": channel.pk,
+                "exception_type": type(exc).__name__,
             })
             continue
         channel.last_digest_date = today

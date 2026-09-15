@@ -40,6 +40,14 @@ SAFE_FIELDS = (
     "linked",
     "pruned",
     "users",
+    # Passed by the account and push tasks but missing here, so the formatter
+    # silently dropped them: the call site looked complete and the line was
+    # short a field. ``error`` is deliberately absent — it would duplicate
+    # ``exception_type``, which every other failure site already uses.
+    "kind",
+    "attempts",
+    "expired",
+    "channel",
 )
 
 
