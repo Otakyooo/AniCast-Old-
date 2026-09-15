@@ -85,9 +85,13 @@ def _anizip_rows(mal_id: int) -> list[dict]:
     for raw_number, item in episodes.items():
         if not isinstance(item, dict):
             continue
-        try:
-            number = int(item.get("absoluteEpisodeNumber") or raw_number)
-        except (TypeError, ValueError):
+        # Mapping keys are local to this MAL work. TVDB absolute numbers span
+        # seasons (e.g. SnK S3: key 1, absolute 38); mixing them duplicates rows.
+        # Specials such as S1 must not be imported as ordinary numbered episodes.
+        if not str(raw_number).isdigit():
+            continue
+        number = int(raw_number)
+        if number < 1:
             continue
         raw_titles = item.get("title")
         titles: dict = raw_titles if isinstance(raw_titles, dict) else {}
