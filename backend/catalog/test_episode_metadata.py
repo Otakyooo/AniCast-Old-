@@ -6,7 +6,7 @@ from subprocess import CompletedProcess
 import pytest
 
 from catalog.episode_metadata import EpisodeMetadataError, sync_title_episode_metadata
-from catalog.models import Episode, EpisodeTranslation, Title
+from catalog.models import Episode, EpisodeTranslation, Source, Title
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.contrib.auth import get_user_model
@@ -239,3 +239,86 @@ def test_episode_metadata_can_prefer_single_request_fallback(monkeypatch):
     }])
     result = sync_title_episode_metadata(title, fallback_first=True)
     assert result.dated == 1
+
+
+@pytest.mark.django_db
+def test_prune_deletes_artifact_rows_and_rescues_the_local_max_name(tmp_path):
+    """Rows above the local run are the shifted import's copies, not episodes.
+
+    Local 1..3 mapped to absolute 4..6: rows 1..2 are correct, row 3 carries
+    local 1's name because the import wrote local 1..3 as absolute 4..6, and rows
+    4..6 hold local 1..3's names. Local 3's own name therefore lives on row 6 and
+    must be copied down before the rows above are deleted.
+    """
+    title = Title.objects.create(name="Shifted", slug="100-shifted")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Beta")
+    Episode.objects.create(title=title, number=3, name="Alpha")
+    Episode.objects.create(title=title, number=4, name="Alpha")
+    Episode.objects.create(title=title, number=5, name="Beta")
+    Episode.objects.create(title=title, number=6, name="Gamma")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 100}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 4, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 5, "title": {"en": "Beta"}},
+        "3": {"absoluteEpisodeNumber": 6, "title": {"en": "Gamma"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
+    assert "APPLIED: pruned=3" in output.getvalue()
+    assert list(title.episodes.order_by("number").values_list("number", "name")) == [
+        (1, "Alpha"),
+        (2, "Beta"),
+        (3, "Gamma"),
+    ]
+
+
+@pytest.mark.django_db
+def test_prune_dry_run_deletes_nothing(tmp_path):
+    title = Title.objects.create(name="Shifted", slug="100-shifted")
+    for number, name in ((1, "Alpha"), (2, "Beta"), (3, "Alpha"), (4, "Alpha")):
+        Episode.objects.create(title=title, number=number, name=name)
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 100}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), stdout=output)
+    assert "DRY-RUN: pruned=2" in output.getvalue()
+    assert title.episodes.count() == 4
+
+
+@pytest.mark.django_db
+def test_prune_refuses_a_row_that_carries_a_player(tmp_path):
+    """A row with a player is not disposable; it needs re-pointing first."""
+    title = Title.objects.create(name="Sourced", slug="200-sourced")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Beta")
+    artifact = Episode.objects.create(title=title, number=3, name="Alpha")
+    Source.objects.create(
+        episode=artifact, name="Kodik · AniDUB", url="https://kodikplayer.com/seria/1/x/720p"
+    )
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 200}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
+    }}))
+    with pytest.raises(CommandError, match="needs re-pointing"):
+        call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
+    assert title.episodes.count() == 3
+
+
+@pytest.mark.django_db
+def test_prune_refuses_a_row_that_is_not_a_shifted_copy(tmp_path):
+    """A row above the local run may be a genuine special, so never delete it blind."""
+    title = Title.objects.create(name="Special", slug="300-special")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Recap Special")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 300}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 2, "title": {"en": "Alpha"}},
+    }}))
+    with pytest.raises(CommandError, match="not named after a local episode"):
+        call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
+    assert title.episodes.count() == 2
