@@ -13,6 +13,12 @@ test("characterImage accepts only AniCast media and otherwise uses our brand mar
     characterImage("https://anicast.online/api/v1/media/posters/x-s-aabbccdd.jpg"),
     "https://anicast.online/api/v1/media/posters/x-s-aabbccdd.jpg",
   );
+  // A moved public origin must keep working: the media path is ours whatever
+  // host serves it, and the backend follows POSTERS_PUBLIC_BASE.
+  assert.equal(
+    characterImage("https://anicast.example/api/v1/media/posters/x-s-aabbccdd.jpg"),
+    "https://anicast.example/api/v1/media/posters/x-s-aabbccdd.jpg",
+  );
 });
 
 test("hasCharacterArt reports whether real artwork exists", () => {

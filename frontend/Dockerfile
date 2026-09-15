@@ -15,6 +15,11 @@ ENV NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME=$NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_US
 # bakes http://127.0.0.1:8000, which is nothing on the VPS.
 ARG API_INTERNAL_URL
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
+# The public origin is baked into the media remote pattern and the character
+# image check, so it must be present at build time -- setting it only in the
+# container environment has no effect.
+ARG NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+/** Public origin the API serves posters from, without a trailing slash. */
+function siteHostname(): string {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://anicast.online").hostname;
+  } catch {
+    return "anicast.online";
+  }
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
   // Bound build-time page workers on the small maintenance builder.
@@ -48,7 +57,9 @@ const nextConfig: NextConfig = {
     // costs up to 4 s through the tunnel.
     minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
-      { protocol: "https", hostname: "anicast.online", pathname: "/api/v1/media/**" },
+      // Follows NEXT_PUBLIC_SITE_URL: next/image refuses a src outside these
+      // patterns, so a pinned host would break every poster after a move.
+      { protocol: "https", hostname: siteHostname(), pathname: "/api/v1/media/**" },
     ],
   },
   async rewrites() {

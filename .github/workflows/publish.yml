@@ -18,6 +18,8 @@ env:
   # Baked into the frontend rewrites at build time; the backend is only
   # reachable at this tunnel address from the VPS.
   API_INTERNAL_URL: http://10.78.0.2:8000
+  # Baked into the media remote pattern and the character image check.
+  NEXT_PUBLIC_SITE_URL: https://anicast.online
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -90,6 +92,7 @@ jobs:
             NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME }}
             NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME=${{ env.NEXT_PUBLIC_TELEGRAM_NOTIFY_BOT_USERNAME }}
             API_INTERNAL_URL=${{ env.API_INTERNAL_URL }}
+            NEXT_PUBLIC_SITE_URL=${{ env.NEXT_PUBLIC_SITE_URL }}
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.ref_name == 'main' && 'main' || github.ref_name }}
             ${{ env.FRONTEND_IMAGE }}:sha-${{ github.sha }}
