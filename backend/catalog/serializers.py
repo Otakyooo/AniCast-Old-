@@ -1,3 +1,4 @@
+from django.db.models import Max, Min
 from rest_framework import serializers
 
 from . import portraits, posters
@@ -217,13 +218,17 @@ class TitleSerializer(serializers.ModelSerializer):
 
 class TitleDetailSerializer(TitleSerializer):
     episodes = serializers.SerializerMethodField()
+    specials = serializers.SerializerMethodField()
     characters = serializers.SerializerMethodField()
     credits = serializers.SerializerMethodField()
     related_titles = serializers.SerializerMethodField()
     characters_count = serializers.SerializerMethodField()
 
     class Meta(TitleSerializer.Meta):
-        fields = TitleSerializer.Meta.fields + ["duration_minutes", "episodes", "episodes_count", "characters", "characters_count", "credits", "related_titles"]
+        fields = TitleSerializer.Meta.fields + [
+            "duration_minutes", "episodes", "specials", "episodes_count",
+            "characters", "characters_count", "credits", "related_titles",
+        ]
 
     def get_episodes(self, obj):
         from .playback import playback_sources_prefetch
@@ -248,6 +253,39 @@ class TitleDetailSerializer(TitleSerializer):
         page = episodes if paginator is None else paginator.paginate_queryset(episodes, self.context["request"])
         serializer = EpisodeSerializer if include_sources else EpisodeSummarySerializer
         return serializer(page, many=True, context=self.context).data
+
+    def get_specials(self, obj):
+        """Season zero, split by whether it came out with the work's own run.
+
+        MAL and Shikimori give a separately-released special its own entry and
+        page, and keep one that aired inside the TV run with the series. The
+        same distinction falls out of the dates: a special dated inside the run
+        came out with it.
+        """
+        if not getattr(obj, "specials_count", None):
+            return []
+        rows = (
+            Episode.objects.filter(title=obj, season_number=0)
+            .prefetch_related("translations")
+            .order_by("number")
+        )
+        window = Episode.objects.filter(title=obj, season_number=1).aggregate(
+            first=Min("air_date"), last=Max("air_date")
+        )
+        first, last = window["first"], window["last"]
+        return [
+            {
+                "number": episode.number,
+                "name": translated_value(episode, "name", self.context),
+                "synopsis": translated_value(episode, "synopsis", self.context),
+                "air_date": episode.air_date,
+                "season_number": 0,
+                "released_with_run": bool(
+                    first and last and episode.air_date and first <= episode.air_date <= last
+                ),
+            }
+            for episode in rows
+        ]
 
     def get_characters(self, obj):
         links = TitleCharacter.objects.filter(title=obj).select_related("character").prefetch_related(

@@ -325,7 +325,10 @@ class TitleDetailView(PublicCacheMixin, RetrieveAPIView):
     # detail view never loads the full episode list of a long-running series.
     queryset = annotate_rating_aggregates(
         Title.objects.annotate(
-            episodes_count=Count("episodes", distinct=True, filter=Q(episodes__season_number=1))
+            episodes_count=Count("episodes", distinct=True, filter=Q(episodes__season_number=1)),
+            # Counted in the same SELECT so a work without specials costs the
+            # serializer nothing extra, which is the common case.
+            specials_count=Count("episodes", distinct=True, filter=Q(episodes__season_number=0)),
         ).select_related(
             "franchise"
         ).prefetch_related(
@@ -403,14 +406,19 @@ class CreatorDetailView(PublicCacheMixin, RetrieveAPIView):
 
 class EpisodeDetailView(PublicCacheMixin, APIView):
     def get(self, request, slug, number):
+        # A special can share the number with a regular episode, so the run has
+        # to be named. Absent means the work's own episodes, which is what every
+        # existing link means.
+        season = request.query_params.get("season", "1")
+        if season not in {"0", "1"}:
+            return Response({"detail": "season must be 0 or 1"}, status=400)
         episode = get_object_or_404(
             Episode.objects.select_related("title").prefetch_related(
                 "translations", playback_sources_prefetch()
             ),
             title__slug=slug,
             number=number,
-            # A special can share the number; this endpoint is the work's run.
-            season_number=1,
+            season_number=int(season),
         )
         return Response(EpisodeDetailSerializer(episode, context={"request": request}).data)
 

@@ -1582,3 +1582,33 @@ def test_a_special_sharing_a_number_does_not_break_the_episode_endpoints():
     progress = client.get(f"/api/v1/episodes/{title.slug}/1/progress/")
     assert progress.status_code == 200
     assert progress.json()["episode"]["number"] == 1
+
+
+@pytest.mark.django_db
+def test_specials_are_grouped_by_whether_they_came_out_with_the_run():
+    """MAL gives a separately-released special its own entry; a run-mate stays.
+
+    The distinction falls out of the dates: one dated inside the work's own run
+    came out with it, one dated after it did not.
+    """
+    title = Title.objects.create(name="Run", slug="9998-run")
+    for number, day in ((1, "2020-01-05"), (2, "2020-01-12"), (3, "2020-01-19")):
+        Episode.objects.create(title=title, number=number, name=f"Episode {number}", air_date=day)
+    Episode.objects.create(title=title, number=1, season_number=0, name="Recap", air_date="2020-01-12")
+    Episode.objects.create(title=title, number=2, season_number=0, name="Blu-ray extra", air_date="2021-06-01")
+
+    client = APIClient()
+    payload = client.get(f"/api/v1/titles/{title.slug}/").json()
+    assert [(s["number"], s["released_with_run"]) for s in payload["specials"]] == [
+        (1, True),
+        (2, False),
+    ]
+    # The work's own run is untouched by a special sharing its number.
+    assert [e["number"] for e in payload["episodes"]] == [1, 2, 3]
+
+    # And a number addresses the run it is asked for.
+    assert client.get(f"/api/v1/titles/{title.slug}/episodes/1/").json()["name"] == "Episode 1"
+    special = client.get(f"/api/v1/titles/{title.slug}/episodes/1/?season=0")
+    assert special.json()["name"] == "Recap"
+    assert special.json()["season_number"] == 0
+    assert client.get(f"/api/v1/titles/{title.slug}/episodes/1/?season=9").status_code == 400
