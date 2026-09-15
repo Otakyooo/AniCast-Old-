@@ -26,6 +26,7 @@ import {
   getWatchNavigation,
   type CatalogItem,
   type Episode,
+  type Special,
   type TitleCastEntry,
   type TitleCreditEntry,
   type WatchNavigation,
@@ -155,6 +156,52 @@ function isoDay(value: string): Date {
   return new Date(`${value}T12:00:00Z`);
 }
 
+function SpecialCard({
+  special,
+  slug,
+  voice,
+  dayFormatter,
+  t,
+}: {
+  special: Special;
+  slug: string;
+  voice?: string;
+  dayFormatter: Intl.DateTimeFormat;
+  t: Translator;
+}) {
+  const label = t("episode.special", { number: special.number });
+  const name = special.name || t("episode.untitled");
+
+  return (
+    <li>
+      <Link
+        className={styles.episodeCard}
+        href={titleWatchHref(slug, special.number, voice, 0)}
+        prefetch={false}
+        aria-label={`${label}: ${name}`}
+      >
+        <span className={styles.episodeBody}>
+          <span className={styles.episodeHeading}>
+            <span className={styles.episodeNumber}>{label}</span>
+            <strong>{name}</strong>
+          </span>
+          {special.synopsis && <span className={styles.episodeSynopsis}>{special.synopsis}</span>}
+        </span>
+        <span className={styles.episodeMeta}>
+          {special.air_date && (
+            <time dateTime={special.air_date} title={special.air_date}>
+              {dayFormatter.format(isoDay(special.air_date))}
+            </time>
+          )}
+          <span className={styles.episodeArrow} aria-hidden="true">
+            <ArrowRight size={18} weight="bold" />
+          </span>
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 function EpisodeCard({
   episode,
   slug,
@@ -282,10 +329,13 @@ export default async function CatalogDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ episodes_page?: string; characters_page?: string; tab?: string; episode?: string; voice?: string }>;
+  searchParams: Promise<{ episodes_page?: string; characters_page?: string; tab?: string; episode?: string; voice?: string; season?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
+  // A special can share the number with a regular episode, so the link says which
+  // run it means. Absent means the work's own episodes.
+  const season = query.season === "0" ? 0 : 1;
   const rawPage = Number(query.episodes_page);
   const requestedPage = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawCharactersPage = Number(query.characters_page);
@@ -322,6 +372,11 @@ export default async function CatalogDetailPage({
   }
 
   const episodes = item.episodes ?? [];
+  const specials = item.specials ?? [];
+  // MAL gives a separately-released special its own entry while keeping one that
+  // aired inside the run with the series, and the backend reports which is which.
+  const specialsWithRun = specials.filter((special) => special.released_with_run);
+  const specialsSeparate = specials.filter((special) => !special.released_with_run);
   const episodesCount = item.episodes_count ?? episodes.length;
   const template = titleTemplateState(item.title_type, episodesCount);
   const tab: Tab = requestedTab === "episodes" && !template.showEpisodeTab
@@ -389,13 +444,13 @@ export default async function CatalogDetailPage({
     try {
       let watchEpisode;
       try {
-        watchEpisode = await getEpisode(slug, watchNumber);
+        watchEpisode = await getEpisode(slug, watchNumber, season);
       } catch (error) {
         if (apiErrorStatus(error) !== 404 || watchNumber === fallbackNumber) throw error;
         watchNumber = fallbackNumber;
         watchRetryNumber = fallbackNumber;
         invalidEpisodeRequest = true;
-        watchEpisode = await getEpisode(slug, fallbackNumber);
+        watchEpisode = await getEpisode(slug, fallbackNumber, season);
       }
       const hasCurrentPlayback = (watchEpisode.sources ?? []).some((source) => source.playback_available);
       const playableWithoutCurrent = playableEpisodeNumbers.filter((number) => number !== watchNumber);
@@ -737,6 +792,32 @@ export default async function CatalogDetailPage({
               <strong>{t("title.noEpisodes")}</strong>
               <span>{t("title.noEpisodesText")}</span>
             </div>
+          )}
+          {specials.length > 0 && (
+            <section className={styles.panel}>
+              <h3>{t("title.specials")}</h3>
+              {specialsWithRun.length > 0 && (
+                <>
+                  <h4>{t("title.specialsWithRun")}</h4>
+                  <ol className={styles.episodeList}>
+                    {specialsWithRun.map((special) => (
+                      <SpecialCard special={special} slug={item.slug} voice={query.voice} dayFormatter={dayFormatter} t={t} key={special.number} />
+                    ))}
+                  </ol>
+                </>
+              )}
+              {specialsSeparate.length > 0 && (
+                <>
+                  <h4>{t("title.specialsSeparate")}</h4>
+                  <p>{t("title.specialsSeparateHint")}</p>
+                  <ol className={styles.episodeList}>
+                    {specialsSeparate.map((special) => (
+                      <SpecialCard special={special} slug={item.slug} voice={query.voice} dayFormatter={dayFormatter} t={t} key={special.number} />
+                    ))}
+                  </ol>
+                </>
+              )}
+            </section>
           )}
           {pageCount > 1 && (
             <nav className="episode-pagination" aria-label={t("title.episodes")}>

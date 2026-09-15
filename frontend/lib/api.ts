@@ -32,12 +32,24 @@ export interface PlaybackResponse {
 export interface Episode {
   id: number;
   number: number;
+  /** 1 for the work's own run, 0 for its specials. */
+  season_number?: number;
   name: string;
   synopsis?: string;
   air_date?: string | null;
   /** Confirmed broadcast moment (ISO 8601 with offset) or null when only the day is known. */
   air_at?: string | null;
   sources?: Source[];
+}
+
+/** A season-zero episode: a special, not part of the work's own run. */
+export interface Special {
+  number: number;
+  name: string;
+  synopsis?: string;
+  air_date?: string | null;
+  /** True when it aired inside the work's run, so it came out with the series. */
+  released_with_run: boolean;
 }
 
 export interface EpisodeDetail extends Episode {
@@ -95,6 +107,7 @@ export interface CatalogItem {
   genres?: Genre[];
   franchise?: { name: string; slug: string; description?: string } | null;
   episodes?: Episode[];
+  specials?: Special[];
   episodes_count?: number;
   characters?: TitleCastEntry[];
   characters_count?: number;
@@ -340,8 +353,13 @@ export async function getFirstEpisodeNumber(slug: string): Promise<number | null
   }
 }
 
-export async function getEpisode(slug: string, number: number): Promise<EpisodeDetail> {
-  return request<EpisodeDetail>(`/titles/${encodeURIComponent(slug)}/episodes/${number}/`, { cache: "no-store" });
+export async function getEpisode(slug: string, number: number, season = 1): Promise<EpisodeDetail> {
+  // A special can share the number with a regular episode, so the run is named.
+  const query = season === 1 ? "" : `?season=${season}`;
+  return request<EpisodeDetail>(
+    `/titles/${encodeURIComponent(slug)}/episodes/${number}/${query}`,
+    { cache: "no-store" },
+  );
 }
 
 /** Server- and client-callable episode metadata for a number window.

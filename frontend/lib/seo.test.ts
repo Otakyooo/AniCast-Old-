@@ -56,6 +56,13 @@ test("watch links keep playback on the title page and preserve its state", () =>
   );
   assert.equal(titleWatchHref("title", "invalid"), "/titles/title?episode=1#watch");
   assert.equal(titleWatchHref("title", 3, " dub "), "/titles/title?episode=3&voice=dub#watch");
+  // A special shares its number with a regular episode, so the run is named — and
+  // only when it is not the work's own, so existing links keep their shape.
+  assert.equal(
+    titleWatchHref("title", 3, undefined, 0),
+    "/titles/title?episode=3&season=0#watch",
+  );
+  assert.equal(titleWatchHref("title", 3, "dub", 1), "/titles/title?episode=3&voice=dub#watch");
 });
 
 test("franchise index keeps pagination indexable and consolidates search", () => {

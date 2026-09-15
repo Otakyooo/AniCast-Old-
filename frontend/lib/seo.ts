@@ -13,8 +13,16 @@ function episodeNumber(value: string | number | undefined) {
 }
 
 /** Playback stays on the canonical title page; episode and voice are UI state. */
-export function titleWatchHref(slug: string, episode: string | number = 1, voice?: string) {
+export function titleWatchHref(
+  slug: string,
+  episode: string | number = 1,
+  voice?: string,
+  season = 1,
+) {
   const query = new URLSearchParams({ episode: String(episodeNumber(episode)) });
+  // Only specials differ from the work's own run, so the run is omitted when it
+  // is the default and every existing link keeps its shape.
+  if (season !== 1) query.set("season", String(season));
   const normalizedVoice = voice?.trim();
   if (normalizedVoice) query.set("voice", normalizedVoice);
   return `/titles/${encodeURIComponent(slug)}?${query}#watch`;
