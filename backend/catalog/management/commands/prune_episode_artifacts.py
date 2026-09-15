@@ -1,21 +1,24 @@
-"""Remove episode rows that the absolute-numbering import left above a work's run.
+"""Repair the episode rows an absolute-numbering import left above a work's run.
 
 The metadata import once read `absoluteEpisodeNumber` as the episode number, so a
 season continuing a franchise's numbering gained a second row for episodes it
 already had. Those rows sit above the work's local episode count and are what
 still shows up as duplicate episode names.
 
-A row is deleted only when it is provably an artifact of another row:
+A row is repaired only when it is provably an artifact of another row, and the
+repair keeps everything the row held:
 
-* it carries no related records at all beyond translations. A row with a player,
-  progress or a delivery is not disposable — it holds something the catalogue
-  would lose, and the provider's later packs give those rows URLs the canonical
-  row does not have, so it is kept and reported rather than deleted;
-* it is named after one of the work's own local episodes. A row named something
-  else may be a genuine special that belongs there, so it is kept too.
+* every row above the local run must be named after one of the work's own local
+  episodes. A row named something the local run does not know may be a genuine
+  special — One Punch Man's rows 13..18 are its six OVAs, and two of them kept
+  their own titles — so the whole title is refused rather than guessed at;
+* a row carrying progress or a delivery is kept: that is someone's data and
+  belongs to a re-pointing migration, not this one;
+* the row's players are moved onto the local row it duplicates, skipping URLs
+  already there, and only then is the row deleted. Dropping them instead would
+  lose player links the canonical row does not have, which is a real loss even
+  though the translator itself is already offered.
 
-Decisions are per row, not per title: one row that must be kept does not make its
-neighbours unsafe, and leaving them is just incomplete rather than inconsistent.
 The work's highest local episode can have its correct name sitting on a row about
 to be deleted; that name and its translations move down first, and only from a row
 that is itself being deleted, so a name is never lost.
@@ -32,7 +35,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from catalog.management.commands.repair_episode_numbering import _identity_key
-from catalog.models import Episode, EpisodeTranslation, Title
+from catalog.models import Episode, EpisodeTranslation, Source, Title
 
 
 def _local_names(payload: dict) -> dict[int, str]:
@@ -47,7 +50,7 @@ def _attached(episode: Episode) -> dict[str, int]:
     counts: dict[str, int] = {}
     for relation in episode._meta.related_objects:
         model = relation.related_model
-        if not isinstance(model, type) or model is EpisodeTranslation:
+        if not isinstance(model, type) or model in (EpisodeTranslation, Source):
             continue
         accessor = relation.get_accessor_name()
         if accessor is None:
@@ -59,7 +62,7 @@ def _attached(episode: Episode) -> dict[str, int]:
 
 
 class Command(BaseCommand):
-    help = "Delete the episode rows an absolute-numbering import left above the local run."
+    help = "Repair the episode rows an absolute-numbering import left above the local run."
 
     def add_arguments(self, parser):
         parser.add_argument("title_slug")
@@ -86,31 +89,57 @@ class Command(BaseCommand):
             episodes = {e.number: e for e in Episode.objects.select_for_update().filter(title=title)}
             beyond = sorted(number for number in episodes if number > local_max)
             if not beyond:
-                self.stdout.write(f"DRY-RUN: nothing above local {local_max}; pruned=0 kept=0")
+                self.stdout.write(f"DRY-RUN: nothing above local {local_max}; repaired=0 kept=0")
                 return
 
-            deletable: list[int] = []
-            for number in beyond:
-                attached = _attached(episodes[number])
-                if attached:
-                    self.stdout.write(
-                        f"keeping {number}: carries {sorted(attached)}; needs re-pointing"
-                    )
-                    continue
-                if _identity_key(episodes[number].name) not in known_names:
-                    self.stdout.write(
-                        f"keeping {number}: {episodes[number].name!r} is not named after a local episode"
-                    )
-                    continue
-                deletable.append(number)
+            unknown = [
+                number
+                for number in beyond
+                if episodes[number].name and _identity_key(episodes[number].name) not in known_names
+            ]
+            if unknown:
+                raise CommandError(
+                    f"Episode(s) {unknown} are named something the local run does not know, so "
+                    "they may be genuine specials; nothing was changed"
+                )
 
+            # Resolve every target before mutating anything: the local maximum's
+            # own name may be about to change. A row carrying the local maximum's
+            # provider name belongs to the local maximum itself, even though no
+            # local row is named that yet -- that row is the one whose name has to
+            # move down, so looking it up by name among the local rows would miss
+            # it and strand the name.
             local_row = episodes.get(local_max)
             if local_row is None:
                 raise CommandError(f"Local episode {local_max} is missing")
             wanted = _identity_key(local_names[local_max])
+            canonical: dict[int, Episode | None] = {}
+            by_name: dict[str, Episode] = {}
+            for number, episode in episodes.items():
+                if number <= local_max and episode.name:
+                    by_name.setdefault(_identity_key(episode.name), episode)
+            for number in beyond:
+                name_key = _identity_key(episodes[number].name)
+                canonical[number] = (
+                    local_row if name_key and name_key == wanted else by_name.get(name_key)
+                )
+
+            repaired: list[int] = []
+            for number in beyond:
+                attached = _attached(episodes[number])
+                if attached:
+                    self.stdout.write(
+                        f"keeping {number}: carries {sorted(attached)}; needs a data migration"
+                    )
+                    continue
+                if canonical[number] is None:
+                    self.stdout.write(f"keeping {number}: no local row it could be a copy of")
+                    continue
+                repaired.append(number)
+
             donor_number = None
             if _identity_key(local_row.name) != wanted:
-                donors = [n for n in deletable if _identity_key(episodes[n].name) == wanted]
+                donors = [n for n in repaired if _identity_key(episodes[n].name) == wanted]
                 if len(donors) > 1:
                     raise CommandError(
                         f"Expected one row carrying the name of local {local_max}, found {len(donors)}"
@@ -139,13 +168,26 @@ class Command(BaseCommand):
                         dest.save()
                     local_row.name = donor.name
                     local_row.save(update_fields=["name"])
-                for number in deletable:
-                    self.stdout.write(f"deleting {number}")
-                    episodes[number].delete()
+                for number in repaired:
+                    row = episodes[number]
+                    target = canonical[number]
+                    if target is None:  # pragma: no cover - guarded above
+                        continue
+                    existing = {url for url in Source.objects.filter(episode=target).values_list("url", flat=True)}
+                    moved = 0
+                    for source in Source.objects.filter(episode=row):
+                        if source.url in existing:
+                            continue
+                        source.episode = target
+                        source.save(update_fields=["episode"])
+                        existing.add(source.url)
+                        moved += 1
+                    self.stdout.write(f"deleting {number} (moved {moved} player(s) to {target.number})")
+                    row.delete()
             else:
                 transaction.set_rollback(True)
 
         self.stdout.write(
-            f"{'APPLIED' if options['apply'] else 'DRY-RUN'}: pruned={len(deletable)} "
-            f"kept={len(beyond) - len(deletable)}"
+            f"{'APPLIED' if options['apply'] else 'DRY-RUN'}: repaired={len(repaired)} "
+            f"kept={len(beyond) - len(repaired)}"
         )

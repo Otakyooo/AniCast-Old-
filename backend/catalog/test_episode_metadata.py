@@ -242,54 +242,6 @@ def test_episode_metadata_can_prefer_single_request_fallback(monkeypatch):
 
 
 @pytest.mark.django_db
-def test_prune_deletes_artifact_rows_and_rescues_the_local_max_name(tmp_path):
-    """Rows above the local run are the shifted import's copies, not episodes.
-
-    Local 1..3 mapped to absolute 4..6: rows 1..2 are correct, row 3 carries
-    local 1's name because the import wrote local 1..3 as absolute 4..6, and rows
-    4..6 hold local 1..3's names. Local 3's own name therefore lives on row 6 and
-    must be copied down before the rows above are deleted.
-    """
-    title = Title.objects.create(name="Shifted", slug="100-shifted")
-    Episode.objects.create(title=title, number=1, name="Alpha")
-    Episode.objects.create(title=title, number=2, name="Beta")
-    Episode.objects.create(title=title, number=3, name="Alpha")
-    Episode.objects.create(title=title, number=4, name="Alpha")
-    Episode.objects.create(title=title, number=5, name="Beta")
-    Episode.objects.create(title=title, number=6, name="Gamma")
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 100}, "episodes": {
-        "1": {"absoluteEpisodeNumber": 4, "title": {"en": "Alpha"}},
-        "2": {"absoluteEpisodeNumber": 5, "title": {"en": "Beta"}},
-        "3": {"absoluteEpisodeNumber": 6, "title": {"en": "Gamma"}},
-    }}))
-    output = StringIO()
-    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
-    assert "APPLIED: pruned=3" in output.getvalue()
-    assert list(title.episodes.order_by("number").values_list("number", "name")) == [
-        (1, "Alpha"),
-        (2, "Beta"),
-        (3, "Gamma"),
-    ]
-
-
-@pytest.mark.django_db
-def test_prune_dry_run_deletes_nothing(tmp_path):
-    title = Title.objects.create(name="Shifted", slug="100-shifted")
-    for number, name in ((1, "Alpha"), (2, "Beta"), (3, "Alpha"), (4, "Alpha")):
-        Episode.objects.create(title=title, number=number, name=name)
-    mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 100}, "episodes": {
-        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
-        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
-    }}))
-    output = StringIO()
-    call_command("prune_episode_artifacts", title.slug, str(mapping), stdout=output)
-    assert "DRY-RUN: pruned=2" in output.getvalue()
-    assert title.episodes.count() == 4
-
-
-@pytest.mark.django_db
 def test_name_repair_restores_a_misplaced_provider_name(tmp_path):
     """Row 1 holds episode 2's label while its players are episode 1's."""
     title = Title.objects.create(name="Bebop", slug="1-bebop")
@@ -342,8 +294,56 @@ def test_name_repair_dry_run_writes_nothing(tmp_path):
 
 
 @pytest.mark.django_db
-def test_prune_keeps_a_row_that_carries_a_player(tmp_path):
-    """A row with a player is not disposable; it is kept and reported."""
+def test_prune_deletes_artifact_rows_and_rescues_the_local_max_name(tmp_path):
+    """Rows above the local run are the shifted import's copies, not episodes.
+
+    Local 1..3 mapped to absolute 4..6: rows 1..2 are correct, row 3 carries
+    local 1's name because the import wrote local 1..3 as absolute 4..6, and rows
+    4..6 hold local 1..3's names. Local 3's own name therefore lives on row 6 and
+    must be copied down before the rows above are deleted.
+    """
+    title = Title.objects.create(name="Shifted", slug="100-shifted")
+    Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Beta")
+    Episode.objects.create(title=title, number=3, name="Alpha")
+    Episode.objects.create(title=title, number=4, name="Alpha")
+    Episode.objects.create(title=title, number=5, name="Beta")
+    Episode.objects.create(title=title, number=6, name="Gamma")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 100}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 4, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 5, "title": {"en": "Beta"}},
+        "3": {"absoluteEpisodeNumber": 6, "title": {"en": "Gamma"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
+    assert "APPLIED: repaired=3 kept=0" in output.getvalue()
+    assert list(title.episodes.order_by("number").values_list("number", "name")) == [
+        (1, "Alpha"),
+        (2, "Beta"),
+        (3, "Gamma"),
+    ]
+
+
+@pytest.mark.django_db
+def test_prune_dry_run_deletes_nothing(tmp_path):
+    title = Title.objects.create(name="Shifted", slug="100-shifted")
+    for number, name in ((1, "Alpha"), (2, "Beta"), (3, "Alpha"), (4, "Alpha")):
+        Episode.objects.create(title=title, number=number, name=name)
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 100}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
+    }}))
+    output = StringIO()
+    call_command("prune_episode_artifacts", title.slug, str(mapping), stdout=output)
+    assert "DRY-RUN: repaired=2 kept=0" in output.getvalue()
+    assert title.episodes.count() == 4
+
+
+@pytest.mark.django_db
+def test_prune_moves_players_onto_the_row_it_duplicates(tmp_path):
+    """The artifact's player links outlive the row that held them."""
     title = Title.objects.create(name="Sourced", slug="200-sourced")
     Episode.objects.create(title=title, number=1, name="Alpha")
     Episode.objects.create(title=title, number=2, name="Beta")
@@ -358,13 +358,42 @@ def test_prune_keeps_a_row_that_carries_a_player(tmp_path):
     }}))
     output = StringIO()
     call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
-    assert "pruned=0 kept=1" in output.getvalue()
-    assert title.episodes.count() == 3
+    assert "repaired=1 kept=0" in output.getvalue()
+    assert list(title.episodes.order_by("number").values_list("number", flat=True)) == [1, 2]
+    moved = Source.objects.get(url="https://kodikplayer.com/seria/1/x/720p")
+    assert moved.episode.number == 1
 
 
 @pytest.mark.django_db
-def test_prune_keeps_a_row_that_is_not_a_shifted_copy(tmp_path):
-    """A row above the local run may be a genuine special, so never delete it blind."""
+def test_prune_moves_only_the_players_the_target_lacks(tmp_path):
+    """A URL the target already offers is not added twice."""
+    title = Title.objects.create(name="Overlap", slug="250-overlap")
+    canonical = Episode.objects.create(title=title, number=1, name="Alpha")
+    Episode.objects.create(title=title, number=2, name="Beta")
+    artifact = Episode.objects.create(title=title, number=3, name="Alpha")
+    shared = "https://kodikplayer.com/seria/1/shared/720p"
+    Source.objects.create(episode=canonical, name="Kodik · A", url=shared)
+    Source.objects.create(episode=artifact, name="Kodik · A", url=shared)
+    Source.objects.create(episode=artifact, name="Kodik · B", url="https://kodikplayer.com/seria/9/b/720p")
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 250}, "episodes": {
+        "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
+        "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
+    }}))
+    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
+    assert sorted(Source.objects.filter(episode=canonical).values_list("url", flat=True)) == sorted(
+        [shared, "https://kodikplayer.com/seria/9/b/720p"]
+    )
+    assert Source.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_prune_refuses_a_title_holding_a_possible_special(tmp_path):
+    """A row named something the local run does not know may be a genuine special.
+
+    One Punch Man's rows 13..18 are its six OVAs and two of them kept their own
+    titles, so nothing in that title can be treated as a shifted copy.
+    """
     title = Title.objects.create(name="Special", slug="300-special")
     Episode.objects.create(title=title, number=1, name="Alpha")
     Episode.objects.create(title=title, number=2, name="Recap Special")
@@ -372,29 +401,26 @@ def test_prune_keeps_a_row_that_is_not_a_shifted_copy(tmp_path):
     mapping.write_text(json.dumps({"mappings": {"mal_id": 300}, "episodes": {
         "1": {"absoluteEpisodeNumber": 2, "title": {"en": "Alpha"}},
     }}))
-    output = StringIO()
-    call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
-    assert "pruned=0 kept=1" in output.getvalue()
+    with pytest.raises(CommandError, match="may be genuine specials"):
+        call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=StringIO())
     assert title.episodes.count() == 2
 
 
 @pytest.mark.django_db
-def test_prune_decides_per_row_not_per_title(tmp_path):
-    """One row that must stay does not protect the clean rows beside it."""
-    title = Title.objects.create(name="Mixed", slug="400-mixed")
+def test_prune_keeps_a_row_carrying_user_data(tmp_path):
+    """Progress is someone's data and is not this command's to move."""
+    title = Title.objects.create(name="Watched", slug="500-watched")
     Episode.objects.create(title=title, number=1, name="Alpha")
     Episode.objects.create(title=title, number=2, name="Beta")
-    Episode.objects.create(title=title, number=3, name="Alpha")
-    kept = Episode.objects.create(title=title, number=4, name="Beta")
-    Source.objects.create(
-        episode=kept, name="Kodik · X", url="https://kodikplayer.com/seria/9/x/720p"
-    )
+    artifact = Episode.objects.create(title=title, number=3, name="Alpha")
+    user = get_user_model().objects.create_user(email="watcher@example.com", password="A-strong-passphrase-2042")
+    EpisodeProgress.objects.create(user=user, episode=artifact, last_opened_at=timezone.now())
     mapping = tmp_path / "mapping.json"
-    mapping.write_text(json.dumps({"mappings": {"mal_id": 400}, "episodes": {
+    mapping.write_text(json.dumps({"mappings": {"mal_id": 500}, "episodes": {
         "1": {"absoluteEpisodeNumber": 3, "title": {"en": "Alpha"}},
         "2": {"absoluteEpisodeNumber": 4, "title": {"en": "Beta"}},
     }}))
     output = StringIO()
     call_command("prune_episode_artifacts", title.slug, str(mapping), apply=True, stdout=output)
-    assert "pruned=1 kept=1" in output.getvalue()
-    assert list(title.episodes.order_by("number").values_list("number", flat=True)) == [1, 2, 4]
+    assert "repaired=0 kept=1" in output.getvalue()
+    assert title.episodes.count() == 3
