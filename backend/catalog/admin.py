@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.utils import timezone
 
 from push.tasks import notify_report_handled
@@ -88,11 +89,13 @@ class CharacterImportanceFilter(admin.SimpleListFilter):
 @admin.display(description="Аватар")
 def avatar_preview(obj):
     if not (obj.image_url or obj.image_origin_url) or "missing_original" in (obj.image_url or obj.image_origin_url):
-        return format_html('<span style="color:#b45309;font-weight:600">нет</span>')
+        # mark_safe, not format_html: these literals have no placeholders, and
+        # format_html() without arguments is deprecated for removal in Django 6.0.
+        return mark_safe('<span style="color:#b45309;font-weight:600">нет</span>')
     kind = "characters" if isinstance(obj, Character) else "creators"
     public_url = portraits.public_portrait_url(kind, obj.pk, obj.image_url, obj.image_origin_url)
     if not public_url:
-        return format_html('<span style="color:#b45309;font-weight:600">ожидает зеркалирования</span>')
+        return mark_safe('<span style="color:#b45309;font-weight:600">ожидает зеркалирования</span>')
     return format_html(
         '<img src="{}" alt="" referrerpolicy="no-referrer" '
         'style="width:42px;height:42px;object-fit:cover;object-position:50% 18%;border-radius:50%" />',
@@ -269,7 +272,7 @@ class TitleAdmin(admin.ModelAdmin):
     def poster_tier(self, obj: Title):
         tier = posters.current_tier(obj.poster_url or "")
         if tier is None:
-            return format_html('<span style="color:#8a8a8a">нет</span>')
+            return mark_safe('<span style="color:#8a8a8a">нет</span>')
         label, color = POSTER_TIER_BADGES.get(tier, (tier, "#5f5f5f"))
         return format_html(
             '<span title="{}" style="padding:2px 9px;border-radius:10px;background:{};color:#fff;font-size:11px;font-weight:600">{}</span>',
