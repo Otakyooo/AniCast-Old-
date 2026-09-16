@@ -579,9 +579,10 @@
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
   gap: 12px;
-  /* 96px poster + 12px padding either side keeps every card the same height
-     regardless of which state it is in. */
-  min-height: 120px;
+  /* Fixed, not min-height: the resume state carries a progress bar the next
+     state does not, so a min-height let the two states differ by 6px. Every
+     card is 120px whatever state it is in. */
+  height: 120px;
   padding: 12px;
   border-radius: 8px;
   background: var(--surface-1);
@@ -634,8 +635,9 @@
   min-width: 0;
 }
 
+/* One line with an ellipsis: the spec prefers it on desktop, and it is what
+   keeps a fixed 120px card from overflowing when a title is long. */
 .continueTitle {
-  display: -webkit-box;
   overflow: hidden;
   flex: 1;
   min-width: 0;
@@ -643,9 +645,8 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 18px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .continueTitle:hover { text-decoration: underline; text-underline-offset: 3px }
@@ -864,7 +865,6 @@
    so the grid collapses to a single column. */
 @media (max-width: 767px) {
   .continueList { grid-template-columns: minmax(0, 1fr) }
-  .continueCard { min-height: 112px }
 }
 
 /* Touch: the ⋯ control keeps a 40px target even though it renders smaller. */
