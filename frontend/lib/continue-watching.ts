@@ -51,43 +51,6 @@ export function resumeEpisode(entry: ContinueWatchingEntry): Episode | null {
   return entry.resume_episode ?? entry.next_episode;
 }
 
-/** duration - position, clamped at zero; 0 when the runtime is unknown. */
-export function remainingSeconds(entry: ContinueWatchingEntry): number {
-  const duration = typeof entry.duration_seconds === "number" ? entry.duration_seconds : 0;
-  if (duration <= 0) return 0;
-  return Math.max(0, duration - (entry.resume_at_seconds ?? 0));
-}
-
-/** "Осталось 9 мин" -- one representation only, never the raw timestamp or a
- *  percentage next to it. Rounded to whole minutes, per the spec. */
-export function formatRemaining(
-  seconds: number,
-  t: (key: string, values?: Record<string, string | number>) => string,
-): string {
-  if (seconds <= 0) return "";
-  if (seconds < 60) return t("home.remainingUnderMinute");
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return t("home.remainingMinutes", { count: minutes });
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0
-    ? t("home.remainingHoursMinutes", { hours, minutes: 0 })
-    : t("home.remainingHoursMinutes", { hours, minutes: rest });
-}
-
-/** Resets the saved position of one episode to 0:00. The card stays in the
- *  shelf; only the playback position is cleared. */
-export async function resetEpisodeProgress(slug: string, number: number, durationSeconds: number) {
-  const { syncEpisodeProgress } = await import("./history");
-  await syncEpisodeProgress(slug, number, {
-    watched_seconds: 0,
-    // The write serializer requires a positive duration; fall back to a second
-    // so a title with an unknown runtime can still be reset.
-    duration_seconds: durationSeconds > 0 ? Math.round(durationSeconds) : 1,
-    event: "progress",
-  });
-}
-
 /**
  * True when the episode the shelf would resume was actually started.
  *

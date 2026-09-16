@@ -28,20 +28,10 @@
   --muted-2: #C3AE93;
   --border: #4A3B33;
   --success: #3ba97c;
-  --success-text: #57c596;
+  --success-text: #48b889;
   --warning: #F2B84B;
-  /* #e05a5a measured 4.23:1 on --surface-card and 3.61:1 on
-     --surface-elevated, under the 4.5:1 AA floor. Destructive and error text
-     (the library "remove" item, inline form errors) renders on those surfaces.
-     Lightened to #f27d7b: 7.14 background / 5.85 card / 4.99 elevated. */
-  --danger: #f27d7b;
-  /* Active-route rule and focus ring. The brand amber clears the 3:1 that
-     WCAG 1.4.11 requires of a non-text boundary: 7.6:1 on the header surface. */
-  --accent: #F3A51B;
-  /* Hover wash for the nav pills. Slightly stronger than the light theme's
-     because a dark surface needs more lift to register at the same weight. */
-  --nav-hover: rgba(255, 240, 218, .07);
-  --focus-ring: var(--accent);
+  --danger: #e05a5a;
+  --focus-ring: #F3A51B;
   --border-control: #55443A;
   --border-media: rgba(255, 255, 255, .12);
   --border-emphasis: rgba(255, 255, 255, .38);
@@ -49,9 +39,8 @@
   --primary-soft: rgba(243, 165, 27, .14);
   --primary-soft-strong: rgba(243, 165, 27, .16);
   --primary-border: rgba(243, 165, 27, .45);
-  /* Kept on the --danger hue so borders and tints match the text. */
-  --danger-soft: rgba(242, 125, 123, .12);
-  --danger-border: rgba(242, 125, 123, .55);
+  --danger-soft: rgba(224, 90, 90, .12);
+  --danger-border: rgba(224, 90, 90, .55);
   --success-soft: rgba(50, 196, 141, .14);
   --success-border: rgba(50, 196, 141, .5);
   --warning-soft: rgba(242, 184, 75, .12);
@@ -96,9 +85,7 @@
   --fs-section: 24px;
   --content-width: 1440px;
   --gutter: 32px;
-  /* 56px: a 40px nav pill with 8px of air above and below. The old 64px row
-     existed only to hold the taller, full-height link hit areas. */
-  --nav-height: 56px;
+  --nav-height: 64px;
 }
 
 :root[data-theme="light"] {
@@ -117,29 +104,22 @@
   --background-translucent: rgba(241, 233, 221, .88);
   --text: #211A16;
   --muted: #665647;
-  /* #7A685A measured 4.41:1 against the page background (#F1E9DD) -- under the
-     4.5:1 AA floor for the 13px meta text that uses this token, and catalogue
-     cards are transparent so their meta sits directly on that background.
-     Darkened within the same hue family to clear AA (5.46:1). */
-  --muted-2: #6B5A4C;
+  --muted-2: #7A685A;
   --border: #D8C8B5;
   --border-control: #C9B9A5;
   --border-media: rgba(33, 26, 22, .18);
   --border-emphasis: rgba(33, 26, 22, .5);
   --border-muted: rgba(116, 97, 81, .35);
   --accent-text: #743047;
-  /* Same role as in the dark theme: active-route rule and focus ring. */
-  --accent: #743047;
-  --focus-ring: var(--accent);
-  --nav-hover: rgba(33, 26, 22, .05);
-  /* Light theme cannot reuse the dark theme's orange: #F3A51B on the cream
-     page is 1.71:1, far under the 3:1 WCAG 1.4.11 floor for a control's
-     boundary, so the primary button had almost no figure-ground separation.
-     Darkening it alone is not enough -- the only value clearing both 3:1
-     against the page and 4.5:1 for the dark --on-primary text is #B8760A,
-     which leaves no room for a distinct hover. Pairing a darker amber with
-     light text resolves both: 4.91 page / 5.91 card / 5.60 text, with
-     --primary-hover dark enough to read as a state change. */
+  --focus-ring: #743047;
+  /* Light theme cannot reuse the dark theme's orange: #F3A51B on the cream page
+     is 1.71:1, far under the 3:1 WCAG 1.4.11 floor for a control's boundary, so
+     the primary button had almost no figure-ground separation. Darkening it
+     alone is not enough -- the only value clearing both 3:1 against the page and
+     4.5:1 for the dark --on-primary text is #B8760A, which leaves no room for a
+     distinct hover. Pairing a darker amber with light text resolves both: 4.91
+     page / 5.91 card / 5.60 text, with --primary-hover dark enough to read as a
+     state change. */
   --primary: #8A5A12;
   --primary-hover: #6F470E;
   --on-primary: #FFF8EC;

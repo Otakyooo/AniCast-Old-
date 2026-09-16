@@ -118,30 +118,23 @@ summary:focus-visible {
 .global-nav {
   position: sticky;
   top: 0;
-  /* Above shelves, dropdowns and overlays: a stuck header must never be
-     painted over by the content it floats above. */
-  z-index: 100;
+  z-index: 50;
   min-height: var(--nav-height);
-  /* Transparent until the page scrolls. A permanent rule on an unscrolled
-     page is a seam nobody asked for; once content slides under the header it
-     is what separates the two. Toggled by <NavScrollState />. */
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--border);
   background: var(--surface-card-opaque);
   backdrop-filter: blur(16px);
-  transition: border-color 140ms ease;
 }
 
-.global-nav[data-scrolled="true"] { border-bottom-color: var(--border) }
-
 .global-nav-inner {
-  display: flex;
+  display: grid;
+  /* The search column flexes between a floor and the leftover space: wide
+     enough to be a primary action, never wide enough to push the nav links
+     out from under it. */
+  grid-template-columns: auto minmax(0, auto) minmax(260px, 1fr) auto;
   align-items: center;
-  /* Logo -> nav 20px, nav -> search auto (see .header-search), search -> user
-     20px. The old grid handed the search a 1fr column, which is exactly why
-     it used to eat almost the whole header. */
-  gap: 20px;
+  gap: clamp(12px, 1.2vw, 18px);
   width: min(100%, var(--content-width));
-  min-height: var(--nav-height);
+  height: 100%;
   margin: 0 auto;
   padding: 0 var(--gutter);
 }
@@ -185,19 +178,16 @@ summary:focus-visible {
 
 .primary-nav > a {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  /* A 40px pill inside a 56px header: comfortable to hit, and still 8px of
-     air above and below so the focus ring fits without insetting. */
-  height: 40px;
-  padding-inline: 11px;
-  border-radius: 8px;
+  min-height: 44px;
+  padding: 6px 2px;
   color: var(--muted);
   font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease;
+  transition: color 140ms ease;
 }
 
 .primary-nav > a.nav-secondary {
@@ -211,26 +201,22 @@ summary:focus-visible {
   .primary-nav > a.nav-secondary { font-size: 13.5px }
 }
 
-/* 40px pill in a 56px header, so the global 2px offset no longer spills over
-   the header edge and the old -2px inset is gone. */
-.primary-nav > a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+/* The links stretch to the header's full height, so the global 2px outline
+   offset would draw the focus ring outside the header and over its bottom
+   border. The mobile bottom nav already insets its ring for the same reason. */
+.primary-nav > a:focus-visible { outline-offset: -2px }
 
-/* Hover only washes the pill. It must never draw the active rule: a hover that
-   looks like a selection makes the current route ambiguous. */
-.primary-nav > a:hover { background: var(--nav-hover); color: var(--text) }
-
+.primary-nav > a:hover { color: var(--text) }
 .primary-nav > a.active { color: var(--text) }
 
-/* Active = strongest text plus a 2px accent rule, inset to the text's own
-   padding so it reads as part of the label rather than a full-width border. */
 .primary-nav > a.active:after {
   position: absolute;
-  right: 11px;
-  bottom: 3px;
-  left: 11px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   height: 2px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--primary);
   content: "";
 }
 
@@ -267,28 +253,15 @@ summary:focus-visible {
   font-size: 15px;
 }
 
-/* Identity block: preferences, display name, avatar. One group -- its internal
-   spacing stays tighter than the gaps around it so it reads as a cluster. */
 .global-actions {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
   min-height: 44px;
 }
 
-/* Fixed footprint instead of a 1fr column. `margin-left: auto` parks the field
-   next to the identity block and hands the leftover space to the gap between
-   the nav and the search, so the search no longer stretches across the
-   header. It may still shrink (flex-shrink: 1) when the row runs out of room,
-   which is what keeps the nav from ever being squeezed out. */
-.header-search {
-  flex: 0 1 auto;
-  width: clamp(320px, 35vw, 440px);
-  min-width: 0;
-  margin-left: auto;
-}
+.header-search { min-width: 0 }
 
 .profile {
   display: inline-flex;
@@ -307,6 +280,8 @@ summary:focus-visible {
 }
 
 .profile:hover { border-color: var(--primary) }
+
+.mobile-bottom-nav { display: none }
 
 .page-back { display: flex; align-items: center; height: 58px }
 .back-link { color: var(--muted); font-size: 14px }
@@ -484,13 +459,7 @@ summary:focus-visible {
   text-overflow: ellipsis;
 }
 
-/* Three-step hierarchy in the card meta block. All three rows used to share
-   one colour, so "2025 · 24 серий" and the genre list were indistinguishable
-   and the block read as a single gray slab. Facts lead, the genre list
-   recedes, and availability -- the line that answers "can I watch this" -- is
-   the only emphasised row. */
-.catalog-card .card-genres { color: var(--muted-2) }
-.catalog-card .card-availability { color: var(--muted); font-weight: 600 }
+.catalog-card .card-availability { color: var(--muted-2) }
 
 .catalog-card-media { background: transparent }
 
@@ -669,43 +638,40 @@ summary:focus-visible {
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1439px) {
-  :root { --gutter: 24px }
+  :root { --gutter: 24px; --nav-height: 108px }
   .catalog-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px }
+  .global-nav-inner {
+    grid-template-columns: auto minmax(140px, 1fr) auto;
+    grid-template-rows: 64px 44px;
+    column-gap: 24px;
+    row-gap: 0;
+  }
+  .global-brand { grid-column: 1; grid-row: 1 }
+  .header-search { grid-column: 2; grid-row: 1 }
+  .global-actions { grid-column: 3; grid-row: 1 }
+  .primary-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 28px;
+    border-top: 1px solid var(--border);
+  }
+  .primary-nav > a { font-size: 14px }
 }
 
-/* Tablet: shrink the field and tighten the row instead of dropping the nav to
-   a second line. The header only goes two-row on phones. */
 @media (max-width: 1199px) {
-  .global-nav-inner { gap: 16px }
-  .header-search { width: clamp(200px, 28vw, 440px) }
-  .primary-nav > a { padding-inline: 10px; font-size: 14px }
+  .global-nav-inner { column-gap: 16px }
   .catalog-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) }
   .site-footer-inner { grid-template-columns: 1fr auto; gap: 24px }
   .site-footer-links { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start }
 }
 
 @media (max-width: 767px) {
-  :root { --gutter: 16px; --nav-height: 96px }
-  /* Two rows: brand, search and identity on top, the three watching routes
-     below. The nav stays in the header on phones, so the fixed bottom bar
-     would have been a second, duplicate copy of the same three links. */
-  .global-nav-inner {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-rows: 52px 44px;
-    column-gap: 12px;
-    row-gap: 0;
-  }
-  .global-brand { grid-column: 1; grid-row: 1 }
-  .header-search { grid-column: 2; grid-row: 1; width: auto; margin-left: 0 }
-  .global-actions { grid-column: 3; grid-row: 1 }
-  .primary-nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    gap: 8px;
-    border-top: 1px solid var(--border);
-  }
-  .primary-nav > a { padding-inline: 10px; font-size: 14px }
+  :root { --gutter: 16px; --nav-height: 56px }
+  body { padding-bottom: 68px }
+  .global-nav-inner { display: flex; gap: 10px }
+  .global-brand { margin-right: auto }
+  .primary-nav { display: none }
+  .header-search { flex: 0 0 auto }
   .content { padding-bottom: 40px }
   .page-heading h1,
   .state-panel h1 { overflow-wrap: anywhere; font-size: clamp(27px, 8.5vw, 34px) }
@@ -715,6 +681,40 @@ summary:focus-visible {
   .page-back { height: 48px }
   .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px }
   .catalog-card h2 { font-size: 15px }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: 64px;
+    padding: 5px 8px max(5px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--surface-card-opaque);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-bottom-nav a {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    overflow: hidden;
+    color: var(--muted-2);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-bottom-nav a span { font-size: 20px; line-height: 1 }
+  .mobile-bottom-nav a.active { color: var(--accent-text) }
+  .mobile-bottom-nav a:focus-visible { outline-offset: -3px }
+  .mobile-bottom-nav a:active { color: var(--text) }
 }
 
 @media (prefers-reduced-motion: reduce) {
