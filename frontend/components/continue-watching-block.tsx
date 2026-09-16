@@ -2,25 +2,30 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DotsThree, Play } from "@phosphor-icons/react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { CatalogItem } from "../lib/api";
 import {
   ContinueWatchingApiError,
+  formatRemaining,
   getContinueWatching,
   hideFromContinueWatching,
+  remainingSeconds,
+  resetEpisodeProgress,
   resumeEpisode,
   resumeEpisodeStarted,
   resumeProgressPercent,
   unhideFromContinueWatching,
   type ContinueWatchingEntry,
 } from "../lib/continue-watching";
-import { formatPlaybackTime } from "../lib/playback";
 import { titleWatchHref } from "../lib/seo";
-import { episodeCountLabel } from "../lib/episode-count";
-import type { Locale } from "../i18n/config";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
+
+/** Six cards fill three compact rows of two; the rest live behind "Все →". */
+const VISIBLE_LIMIT = 6;
+const SKELETON_COUNT = 4;
 
 type State =
   | { kind: "loading" }
@@ -43,55 +48,8 @@ function useContinueWatching(): State {
   return state;
 }
 
-/** The playable voice variant the viewer actually used last (`dub/sub/raw`). */
-function voiceLabel(entry: ContinueWatchingEntry, t: (key: string, values?: Record<string, string | number>) => string): string {
-  if (!entry.source_name) return "";
-  const kindLabel = entry.source_kind === "dub"
-    ? t("watch.voiceGroup.dub")
-    : entry.source_kind === "sub"
-      ? t("watch.voiceGroup.sub")
-      : t("watch.voiceGroup.raw");
-  return `${kindLabel}: ${entry.source_name}`;
-}
-
-/** Single line describing the resume state ("Серия 4 · 08:32 / 24:10" etc).
- *
- *  The line follows what actually happens when the viewer presses play: an
- *  episode with a real position shows where it stopped, an episode that was
- *  never started is announced as the one to begin with. */
-function resumeFactLine(
-  entry: ContinueWatchingEntry,
-  t: (key: string, values?: Record<string, string | number>) => string,
-): string {
-  const target = resumeEpisode(entry);
-  if (!target) return "";
-  const position = entry.resume_at_seconds ?? 0;
-  if (position > 0) {
-    const duration = typeof entry.duration_seconds === "number" && entry.duration_seconds > 0
-      ? entry.duration_seconds
-      : null;
-    // "Серия 4 · 08:32 / 24:10" — the position inside the episode that
-    // actually resumes, not a share of the whole series.
-    const time = duration !== null
-      ? `${formatPlaybackTime(position)} / ${formatPlaybackTime(duration)}`
-      : formatPlaybackTime(position);
-    return t("home.episodeProgressLine", { number: target.number, time });
-  }
-  return t("home.startEpisode", { number: target.number });
-}
-
-/** Secondary line with the count of watched episodes when it says something new. */
-function resumeCountLine(
-  entry: ContinueWatchingEntry,
-  locale: Locale,
-  t: (key: string, values?: Record<string, string | number>) => string,
-): string {
-  const total = entry.title.episodes_count;
-  if (typeof total !== "number" || total <= 0 || entry.watched_count <= 0) return "";
-  return t("home.episodesWatched", { count: episodeCountLabel(t, locale, entry.watched_count), total });
-}
-
-/** Small ⋯ menu: hide from this shelf with an undo window; never touches history. */
+/** ⋯ menu: restart the episode (with a confirm) or drop the title from this
+ *  shelf. Hiding never touches the library entry or the watch history. */
 function ContinueMenu({
   entry,
   onRemoved,
@@ -101,15 +59,18 @@ function ContinueMenu({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const timerRef = useRef<number | null>(null);
+  const target = resumeEpisode(entry);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    setConfirming(false);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -130,32 +91,13 @@ function ContinueMenu({
     };
   }, [open, close]);
 
-  useEffect(() => () => {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-  }, []);
-
-  async function hide() {
+  async function restart() {
+    if (!target) return;
     setPending(true);
     setError("");
     try {
-      await hideFromContinueWatching(entry.title.slug);
-      setHidden(true);
-      timerRef.current = window.setTimeout(() => onRemoved(entry.title.slug), 8000);
-    } catch (reason) {
-      setError(reason instanceof ContinueWatchingApiError && [401, 403].includes(reason.status)
-        ? t("common.login")
-        : t("home.removeHistoryFailed"));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function undo() {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    setPending(true);
-    try {
-      await unhideFromContinueWatching(entry.title.slug);
-      setHidden(false);
+      await resetEpisodeProgress(entry.title.slug, target.number, entry.duration_seconds ?? 0);
+      close();
     } catch {
       setError(t("common.error"));
     } finally {
@@ -163,116 +105,205 @@ function ContinueMenu({
     }
   }
 
-  if (hidden) {
-    return (
-      <div className={styles.continueUndo} role="status">
-        <span>{t("home.continueRemoved")}</span>
-        <button type="button" disabled={pending} onClick={undo}>{t("home.undo")}</button>
-      </div>
-    );
+  async function hide() {
+    setPending(true);
+    setError("");
+    try {
+      await hideFromContinueWatching(entry.title.slug);
+      close();
+      onRemoved(entry.title.slug);
+    } catch {
+      setError(t("common.error"));
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
-    <div className={styles.continueMenuWrap} ref={containerRef}>
+    // The menu sits inside a clickable card: without this the card navigation
+    // fires on every menu interaction.
+    <div
+      className={styles.continueMenuWrap}
+      ref={containerRef}
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         ref={triggerRef}
         className={styles.continueMenuButton}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls={menuId}
-        aria-label={t("home.continueMenu")}
-        onClick={() => setOpen((value) => !value)}
+        aria-controls={open ? menuId : undefined}
+        aria-label={t("home.menuAria", { name: entry.title.name })}
+        onClick={() => {
+          setOpen((value) => !value);
+          setConfirming(false);
+        }}
       >
         <DotsThree aria-hidden="true" size={18} weight="bold" />
       </button>
       {open && (
         <div className={styles.continueMenu} id={menuId} role="menu">
-          <button type="button" disabled={pending} onClick={() => { close(); void hide(); }}>
-            {t("home.removeFromContinue")}
-          </button>
+          {confirming ? (
+            <div className={styles.continueConfirm}>
+              <strong>{t("home.restartQuestion")}</strong>
+              <span>{t("home.restartWarning")}</span>
+              <div className={styles.continueConfirmActions}>
+                <button
+                  type="button"
+                  className={styles.continueConfirmCancel}
+                  disabled={pending}
+                  onClick={() => setConfirming(false)}
+                >
+                  {t("home.cancel")}
+                </button>
+                <button
+                  type="button"
+                  className={styles.continueConfirmDo}
+                  disabled={pending}
+                  onClick={() => void restart()}
+                >
+                  {t("home.restartConfirm")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.continueMenuChoice}
+                disabled={pending || !target}
+                onClick={() => setConfirming(true)}
+              >
+                {t("home.restartEpisode")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.continueMenuChoice}
+                disabled={pending}
+                onClick={() => void hide()}
+              >
+                {t("home.removeFromContinue")}
+              </button>
+            </>
+          )}
+          {error && <span className={styles.continueMenuError} role="alert">{error}</span>}
         </div>
       )}
-      {error && <span className={styles.continueMenuError} role="alert">{error}</span>}
     </div>
   );
 }
 
-/** One compact resume row: thumb, name, fact, voice, explicit play, ⋯ menu. */
+/** One compact resume card. Two states only: an episode in progress shows the
+ *  bar and "Осталось N мин"; a finished one points at the next episode without
+ *  a fake zero-width bar. The episode number appears once, in the meta line --
+ *  never again in the CTA. */
 export function ResumeCard({
   entry,
   onRemoved,
-  variant = "row",
 }: {
   entry: ContinueWatchingEntry;
   onRemoved?: (slug: string) => void;
-  variant?: "row" | "feature";
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const router = useRouter();
   const target = resumeEpisode(entry);
   if (!target) return null;
 
   const title = entry.title;
+  const isResume = resumeEpisodeStarted(entry);
+  const titleHref = `/titles/${title.slug}`;
   const playHref = titleWatchHref(title.slug, target.number, entry.source_selection_key || undefined);
-  // The play button must name what actually starts: an episode with a saved
-  // position is continued, an episode that was never started is one to begin
-  // with. `is_watched` is not the signal — a finished episode hands over to the
-  // next one, which has no position of its own either.
-  const started = resumeEpisodeStarted(entry);
-  const playLabel = started
-    ? t("home.continueEpisode", { number: target.number })
-    : t("home.startEpisode", { number: target.number });
-  const factLine = resumeFactLine(entry, t);
-  const countLine = resumeCountLine(entry, locale, t);
-  const voiceLine = voiceLabel(entry, t);
-  const isFeature = variant === "feature";
+  const ctaLabel = isResume ? t("home.resumeCta") : t("home.watchCta");
+  const ctaAria = isResume
+    ? t("home.resumeCtaAria", { name: title.name, number: target.number })
+    : t("home.watchCtaAria", { name: title.name, number: target.number });
+  const percent = isResume ? resumeProgressPercent(entry) : 0;
+  const remaining = isResume ? formatRemaining(remainingSeconds(entry), t) : "";
 
   return (
-    <li className={isFeature ? styles.resumeItemFeature : styles.resumeItem}>
-      {/* The thumbnail is a link only to the title page; the launch action is
-          the explicit play button, per the resume audit, not a poster hover. */}
+    <li className={styles.continueCard} onClick={() => router.push(titleHref)}>
+      {/* The poster duplicates the title link for pointer users; tabIndex -1
+          keeps it out of the keyboard order so the title stays the one stop. */}
       <Link
-        className={styles.continueThumb}
-        href={`/titles/${title.slug}`}
-        title={title.name}
+        className={styles.continuePoster}
+        href={titleHref}
+        tabIndex={-1}
+        aria-hidden="true"
+        onClick={(event) => event.stopPropagation()}
       >
         {title.poster_url ? (
           <Image
-            className={styles.continueThumbArt}
+            className={styles.continuePosterArt}
             src={title.poster_url}
             alt=""
             fill
-            sizes={isFeature ? "(max-width: 767px) 128px, 176px" : "(max-width: 767px) 88px, 128px"}
-            quality={92}
+            sizes="64px"
+            quality={80}
             referrerPolicy="no-referrer"
           />
         ) : (
-          <span className={styles.continueFallback} aria-hidden="true">
+          <span className={styles.continuePosterFallback} aria-hidden="true">
             {title.name.slice(0, 1).toUpperCase()}
           </span>
         )}
       </Link>
-      <div className={styles.continueBody}>
-        <Link className={styles.continueTitle} href={`/titles/${title.slug}`}>{title.name}</Link>
-        <span className={styles.continueFact}>{factLine}</span>
-        {countLine !== "" && <span className={styles.continueMeta}>{countLine}</span>}
-        {voiceLine !== "" && <span className={styles.continueVoice}>{voiceLine}</span>}
-        {/* No track without a started episode: an empty bar under "Смотреть
-            серию N" reads as lost progress rather than as a fresh episode. */}
-        {started && (
-          <span className={styles.continueProgressTrack} aria-hidden="true">
-            <span className={styles.continueProgressBar} style={{ width: `${resumeProgressPercent(entry)}%` }} />
+      <div className={styles.continueCardBody}>
+        <div className={styles.continueTop}>
+          <Link
+            className={styles.continueTitle}
+            href={titleHref}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {title.name}
+          </Link>
+          {onRemoved && <ContinueMenu entry={entry} onRemoved={onRemoved} />}
+        </div>
+        <span className={styles.continueMetaLine}>
+          {t("home.episodeMeta", { number: target.number })}
+        </span>
+        {isResume && (
+          <span className={styles.continueTrack} aria-hidden="true">
+            <span className={styles.continueFill} style={{ width: `${percent}%` }} />
           </span>
         )}
-      </div>
-      <div className={styles.continueActions}>
-        <Link className={`primary ${styles.continuePlay}`} href={playHref}>
-          <Play aria-hidden="true" weight="fill" size={16} />
-          {playLabel}
-        </Link>
-        {onRemoved && <ContinueMenu entry={entry} onRemoved={onRemoved} />}
+        <div className={styles.continueBottom}>
+          <span className={styles.continueNote}>
+            {isResume ? remaining : t("home.nextEpisodeLabel")}
+          </span>
+          <Link
+            className={styles.continueCta}
+            href={playHref}
+            aria-label={ctaAria}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Play aria-hidden="true" weight="fill" size={14} />
+            {ctaLabel}
+          </Link>
+        </div>
       </div>
     </li>
+  );
+}
+
+/** Placeholder grid sized like the real block so the page does not jump. */
+function ContinueSkeleton() {
+  return (
+    <section className={styles.continueSection} aria-hidden="true">
+      <ul className={styles.continueList}>
+        {Array.from({ length: SKELETON_COUNT }, (_, index) => (
+          <li key={index} className={`${styles.continueCard} ${styles.continueCardSkeleton}`}>
+            <span className={styles.continueSkeletonPoster} />
+            <span className={styles.continueSkeletonBody}>
+              <span className={styles.continueSkeletonLine} />
+              <span className={`${styles.continueSkeletonLine} ${styles.continueSkeletonLineShort}`} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -327,17 +358,19 @@ function GuestHero({ featured }: { featured?: CatalogItem }) {
 }
 
 /**
- * Home opening block: one shelf, the freshest entry featured as a compact
- * horizontal card (small cover, name, fact, voice, explicit launch, ⋯ menu),
- * the rest as rows below it. No duplicated giant banner, no synopsis in the
- * continuation — those live on the title page.
+ * Home opening block: a compact two-column grid of resume cards, at most six,
+ * newest activity first. No giant featured card, no per-card synopsis, and the
+ * section is hidden outright when there is nothing to resume -- an error must
+ * never hold up the rest of the page.
  */
 export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount?: number; featured?: CatalogItem }) {
   const { t } = useI18n();
   const state = useContinueWatching();
   const [removed, setRemoved] = useState<string[]>([]);
+  const [undoSlug, setUndoSlug] = useState<string | null>(null);
 
-  if (state.kind === "loading") return null;
+  if (state.kind === "loading") return <ContinueSkeleton />;
+  if (state.kind === "error") return null;
   if (state.kind === "guest") {
     return (
       <>
@@ -348,41 +381,52 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
       </>
     );
   }
-  if (state.kind === "error") return null;
 
   const entries = state.entries.filter((entry) => !removed.includes(entry.title.slug));
-  if (entries.length === 0) {
-    return (
-      <>
-        <GuestHero featured={featured} />
-        {typeof catalogCount === "number" && catalogCount > 0 && (
-          <p className={styles.catalogFact}>{t("home.catalogCount", { count: catalogCount })}</p>
-        )}
-      </>
-    );
-  }
+  if (entries.length === 0) return null;
 
-  const [first, ...rest] = entries;
+  const visible = entries.slice(0, VISIBLE_LIMIT);
+
   return (
     <section className={styles.continueSection} aria-label={t("home.continueWatching")}>
       <div className="section-heading">
         <div className={styles.shelfHeading}>
           <h2>{t("home.continueWatching")}</h2>
-          <p>{t("home.continueWatchingText")}</p>
         </div>
-        <Link href="/history">{t("home.allStarted")}</Link>
+        <Link href="/history">{t("home.continueAll")}</Link>
       </div>
       <ul className={styles.continueList}>
-        <ResumeCard entry={first} variant="feature" onRemoved={(slug) => setRemoved((value) => [...value, slug])} />
-        {rest.map((entry) => (
-          <ResumeCard entry={entry} key={entry.title.slug} onRemoved={(slug) => setRemoved((value) => [...value, slug])} />
+        {visible.map((entry) => (
+          <ResumeCard
+            entry={entry}
+            key={entry.title.slug}
+            onRemoved={(slug) => {
+              setRemoved((value) => [...value, slug]);
+              setUndoSlug(slug);
+            }}
+          />
         ))}
       </ul>
+      {undoSlug && (
+        <div className={styles.continueToast} role="status">
+          <span>{t("home.continueRemoved")}</span>
+          <button
+            type="button"
+            onClick={() => {
+              void unhideFromContinueWatching(undoSlug);
+              setRemoved((value) => value.filter((slug) => slug !== undoSlug));
+              setUndoSlug(null);
+            }}
+          >
+            {t("home.undo")}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
 
-/** Account-hub variant: rows-only, silent when there is nothing. */
+/** Account-hub variant: the same compact cards, silent when there is nothing. */
 export function ResumeShelf() {
   const { t } = useI18n();
   const state = useContinueWatching();
@@ -396,14 +440,13 @@ export function ResumeShelf() {
         <div className={styles.shelfHeading}>
           <h2>{t("home.continueWatching")}</h2>
         </div>
-        <Link href="/history">{t("home.allStarted")}</Link>
+        <Link href="/history">{t("home.continueAll")}</Link>
       </div>
       <ul className={styles.continueList}>
-        {entries.map((entry, index) => (
+        {entries.map((entry) => (
           <ResumeCard
             entry={entry}
             key={entry.title.slug}
-            variant={index === 0 ? "feature" : "row"}
             onRemoved={(slug) => setRemoved((value) => [...value, slug])}
           />
         ))}

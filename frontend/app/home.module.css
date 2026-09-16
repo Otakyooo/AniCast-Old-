@@ -563,86 +563,94 @@
    compact rows of the same shape — no giant hero duplicating the shelf. */
 .continueSection { margin-top: 26px }
 
+/* Two columns of equal cards: six entries fill three compact rows instead of
+   six full-width rows. Collapses to one column before a card would get
+   narrower than ~340px. */
 .continueList {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.resumeItem,
-.resumeItemFeature {
+.continueCard {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  /* 96px poster + 12px padding either side keeps every card the same height
+     regardless of which state it is in. */
+  min-height: 120px;
+  padding: 12px;
+  border-radius: 8px;
   background: var(--surface-1);
+  cursor: pointer;
   transition: background 140ms ease;
 }
 
-.resumeItemFeature {
-  grid-template-columns: 112px minmax(0, 1fr) auto;
-  padding: 16px 18px;
-}
+.continueCard:hover { background: var(--surface-2) }
+.continueCard:active { background: var(--surface-1) }
 
-.resumeItem:hover,
-.resumeItemFeature:hover { background: var(--surface-2) }
-.resumeItem:active, .resumeItemFeature:active { transform: none }
-
-.continueThumb {
+.continuePoster {
   position: relative;
   display: grid;
   overflow: hidden;
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  border-radius: 9px;
+  width: 64px;
+  height: 96px;
+  flex-shrink: 0;
+  border-radius: 6px;
   place-items: center;
   background: var(--poster-gradient);
+}
+
+.continuePosterArt { object-fit: cover; object-position: 50% 18% }
+
+.continuePosterFallback {
   color: var(--text);
+  font-size: 26px;
   font-weight: 800;
 }
 
-.resumeItem .continueThumb { width: 64px }
-.resumeItemFeature .continueThumb { width: 112px }
-
-.continueThumbArt { object-fit: cover; object-position: 50% 18% }
-
+/* Shared poster-fallback letter. The release shelves and the schedule strip
+   use it as well, so it is not part of the resume card. */
 .resumeFallback {
   color: var(--text);
   font-size: 40px;
   font-weight: 800;
 }
 
-.continueBody {
+.continueCardBody {
   display: grid;
+  grid-template-rows: auto auto auto 1fr;
   gap: 4px;
   min-width: 0;
 }
 
+.continueTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
 .continueTitle {
+  display: -webkit-box;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
   color: var(--text);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
-.resumeItemFeature .continueTitle { font-size: 17px; font-weight: 700 }
+.continueTitle:hover { text-decoration: underline; text-underline-offset: 3px }
 
-.continueFact {
-  color: var(--accent-text);
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.continueMeta,
-.continueVoice {
+.continueMetaLine {
   overflow: hidden;
   color: var(--muted);
   font-size: var(--fs-caption);
@@ -651,49 +659,72 @@
   white-space: nowrap;
 }
 
-.resumeItemFeature .continueFact { font-size: 15px }
-.resumeItemFeature .continueMeta, .resumeItemFeature .continueVoice { font-size: var(--fs-caption) }
-
-.continueProgressTrack {
+/* 4px track -- visible against the card but clearly secondary to the text. */
+.continueTrack {
   display: block;
-  height: 5px;
-  margin-top: 6px;
-  border-radius: 3px;
+  overflow: hidden;
+  height: 4px;
+  margin: 2px 0;
+  border-radius: 2px;
   background: var(--surface-progress);
 }
 
-.continueProgressBar {
+.continueFill {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: inherit;
   background: var(--primary);
 }
 
-.continueActions {
+.continueBottom {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  align-self: end;
+  min-width: 0;
 }
 
-.continuePlay {
+.continueNote {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact on purpose: the old full-size orange button dominated the row. */
+.continueCta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-top: 0;
-  padding: 11px 18px;
-  border-radius: 10px;
-  font-size: var(--fs-small);
+  gap: 6px;
+  min-height: 32px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: var(--fs-caption);
   font-weight: 700;
   white-space: nowrap;
 }
 
-.continueMenuWrap { position: relative }
+.continueCta:hover { background: var(--primary-hover); border-color: var(--primary-hover) }
 
+.continueMenuWrap {
+  position: relative;
+  flex: 0 0 auto;
+  margin-right: -4px;
+}
+
+/* 32x32 hit area on desktop; the mobile override below brings it to 40x40. */
 .continueMenuButton {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -704,7 +735,7 @@
   transition: background 140ms ease, color 140ms ease;
 }
 
-.continueMenuButton:hover { background: var(--surface-2); color: var(--text) }
+.continueMenuButton:hover { background: var(--surface-control); color: var(--text) }
 
 .continueMenu {
   position: absolute;
@@ -712,7 +743,7 @@
   top: calc(100% + 6px);
   z-index: 5;
   display: grid;
-  min-width: 180px;
+  min-width: 220px;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -720,7 +751,7 @@
   box-shadow: var(--shadow-overlay);
 }
 
-.continueMenu button {
+.continueMenuChoice {
   min-height: 40px;
   padding: 9px 11px;
   border: 0;
@@ -732,36 +763,69 @@
   cursor: pointer;
 }
 
-.continueMenu button:hover { background: var(--surface-control) }
+.continueMenuChoice:hover { background: var(--surface-control) }
+
+.continueConfirm {
+  display: grid;
+  gap: 6px;
+  padding: 9px 11px;
+  font-size: var(--fs-caption);
+}
+
+.continueConfirm strong { color: var(--text) }
+.continueConfirm span { color: var(--muted) }
+
+.continueConfirmActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.continueConfirmCancel,
+.continueConfirmDo {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.continueConfirmCancel {
+  border: 1px solid var(--border-control);
+  background: transparent;
+  color: var(--text);
+}
+
+.continueConfirmDo {
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
 
 .continueMenuError {
-  position: absolute;
-  top: 6px;
-  right: calc(100% + 8px);
-  z-index: 4;
-  padding: 5px 8px;
-  border-radius: 7px;
-  background: var(--surface-card-opaque);
+  margin: 4px 11px 8px;
   color: var(--danger);
   font-size: var(--fs-caption);
 }
 
-.continueUndo {
+.continueToast {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 6px 11px;
+  margin-top: 12px;
+  padding: 8px 12px;
   border-radius: 8px;
   background: var(--primary-soft);
   color: var(--text);
   font-size: var(--fs-caption);
 }
 
-.continueUndo button {
-  min-height: 32px;
-  padding: 6px 12px;
+.continueToast button {
+  min-height: 28px;
+  padding: 4px 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--primary);
   color: var(--on-primary);
   font-size: var(--fs-caption);
@@ -769,14 +833,43 @@
   cursor: pointer;
 }
 
+.continueCardSkeleton { cursor: default; pointer-events: none }
+
+.continueSkeletonPoster {
+  width: 64px;
+  height: 96px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.continueSkeletonBody {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.continueSkeletonLine {
+  display: block;
+  height: 12px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.continueSkeletonLineShort { width: 45% }
+
+/* Below ~768px a two-column card would fall under the ~340px reading width,
+   so the grid collapses to a single column. */
 @media (max-width: 767px) {
-  .resumeItem, .resumeItemFeature { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; padding: 12px }
-  .resumeItem .continueThumb, .resumeItemFeature .continueThumb { width: 56px }
-  .resumeItem .continueActions, .resumeItemFeature .continueActions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-  .continuePlay { flex: 1 1 auto; justify-content: center }
+  .continueList { grid-template-columns: minmax(0, 1fr) }
+  .continueCard { min-height: 112px }
+}
+
+/* Touch: the ⋯ control keeps a 40px target even though it renders smaller. */
+@media (max-width: 640px) {
+  .continueMenuButton { width: 40px; height: 40px; margin: -4px -4px 0 0 }
 }
 
 .scheduleCard {
