@@ -557,50 +557,93 @@
   white-space: nowrap;
 }
 
-/* ---------- Continue watching: compact resume cards ---------- */
+/* ---------- Continue watching: one horizontal rail ---------- */
 
-/* One merged block: the featured card is the newest entry, further cards are
-   compact rows of the same shape — no giant hero duplicating the shelf. */
+/* One rail of poster-first cards. Previously a 2x3 grid of compact rows: the
+   poster was a 64px thumbnail and the whole block read as a list of text
+   links, so nothing in it worked as a visual anchor. */
 .continueSection { margin-top: 26px }
 
-/* Two columns of equal cards: six entries fill three compact rows instead of
-   six full-width rows. Collapses to one column before a card would get
-   narrower than ~340px. */
-.continueList {
+/* Arrows live in the heading next to "Все →", not floating over the cards --
+   a control painted on the artwork fights the poster for attention. */
+.continueHeadingActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.continueArrow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0;
+  width: 32px;
+  height: 32px;
+  place-items: center;
   padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.continueArrow:hover:not(:disabled) { background: var(--surface-control); border-color: var(--muted-2) }
+.continueArrow:disabled { color: var(--muted-2); opacity: .45; cursor: default }
+
+/* One row, always: the rail scrolls horizontally and never wraps. `contain`
+   keeps a horizontal swipe from triggering the browser's back gesture, and
+   `proximity` snapping stays out of the way of free trackpad scrolling. */
+.continueRail {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0 0 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
   list-style: none;
 }
 
+.continueRail::-webkit-scrollbar { display: none }
+
 .continueCard {
+  position: relative;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 12px;
-  /* Fixed, not min-height: the resume state carries a progress bar the next
-     state does not, so a min-height let the two states differ by 6px. Every
-     card is 120px whatever state it is in. */
-  height: 120px;
-  padding: 12px;
+  flex: 0 0 190px;
+  /* Fixed, not auto: the resume state carries a progress row the next state
+     does not, so an auto height would make the two states different sizes.
+     150px poster + 108px of text block, inside the 230-270px band. */
+  grid-template-rows: 150px 1fr;
+  width: 190px;
+  height: 266px;
   border-radius: 8px;
   background: var(--surface-1);
-  cursor: pointer;
+  scroll-snap-align: start;
   transition: background 140ms ease;
 }
 
 .continueCard:hover { background: var(--surface-2) }
-.continueCard:active { background: var(--surface-1) }
+
+/* The watch target is an overlay, not a wrapper: the card also holds a title
+   link and a menu button, and interactive elements cannot nest (§33). The
+   overlay is lifted above the artwork; the title and menu are lifted above it.
+   No overflow:hidden on the card -- it would clip the ⋯ dropdown. */
+.continueWatch {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 8px;
+}
+
+/* Inset ring: an outward one would be clipped by the rail's own overflow. */
+.continueWatch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px }
 
 .continuePoster {
   position: relative;
   display: grid;
   overflow: hidden;
-  width: 64px;
-  height: 96px;
-  flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: 8px 8px 0 0;
   place-items: center;
   background: var(--poster-gradient);
 }
@@ -609,7 +652,7 @@
 
 .continuePosterFallback {
   color: var(--text);
-  font-size: 26px;
+  font-size: 40px;
   font-weight: 800;
 }
 
@@ -621,52 +664,72 @@
   font-weight: 800;
 }
 
-.continueCardBody {
+/* 44px badge, revealed only on hover or focus: the poster is the anchor of the
+   card, so a permanently visible button would compete with it. */
+.continuePlayBadge {
+  position: absolute;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--background-translucent);
+  color: var(--text);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.continueCard:hover .continuePlayBadge,
+.continueCard:focus-within .continuePlayBadge { opacity: 1 }
+
+/* Fixed line-heights on the two metadata rows: with a clamped two-line title
+   the block has a known height, and the card is sized so the resume state
+   (title + meta + bar + note) fits without spilling past the card. */
+.continueBody {
+  display: grid;
+  align-content: start;
   gap: 4px;
-  min-width: 0;
-}
-
-.continueTop {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-
-/* One line with an ellipsis: the spec prefers it on desktop, and it is what
-   keeps a fixed 120px card from overflowing when a title is long. */
-.continueTitle {
   overflow: hidden;
-  flex: 1;
+  min-width: 0;
+  padding: 10px 10px 12px;
+}
+
+/* Reads as a link only on hover or focus. The card as a whole is the watch
+   action, so a permanently underlined title would claim to be the main one. */
+.continueTitle {
+  position: relative;
+  z-index: 2;
+  display: -webkit-box;
+  overflow: hidden;
   min-width: 0;
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 18px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.continueTitle:hover { text-decoration: underline; text-underline-offset: 3px }
+.continueTitle:hover,
+.continueTitle:focus-visible { text-decoration: underline; text-underline-offset: 3px }
 
 .continueMetaLine {
   overflow: hidden;
   color: var(--muted);
   font-size: var(--fs-caption);
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 4px track -- visible against the card but clearly secondary to the text. */
+/* 4px, fully rounded -- visible against the card, clearly secondary to text. */
 .continueTrack {
   display: block;
   overflow: hidden;
   height: 4px;
   margin: 2px 0;
-  border-radius: 2px;
+  border-radius: 999px;
   background: var(--surface-progress);
 }
 
@@ -677,51 +740,33 @@
   background: var(--primary);
 }
 
-.continueBottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  align-self: end;
-  min-width: 0;
-}
-
 .continueNote {
   overflow: hidden;
   color: var(--muted-2);
   font-size: var(--fs-caption);
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Compact on purpose: the old full-size orange button dominated the row. */
-.continueCta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  margin-left: auto;
-  padding: 0 12px;
-  border: 1px solid var(--primary);
-  border-radius: 6px;
-  background: var(--primary);
-  color: var(--on-primary);
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.continueCta:hover { background: var(--primary-hover); border-color: var(--primary-hover) }
-
+/* Spans the card, not just the button: the rail clips at its own edges, so a
+   menu wider than the card would be cut off on the first and last card. */
 .continueMenuWrap {
-  position: relative;
-  flex: 0 0 auto;
-  margin-right: -4px;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  left: 6px;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  /* It sits over the top of the poster, so it must not swallow the card's
+     watch click outside the button itself. */
+  pointer-events: none;
 }
 
-/* 32x32 hit area on desktop; the mobile override below brings it to 40x40. */
+/* 32x32 hit area on desktop; the mobile override below brings it to 40x40.
+   Opaque chip so the icon stays legible over any poster artwork. */
 .continueMenuButton {
   display: grid;
   width: 32px;
@@ -730,22 +775,26 @@
   padding: 0;
   border: 0;
   border-radius: 8px;
-  background: transparent;
+  background: var(--surface-card-opaque);
   color: var(--muted-2);
   cursor: pointer;
+  pointer-events: auto;
   transition: background 140ms ease, color 140ms ease;
 }
 
 .continueMenuButton:hover { background: var(--surface-control); color: var(--text) }
 
+/* Spans the wrap, i.e. the card minus its 6px insets, so it can never be
+   clipped by the rail regardless of how long the labels get. */
 .continueMenu {
   position: absolute;
   right: 0;
+  left: 0;
   top: calc(100% + 6px);
   z-index: 5;
   display: grid;
-  min-width: 220px;
   padding: 6px;
+  pointer-events: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-card-opaque);
@@ -834,21 +883,22 @@
   cursor: pointer;
 }
 
-.continueCardSkeleton { cursor: default; pointer-events: none }
+.continueCardSkeleton { pointer-events: none }
 
 .continueSkeletonPoster {
-  width: 64px;
-  height: 96px;
-  border-radius: 6px;
+  width: 100%;
+  height: 150px;
+  border-radius: 8px 8px 0 0;
   background: var(--surface-2);
   animation: pulse 1.4s ease-in-out infinite;
 }
 
 .continueSkeletonBody {
   display: grid;
-  align-content: center;
+  align-content: start;
   gap: 8px;
   min-width: 0;
+  padding: 12px 10px;
 }
 
 .continueSkeletonLine {
@@ -861,15 +911,9 @@
 
 .continueSkeletonLineShort { width: 45% }
 
-/* Below ~768px a two-column card would fall under the ~340px reading width,
-   so the grid collapses to a single column. */
-@media (max-width: 767px) {
-  .continueList { grid-template-columns: minmax(0, 1fr) }
-}
-
 /* Touch: the ⋯ control keeps a 40px target even though it renders smaller. */
 @media (max-width: 640px) {
-  .continueMenuButton { width: 40px; height: 40px; margin: -4px -4px 0 0 }
+  .continueMenuButton { width: 40px; height: 40px }
 }
 
 .scheduleCard {

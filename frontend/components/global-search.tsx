@@ -9,9 +9,11 @@ import { MagnifyingGlass } from "@phosphor-icons/react";
 import { CharacterAvatar } from "./character-avatar";
 import { globalSearch, SEARCH_MIN_LENGTH, type GlobalSearchResponse } from "../lib/api";
 import { buildSearchOptionModel } from "../lib/global-search";
-import { OPEN_SEARCH_EVENT } from "./mobile-search-link";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/search.module.css";
+
+/** Custom event that expands the collapsed field from anywhere on the page. */
+export const OPEN_SEARCH_EVENT = "anicast:open-search";
 
 type SearchState =
   | { kind: "idle" }
@@ -122,8 +124,8 @@ export function GlobalSearch() {
     if (next) window.requestAnimationFrame(() => inputRef.current?.focus());
   }
 
-  // The mobile bottom-nav "Поиск" action and the Ctrl/Cmd+K shortcut (design
-  // spec §13) both expand this field from anywhere on the page.
+  // Ctrl/Cmd+K and any OPEN_SEARCH_EVENT sender both expand this field from
+  // anywhere on the page.
   useEffect(() => {
     function openSearch() {
       setExpanded(true);

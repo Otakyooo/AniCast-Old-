@@ -35,7 +35,13 @@
      (the library "remove" item, inline form errors) renders on those surfaces.
      Lightened to #f27d7b: 7.14 background / 5.85 card / 4.99 elevated. */
   --danger: #f27d7b;
-  --focus-ring: #F3A51B;
+  /* Active-route rule and focus ring. The brand amber clears the 3:1 that
+     WCAG 1.4.11 requires of a non-text boundary: 7.6:1 on the header surface. */
+  --accent: #F3A51B;
+  /* Hover wash for the nav pills. Slightly stronger than the light theme's
+     because a dark surface needs more lift to register at the same weight. */
+  --nav-hover: rgba(255, 240, 218, .07);
+  --focus-ring: var(--accent);
   --border-control: #55443A;
   --border-media: rgba(255, 255, 255, .12);
   --border-emphasis: rgba(255, 255, 255, .38);
@@ -90,7 +96,9 @@
   --fs-section: 24px;
   --content-width: 1440px;
   --gutter: 32px;
-  --nav-height: 64px;
+  /* 56px: a 40px nav pill with 8px of air above and below. The old 64px row
+     existed only to hold the taller, full-height link hit areas. */
+  --nav-height: 56px;
 }
 
 :root[data-theme="light"] {
@@ -120,7 +128,10 @@
   --border-emphasis: rgba(33, 26, 22, .5);
   --border-muted: rgba(116, 97, 81, .35);
   --accent-text: #743047;
-  --focus-ring: #743047;
+  /* Same role as in the dark theme: active-route rule and focus ring. */
+  --accent: #743047;
+  --focus-ring: var(--accent);
+  --nav-hover: rgba(33, 26, 22, .05);
   /* Light theme cannot reuse the dark theme's orange: #F3A51B on the cream
      page is 1.71:1, far under the 3:1 WCAG 1.4.11 floor for a control's
      boundary, so the primary button had almost no figure-ground separation.

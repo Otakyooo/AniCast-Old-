@@ -1,9 +1,11 @@
 /* Header identity area: guest actions, avatar button and its dropdown. */
 
+/* One group: preferences, display name, avatar. Tighter inside than the gaps
+   around it, so the cluster reads as a single unit in the header. */
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .register {
@@ -34,11 +36,14 @@
   white-space: nowrap;
 }
 
+/* 36px, not 40: the header is 56px tall now, and a 40px disc left only 8px of
+   air above and below, which crowded the row. 36 still clears the 24x24
+   WCAG 2.2 target minimum with room to spare. */
 .avatar,
 .avatarPlaceholder {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 999px;

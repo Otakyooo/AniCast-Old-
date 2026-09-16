@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { DotsThree, Play } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, DotsThree, Play } from "@phosphor-icons/react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { CatalogItem } from "../lib/api";
 import {
@@ -23,9 +22,15 @@ import { titleWatchHref } from "../lib/seo";
 import { useI18n } from "./i18n-provider";
 import styles from "../app/home.module.css";
 
-/** Six cards fill three compact rows of two; the rest live behind "Все →". */
-const VISIBLE_LIMIT = 6;
-const SKELETON_COUNT = 4;
+/** The rail carries up to twelve entries; the viewport shows what fits and the
+ *  arrows reveal the rest. Six would leave the arrows dead on a wide screen. */
+const VISIBLE_LIMIT = 12;
+const SKELETON_COUNT = 5;
+
+/** Card geometry from the spec (§48): 190px cards on a 14px gutter. One arrow
+ *  step is three cards, or 80% of the visible rail on narrow screens. */
+const CARD_WIDTH = 190;
+const CARD_GAP = 14;
 
 type State =
   | { kind: "loading" }
@@ -120,13 +125,7 @@ function ContinueMenu({
   }
 
   return (
-    // The menu sits inside a clickable card: without this the card navigation
-    // fires on every menu interaction.
-    <div
-      className={styles.continueMenuWrap}
-      ref={containerRef}
-      onClick={(event) => event.stopPropagation()}
-    >
+    <div className={styles.continueMenuWrap} ref={containerRef}>
       <button
         ref={triggerRef}
         className={styles.continueMenuButton}
@@ -196,11 +195,20 @@ function ContinueMenu({
   );
 }
 
-/** One compact resume card. Two states only: an episode in progress shows the
- *  bar and "Осталось N мин"; a finished one points at the next episode without
- *  a fake zero-width bar. The episode number appears once, in the meta line --
- *  never again in the CTA. */
-export function ResumeCard({
+/**
+ * One rail card: poster first, then the title, then the state line.
+ *
+ * The watch action is an *overlay* link, not a wrapper. The card also carries a
+ * title link and a menu button, and nesting interactive elements inside an
+ * anchor is invalid HTML and breaks keyboard navigation (§33). The overlay sits
+ * above the artwork, the title and the menu are lifted above it with z-index,
+ * and the tab order stays watch → title → menu per card.
+ *
+ * Two states only. An episode in progress shows the bar and "Осталось N мин";
+ * a finished one points at the next episode and shows no bar at all, because a
+ * zero-width bar is a lie about progress that has not been made.
+ */
+function ContinueCard({
   entry,
   onRemoved,
 }: {
@@ -208,7 +216,6 @@ export function ResumeCard({
   onRemoved?: (slug: string) => void;
 }) {
   const { t } = useI18n();
-  const router = useRouter();
   const target = resumeEpisode(entry);
   if (!target) return null;
 
@@ -216,31 +223,23 @@ export function ResumeCard({
   const isResume = resumeEpisodeStarted(entry);
   const titleHref = `/titles/${title.slug}`;
   const playHref = titleWatchHref(title.slug, target.number, entry.source_selection_key || undefined);
-  const ctaLabel = isResume ? t("home.resumeCta") : t("home.watchCta");
-  const ctaAria = isResume
+  const watchAria = isResume
     ? t("home.resumeCtaAria", { name: title.name, number: target.number })
     : t("home.watchCtaAria", { name: title.name, number: target.number });
   const percent = isResume ? resumeProgressPercent(entry) : 0;
   const remaining = isResume ? formatRemaining(remainingSeconds(entry), t) : "";
 
   return (
-    <li className={styles.continueCard} onClick={() => router.push(titleHref)}>
-      {/* The poster duplicates the title link for pointer users; tabIndex -1
-          keeps it out of the keyboard order so the title stays the one stop. */}
-      <Link
-        className={styles.continuePoster}
-        href={titleHref}
-        tabIndex={-1}
-        aria-hidden="true"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <li className={styles.continueCard}>
+      <Link className={styles.continueWatch} href={playHref} aria-label={watchAria} />
+      <span className={styles.continuePoster}>
         {title.poster_url ? (
           <Image
             className={styles.continuePosterArt}
             src={title.poster_url}
             alt=""
             fill
-            sizes="64px"
+            sizes="190px"
             quality={80}
             referrerPolicy="no-referrer"
           />
@@ -249,18 +248,12 @@ export function ResumeCard({
             {title.name.slice(0, 1).toUpperCase()}
           </span>
         )}
-      </Link>
-      <div className={styles.continueCardBody}>
-        <div className={styles.continueTop}>
-          <Link
-            className={styles.continueTitle}
-            href={titleHref}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {title.name}
-          </Link>
-          {onRemoved && <ContinueMenu entry={entry} onRemoved={onRemoved} />}
-        </div>
+        <span className={styles.continuePlayBadge} aria-hidden="true">
+          <Play weight="fill" size={18} />
+        </span>
+      </span>
+      <span className={styles.continueBody}>
+        <Link className={styles.continueTitle} href={titleHref}>{title.name}</Link>
         <span className={styles.continueMetaLine}>
           {t("home.episodeMeta", { number: target.number })}
         </span>
@@ -269,30 +262,110 @@ export function ResumeCard({
             <span className={styles.continueFill} style={{ width: `${percent}%` }} />
           </span>
         )}
-        <div className={styles.continueBottom}>
-          <span className={styles.continueNote}>
-            {isResume ? remaining : t("home.nextEpisodeLabel")}
-          </span>
-          <Link
-            className={styles.continueCta}
-            href={playHref}
-            aria-label={ctaAria}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Play aria-hidden="true" weight="fill" size={14} />
-            {ctaLabel}
-          </Link>
-        </div>
-      </div>
+        <span className={styles.continueNote}>
+          {isResume ? remaining : t("home.nextEpisodeLabel")}
+        </span>
+      </span>
+      {onRemoved && <ContinueMenu entry={entry} onRemoved={onRemoved} />}
     </li>
   );
 }
 
-/** Placeholder grid sized like the real block so the page does not jump. */
+/**
+ * Heading, arrows and rail for one shelf of resume cards.
+ *
+ * The arrows come before "Все →" in the DOM so the keyboard order is
+ * ← → Все → card 1 → card 2 …, matching the visual reading order.
+ */
+function ContinueShelf({
+  entries,
+  onRemoved,
+}: {
+  entries: ContinueWatchingEntry[];
+  onRemoved?: (slug: string) => void;
+}) {
+  const { t } = useI18n();
+  const railRef = useRef<HTMLUListElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: true });
+
+  const sync = useCallback(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const max = rail.scrollWidth - rail.clientWidth;
+    // 2px of slack: fractional layout widths otherwise leave an arrow enabled
+    // at the very end with nothing left to scroll.
+    setEdges({ start: rail.scrollLeft <= 2, end: max <= 2 || rail.scrollLeft >= max - 2 });
+  }, []);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    sync();
+    rail.addEventListener("scroll", sync, { passive: true });
+    const observer = new ResizeObserver(sync);
+    observer.observe(rail);
+    return () => {
+      rail.removeEventListener("scroll", sync);
+      observer.disconnect();
+    };
+  }, [sync, entries.length]);
+
+  function step(direction: -1 | 1) {
+    const rail = railRef.current;
+    if (!rail) return;
+    const distance = Math.min(rail.clientWidth * 0.8, CARD_WIDTH * 3 + CARD_GAP * 2);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    rail.scrollBy({ left: direction * distance, behavior: reduced ? "auto" : "smooth" });
+  }
+
+  return (
+    <section className={styles.continueSection} aria-label={t("home.continueWatching")}>
+      <div className="section-heading">
+        <div className={styles.shelfHeading}>
+          <h2>{t("home.continueWatching")}</h2>
+        </div>
+        <div className={styles.continueHeadingActions}>
+          <button
+            type="button"
+            className={styles.continueArrow}
+            aria-label={t("rail.scrollBack")}
+            disabled={edges.start}
+            onClick={() => step(-1)}
+          >
+            <CaretLeft aria-hidden="true" size={18} weight="bold" />
+          </button>
+          <button
+            type="button"
+            className={styles.continueArrow}
+            aria-label={t("rail.scrollForward")}
+            disabled={edges.end}
+            onClick={() => step(1)}
+          >
+            <CaretRight aria-hidden="true" size={18} weight="bold" />
+          </button>
+          <Link href="/history">{t("home.continueAll")}</Link>
+        </div>
+      </div>
+      <ul className={styles.continueRail} ref={railRef}>
+        {entries.map((entry) => (
+          <ContinueCard entry={entry} key={entry.title.slug} onRemoved={onRemoved} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Placeholder rail sized like the real block so the page does not jump. */
 function ContinueSkeleton() {
+  const { t } = useI18n();
   return (
     <section className={styles.continueSection} aria-hidden="true">
-      <ul className={styles.continueList}>
+      <div className="section-heading">
+        <div className={styles.shelfHeading}>
+          <h2>{t("home.continueWatching")}</h2>
+        </div>
+      </div>
+      <ul className={styles.continueRail}>
         {Array.from({ length: SKELETON_COUNT }, (_, index) => (
           <li key={index} className={`${styles.continueCard} ${styles.continueCardSkeleton}`}>
             <span className={styles.continueSkeletonPoster} />
@@ -358,10 +431,10 @@ function GuestHero({ featured }: { featured?: CatalogItem }) {
 }
 
 /**
- * Home opening block: a compact two-column grid of resume cards, at most six,
- * newest activity first. No giant featured card, no per-card synopsis, and the
- * section is hidden outright when there is nothing to resume -- an error must
- * never hold up the rest of the page.
+ * Home opening block: one horizontal rail of resume cards, newest activity
+ * first. The poster is the visual anchor, there is no persistent CTA on any
+ * card, and the section is hidden outright when there is nothing to resume --
+ * an error must never hold up the rest of the page.
  */
 export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount?: number; featured?: CatalogItem }) {
   const { t } = useI18n();
@@ -382,31 +455,20 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
     );
   }
 
-  const entries = state.entries.filter((entry) => !removed.includes(entry.title.slug));
+  const entries = state.entries
+    .filter((entry) => !removed.includes(entry.title.slug))
+    .slice(0, VISIBLE_LIMIT);
   if (entries.length === 0) return null;
 
-  const visible = entries.slice(0, VISIBLE_LIMIT);
-
   return (
-    <section className={styles.continueSection} aria-label={t("home.continueWatching")}>
-      <div className="section-heading">
-        <div className={styles.shelfHeading}>
-          <h2>{t("home.continueWatching")}</h2>
-        </div>
-        <Link href="/history">{t("home.continueAll")}</Link>
-      </div>
-      <ul className={styles.continueList}>
-        {visible.map((entry) => (
-          <ResumeCard
-            entry={entry}
-            key={entry.title.slug}
-            onRemoved={(slug) => {
-              setRemoved((value) => [...value, slug]);
-              setUndoSlug(slug);
-            }}
-          />
-        ))}
-      </ul>
+    <>
+      <ContinueShelf
+        entries={entries}
+        onRemoved={(slug) => {
+          setRemoved((value) => [...value, slug]);
+          setUndoSlug(slug);
+        }}
+      />
       {undoSlug && (
         <div className={styles.continueToast} role="status">
           <span>{t("home.continueRemoved")}</span>
@@ -422,35 +484,20 @@ export function ContinueWatchingBlock({ catalogCount, featured }: { catalogCount
           </button>
         </div>
       )}
-    </section>
+    </>
   );
 }
 
-/** Account-hub variant: the same compact cards, silent when there is nothing. */
+/** Account-hub variant: the same rail, silent when there is nothing. */
 export function ResumeShelf() {
-  const { t } = useI18n();
   const state = useContinueWatching();
   const [removed, setRemoved] = useState<string[]>([]);
   if (state.kind !== "ready" || state.entries.length === 0) return null;
-  const entries = state.entries.filter((entry) => !removed.includes(entry.title.slug));
+  const entries = state.entries
+    .filter((entry) => !removed.includes(entry.title.slug))
+    .slice(0, VISIBLE_LIMIT);
   if (entries.length === 0) return null;
   return (
-    <section className={styles.continueSection} aria-label={t("home.continueWatching")}>
-      <div className="section-heading">
-        <div className={styles.shelfHeading}>
-          <h2>{t("home.continueWatching")}</h2>
-        </div>
-        <Link href="/history">{t("home.continueAll")}</Link>
-      </div>
-      <ul className={styles.continueList}>
-        {entries.map((entry) => (
-          <ResumeCard
-            entry={entry}
-            key={entry.title.slug}
-            onRemoved={(slug) => setRemoved((value) => [...value, slug])}
-          />
-        ))}
-      </ul>
-    </section>
+    <ContinueShelf entries={entries} onRemoved={(slug) => setRemoved((value) => [...value, slug])} />
   );
 }

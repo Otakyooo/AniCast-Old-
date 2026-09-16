@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MobileBottomNav, SiteHeader, type NavSection } from "./site-header";
+import { SiteHeader, type NavSection } from "./site-header";
 import { SiteFooter } from "./site-footer";
 
 interface PageShellProps {
@@ -12,9 +12,10 @@ interface PageShellProps {
 }
 
 /**
- * Single owner of the page frame: global header, mobile bottom nav, content
- * width and the optional back link. Pages render only their own content, so
- * the shell markup exists exactly once per route.
+ * Single owner of the page frame: global header, content width and the
+ * optional back link. Pages render only their own content, so the shell markup
+ * exists exactly once per route. Navigation lives in the header at every
+ * breakpoint -- on phones it moves to a second header row.
  */
 export async function PageShell({ active, back, heading, children }: PageShellProps) {
   const hasHeading = Boolean(heading?.eyebrow || heading?.title || heading?.subtitle);
@@ -37,7 +38,6 @@ export async function PageShell({ active, back, heading, children }: PageShellPr
         )}
         {children}
       </main>
-      <MobileBottomNav active={active} />
       <SiteFooter />
     </div>
   );
