@@ -2,6 +2,7 @@ import ast
 import json
 import logging
 import pathlib
+import sys
 from datetime import timedelta
 from typing import Any, cast
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.http import HttpResponse
 from django.test import override_settings
 from django.utils import timezone as dj_timezone
 from rest_framework.test import APIClient
@@ -17,6 +19,7 @@ from rest_framework.test import APIRequestFactory
 
 from common import availability
 from common.logging import SAFE_FIELDS, JsonFormatter
+from common.middleware import ObservabilityMiddleware
 from common.models import AvailabilitySample, DailyVisitStat
 from common.security import constant_time_equals
 from common.throttling import (
@@ -335,8 +338,35 @@ def test_json_formatter_uses_allowlist_and_omits_message():
     record.authorization = "Bearer secret"
     payload = json.loads(JsonFormatter().format(record))
     assert payload["event"] == "http_request_completed"
+    # Interpolated call-site text is where a credential could land, so the
+    # message itself stays out of the payload: the structured fields are the
+    # contract, and the traceback carries an exception's own text.
     assert "secret" not in json.dumps(payload)
     assert "message" not in payload
+    assert "traceback" not in payload
+
+
+def test_json_formatter_keeps_the_traceback_of_a_failure():
+    """An ERROR line used to carry only the exception's type name.
+
+    Every provider-sync failure is logged with ``logger.exception``, so the
+    stack was always on the record and the formatter threw it away: a failed
+    character sync was reported as CharacterSyncError with no clue why, and the
+    5xx that paged in the night had no traceback anywhere in the logs.
+    """
+    try:
+        raise RuntimeError("the underlying cause")
+    except RuntimeError:
+        logger = logging.getLogger("anicast.providers")
+        record = logger.makeRecord(
+            logger.name, logging.ERROR, __file__, 1, "sync failed", (), sys.exc_info(),
+            extra={"event": "character_sync_failed", "title_id": 195},
+        )
+    payload = json.loads(JsonFormatter().format(record))
+    assert payload["exception_type"] == "RuntimeError"
+    assert payload["title_id"] == 195
+    assert "the underlying cause" in payload["traceback"]
+    assert __file__.rsplit("/", 1)[-1] in payload["traceback"]
 
 
 def test_every_safe_field_can_be_passed_as_extra():
@@ -368,6 +398,34 @@ def _extra_keys(node: ast.AST, dicts: dict[str, ast.Dict], seen: frozenset[str] 
         elif isinstance(key, ast.Constant) and isinstance(key.value, str):
             keys.add(key.value)
     return keys
+
+
+def test_observability_middleware_logs_the_request_path():
+    """A 5xx whose line says only ``api`` cannot be traced to a route.
+
+    The request id travels with the record, but it names nothing unless the
+    path it belongs to is there too: the grouped endpoint label stays in the
+    payload for the metrics, the path is what the log reader needs.
+    """
+    records: list[logging.LogRecord] = []
+
+    class Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    logger = logging.getLogger("anicast.request")
+    handler = Capture()
+    logger.addHandler(handler)
+    try:
+        middleware = ObservabilityMiddleware(lambda request: HttpResponse(status=500))
+        request = APIRequestFactory().get("/api/v1/titles/")
+        response = middleware(request)
+    finally:
+        logger.removeHandler(handler)
+
+    assert response.status_code == 500
+    assert [record.path for record in records] == ["/api/v1/titles/"]
+    assert records[0].endpoint == "api"
 
 
 def test_no_call_site_logs_a_field_the_allowlist_drops():

@@ -48,6 +48,11 @@ SAFE_FIELDS = (
     "attempts",
     "expired",
     "channel",
+    # The request path, added by ObservabilityMiddleware. The grouped "endpoint"
+    # label keeps metrics cardinality bounded, but a log line that says only
+    # "api" cannot tell which route 5xx'd, so the full path rides with the
+    # request id.
+    "path",
 )
 
 
@@ -65,5 +70,15 @@ class JsonFormatter(logging.Formatter):
                 payload[field] = value
         if record.exc_info and record.exc_info[0]:
             payload["exception_type"] = record.exc_info[0].__name__
+            # Without the stack, an ERROR line carried only an exception type name
+            # and the actual cause stayed invisible: a failed provider sync was
+            # reported as CharacterSyncError with no clue why, and the 5xx that
+            # paged at night had no traceback anywhere in the logs. The message
+            # itself stays out on purpose -- interpolated call-site text is where
+            # a credential could land, and the traceback already carries the
+            # exception's own text.
+            traceback = self.formatException(record.exc_info)
+            if traceback:
+                payload["traceback"] = traceback.rstrip("\n")
         payload.setdefault("event", "log_record")
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))

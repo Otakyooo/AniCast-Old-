@@ -26,7 +26,7 @@ class ObservabilityMiddleware:
             observe_http(request.method or "OTHER", request.path, 500, duration_ms)
             logger.exception("request failed", extra={
                 "event": "http_request_failed", "request_id": request_id, "method": request.method,
-                "endpoint": endpoint_group(request.path), "status_family": "5xx", "duration_ms": duration_ms,
+                "path": request.path, "endpoint": endpoint_group(request.path), "status_family": "5xx", "duration_ms": duration_ms,
                 "exception_type": type(error).__name__,
             })
             raise
@@ -35,7 +35,7 @@ class ObservabilityMiddleware:
         response["X-Request-ID"] = request_id
         logger.info("request completed", extra={
             "event": "http_request_completed", "request_id": request_id, "method": request.method,
-            "endpoint": endpoint_group(request.path), "status_family": f"{response.status_code // 100}xx",
+            "path": request.path, "endpoint": endpoint_group(request.path), "status_family": f"{response.status_code // 100}xx",
             "duration_ms": duration_ms,
         })
         return response
