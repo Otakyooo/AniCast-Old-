@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from celery.schedules import crontab
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
@@ -29,7 +31,15 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True, "OPTIONS": {"context_processors": ["django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
-DATABASES: dict[str, Any] = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ.get("POSTGRES_DB", "anicast"), "USER": os.environ.get("POSTGRES_USER", "anicast"), "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""), "HOST": os.environ.get("POSTGRES_HOST", "postgres"), "PORT": os.environ.get("POSTGRES_PORT", "5432"), "CONN_MAX_AGE": int(os.environ.get("DJANGO_CONN_MAX_AGE", "60")), "CONN_HEALTH_CHECKS": True}}
+DATABASES: dict[str, Any] = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": os.environ.get("POSTGRES_DB", "anicast"), "USER": os.environ.get("POSTGRES_USER", "anicast"), "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""), "HOST": os.environ.get("POSTGRES_HOST", "postgres"), "PORT": os.environ.get("POSTGRES_PORT", "5432"), "CONN_MAX_AGE": int(os.environ.get("DJANGO_CONN_MAX_AGE", "60")), "CONN_HEALTH_CHECKS": True, "OPTIONS": {
+    # A query that blocks until gunicorn's 30s timeout answers 500 to the viewer
+    # and to the health probe, and nothing in the log explains why: the request
+    # just ran long. A stalled statement failing at 10s keeps the worker free and
+    # turns a hang into a logged, alertable error. Bulk provider imports are many
+    # short statements, so the cap does not reach them.
+    "connect_timeout": int(os.environ.get("DJANGO_PG_CONNECT_TIMEOUT", "5")),
+    "options": f"-c statement_timeout={os.environ.get('DJANGO_PG_STATEMENT_TIMEOUT_MS', '10000')}",
+}}}
 USE_SQLITE = os.environ.get("DJANGO_DATABASE_URL", "").startswith("sqlite")
 if USE_SQLITE:
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
@@ -294,15 +304,19 @@ CELERY_BEAT_SCHEDULE = {
     },
     "sync-kodik-library": {
         "task": "catalog.tasks.sync_kodik_library",
-        "schedule": 3600.0,
+        # The heavy import (thousands of persisted rows) owns its own minute and
+        # stays half an hour from the character sync so their write phases never
+        # land in one checkpoint window: on a single CPU that combination is what
+        # saturated the host and turned into 5xx.
+        "schedule": crontab(minute=12),
     },
     "sync-episode-metadata-library": {
         "task": "catalog.tasks.sync_episode_metadata_library",
-        "schedule": 900.0,
+        "schedule": crontab(minute="5,20,35,50"),
     },
     "sync-character-library": {
         "task": "catalog.tasks.sync_character_library",
-        "schedule": 3600.0,
+        "schedule": crontab(minute=42),
     },
     "probe-site-availability": {
         "task": "common.tasks.probe_site_availability",
