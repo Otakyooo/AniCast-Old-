@@ -1,10 +1,10 @@
 {
   "mainserver": {
-    "BACKEND_IMAGE": "ghcr.io/otakyooo/anicast-backend@sha256:b4ac0b0c9540599d5302b1ed1a82d22064167b2c77088ba348e96e66de215fb6",
-    "RELEASE_SHA": "f12dd8007eb3ce294cb93f5f67c627a90d1bc1f1"
+    "BACKEND_IMAGE": "ghcr.io/otakyooo/anicast-backend@sha256:7e19c83cbdd2170e1133a6e1b0d46ef88d13f10b7cd473588160408a3a7bb6f4",
+    "RELEASE_SHA": "981e9d050e142755c75d65ee49661c4ebd6d1abc"
   },
   "vps": {
-    "FRONTEND_IMAGE": "ghcr.io/otakyooo/anicast-frontend@sha256:01fd99de9ebed84c4b9775d689b8c92dbee139382300a924c8a4b6d6dcbea27e",
-    "RELEASE_SHA": "f12dd8007eb3ce294cb93f5f67c627a90d1bc1f1"
+    "FRONTEND_IMAGE": "ghcr.io/otakyooo/anicast-frontend@sha256:09230f115c0c5a5e312b6505cdb99b2a065f7cec9577124cf9cdac7438c8462a",
+    "RELEASE_SHA": "981e9d050e142755c75d65ee49661c4ebd6d1abc"
   }
 }
