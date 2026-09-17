@@ -14,6 +14,7 @@ broker/results, control и disposable cache. Monitoring не подключае�
 | [006: Next 16](006-next16.md) | Node proxy с nonce, Turbopack в CI, прежние runtime-лимиты и image rollback |
 | [007: последовательный rollout](007-staged-rollout.md) | API readiness до обновления workers; общий порядок deploy/rollback, bulk grace 1900s |
 | [008: поколения откатов](008-rollback-generations.md) | Три поколения манифестов и gate необратимых миграций; дополняет 004/007 |
+| [009: коллекции](009-collections.md) | Владелец, лимиты 50/200, плотный порядок одной инструкцией, публичный доступ по capability-ссылке; новый функционал |
 
 ADR сохраняет контекст решения на дату принятия. При изменении границы сервисов,
 владельца данных или контракта релиза добавить следующее решение и отметить,
