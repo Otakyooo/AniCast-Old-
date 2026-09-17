@@ -23,6 +23,7 @@
 | 12.09: firewall hairpin для проб site-availability | [Релиз](releases/RELEASE-2026-09-12-firewall-hairpin.md) |
 | 12.09: hardening-аудит и фикс каталога (MainServer) | [Релиз](releases/RELEASE-2026-09-12-hardening-catalog.md) |
 | 13.09: пагинация сообщества и франшиз (`83e704e`, оба хоста) | [Релиз](releases/RELEASE-2026-09-13-community-pagination.md) |
+| 17.09: зависимости, python 3.14 / node 26, ремонт GitHub (`981e9d05`, оба хоста) | [Релиз](releases/RELEASE-2026-09-17-deps-runtimes-audit.md) |
 
 Сохранены [аудит 08.09](audits/SYSTEM_AUDIT-2026-09-08.md),
 [прежняя сводка](IMPLEMENTATION_STATUS-2026-09-07.md) и планы:
