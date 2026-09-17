@@ -11,7 +11,7 @@ services:
     # took a 100-second write phase, starving the API into three 5xx. Fewer and
     # larger checkpoints keep the flush inside the import window rather than on
     # top of live traffic.
-    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "checkpoint_timeout=30m", "-c", "max_wal_size=2GB", "-c", "checkpoint_completion_target=0.9"]
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "checkpoint_timeout=30min", "-c", "max_wal_size=2GB", "-c", "checkpoint_completion_target=0.9"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
